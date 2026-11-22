@@ -101,6 +101,7 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
@@ -130,6 +131,8 @@ function homeView() {
       <h2>ملفك مكتمل ${c.percent}%<span class="sp"></span><span class="pill warn">كمّله</span></h2>
       <div class="prog"><div style="width:${c.percent}%"></div></div>
       <div class="muted">ناقص: ${c.missing.map(esc).join('، ')}</div></a>` : ''}
+    <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/mybenefits">
+      <span style="font-size:30px">🎁</span><div style="flex:1"><b>استفاداتي من النقابة</b><div class="muted">المنح والبدلات والدعم والتوفير — كل اللي استفدت بيه</div></div><span class="pill ok">عرض</span></a>
     <div class="tiles">${tiles.map(t => t.soon
       ? `<div class="tile soon"><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></div>`
       : `<a class="tile" href="${esc(t.href)}" target="_blank" rel="noopener"><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></a>`).join('')}</div>`;
@@ -498,6 +501,37 @@ function meetingForm(m) {
     <button class="btn sm sec" type="button" data-act="decAdd">+ قرار</button>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
+// ───────── سجل المزايا ─────────
+const KIND_ICON = { 'منحة': '🎁', 'بدل': '💼', 'جائزة': '🏆', 'دعم': '🤝', 'إعفاء': '🎟️', 'خصم': '📚', 'ميزة عينية': '📦' };
+function benefitsBody(b, title) {
+  if (!b) return '<div class="spin"></div>';
+  const kinds = Object.entries(b.byKind || {});
+  return `<div class="card"><h2>${title}</h2>
+      <div style="font-size:28px;font-weight:800;color:var(--brand)">${money(b.total)} <small style="font-size:14px">ج</small></div>
+      <div class="chips" style="margin-top:8px">${kinds.map(([k, v]) => `<span class="pill">${KIND_ICON[k] || '•'} ${esc(k)}: ${money(v)}</span>`).join('')}</div>
+      ${(b.byYear || []).length > 1 ? `<div style="margin-top:10px">${b.byYear.map(y => kvh('سنة ' + y.year, money(y.total))).join('')}</div>` : ''}</div>
+    <div class="card list">${(b.items || []).map(x => `<div class="li"><div class="av" style="width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#eaf2f8;flex:none">${KIND_ICON[x.kind] || '•'}</div>
+      <div class="nm"><b>${esc(x.category)}</b><span class="muted">${dt(x.date)} · ${esc(x.source)}${x.basis ? ' · ' + esc(x.basis) : ''}${x.board_role ? ' · بصفته ' + esc(x.board_role) : ''}${x.notes ? ' · ' + esc(x.notes) : ''}</span></div>
+      <b>${money(x.amount)}</b></div>`).join('') || '<div class="empty">لا توجد مزايا مسجّلة</div>'}</div>`;
+}
+function benefitsReportView() {
+  const r = S.benRep; if (!r) return '<div class="spin"></div>';
+  const years = (r.byYear || []).map(y => y.year);
+  return `<div class="card"><form id="byf" class="row"><select class="input" style="flex:1" name="year"><option value="">كل السنوات</option>
+      ${years.map(y => `<option ${String(y) === String(r.year) ? 'selected' : ''}>${y}</option>`).join('')}</select><button class="btn">عرض</button></form></div>
+    <div class="tiles" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px">
+      <div class="tile"><i>🎁</i><b>${money(r.total)}</b><small>إجمالي المزايا</small></div>
+      <div class="tile"><i>👥</i><b>${r.beneficiaries}</b><small>مستفيد</small></div></div>
+    <div class="card"><h2>📊 حسب البند</h2>${(r.byCategory || []).map(c => kvh(`${KIND_ICON[c.kind] || ''} ${esc(c.category)} <small class="muted">(${c.people} مستفيد)</small>`, money(c.total))).join('')}</div>
+    ${!r.year ? `<div class="card"><h2>📅 حسب السنة</h2>${(r.byYear || []).map(y => kvh(`${y.year} <small class="muted">(${y.people} مستفيد)</small>`, money(y.total))).join('')}</div>` : ''}
+    <div class="card"><h2>🏛️ مزايا أعضاء المجلس <small class="muted">(ما استفادوا به وهم في المجلس)</small></h2>
+      ${(r.board || []).map(b => `<div class="li" data-person="${b.person_id}" style="cursor:pointer"><div class="nm"><b>${esc(b.full_name)}</b>
+        <span class="muted">${esc(b.role || 'غادر المجلس')} · ${Object.entries(b.byKind || {}).map(([k, v]) => esc(k) + ' ' + Number(v).toLocaleString('ar-EG')).join(' · ')}</span></div>
+        <b>${money(b.total)}</b></div>`).join('') || '<div class="empty">لا شيء</div>'}</div>
+    <div class="card"><h2>🔝 أعلى 20 مستفيداً</h2>${(r.top || []).map(t => `<div class="li" data-person="${t.person_id}" style="cursor:pointer">
+      <div class="nm"><b>${esc(t.full_name)}</b><span class="muted">${esc(t.job_id || '')}</span></div><b>${money(t.total)}</b></div>`).join('')}</div>`;
+}
+
 // ───────── المالية والخزينة ─────────
 const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
 const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
@@ -656,15 +690,26 @@ async function render() {
     if (!S.person || S.person.person.id !== id) {
       app.innerHTML = shell(title, '<div class="spin"></div>');
       const r = await call('GET_PERSON', { id }); if (!r.success) return toast(r.message, true);
-      S.person = r.profile;
+      S.person = r.profile; S.personBen = null;
+      if (can('benefits.view')) { const b = await call('BEN_PERSON', { personId: id }); S.personBen = b.success ? b.benefits : null; }
     }
-    body = personView();
+    body = personView() + (S.personBen ? benefitsBody(S.personBen, '🎁 ما استفاد به من النقابة') : '');
   }
   else if (h.startsWith('#/requests')) {
     title = 'طلبات التعديل'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('LIST_CHANGE_REQUESTS'); S.requests = r.success ? r.items : []; body = requestsView();
   }
   else if (h.startsWith('#/lists')) { title = 'القوائم'; body = listsView(); }
+  else if (h.startsWith('#/mybenefits')) {
+    title = 'استفاداتي'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('BEN_MY'); if (!r.success) return toast(r.message, true);
+    body = benefitsBody(r.benefits, '🎁 كل ما استفدت به من النقابة');
+  }
+  else if (h.startsWith('#/benefits')) {
+    title = 'سجل المزايا'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('BEN_REPORT', { year: S.benYear || '' }); if (!r.success) return toast(r.message, true);
+    S.benRep = r; body = benefitsReportView();
+  }
   else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
     title = 'المالية'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const P = S.finP || {};
@@ -792,6 +837,10 @@ function bindPage() {
   if (df) df.onsubmit = async e => { e.preventDefault(); S.decF = formData(df);
     const r = await busy(df.querySelector('button'), () => call('GOV_LIST_DECISIONS', S.decF));
     S.decisions = r.success ? r.items : []; render(); };
+
+  // ── المزايا ──
+  const byf = $('#byf');
+  if (byf) byf.onsubmit = e => { e.preventDefault(); S.benYear = formData(byf).year; render(); };
 
   // ── المالية ──
   app.querySelectorAll('[data-chq]').forEach(li => li.onclick = () => { location.hash = '#/cheque/' + li.dataset.chq; });

@@ -45,7 +45,7 @@ on conflict do nothing;
 -- مصفوفة مبدئية (قابلة للتعديل من الإدارة) — فصل المهام: المسجِّل ≠ المعتمِد ≠ الصارف
 insert into core.role_permissions(role, permission, max_amount) values
   ('MEMBER','profile.self.view',null),('MEMBER','profile.self.edit',null),
-  ('MEMBER','activities.book.self',null),('MEMBER','grants.request',null),('MEMBER','benefits.view',null),
+  ('MEMBER','activities.book.self',null),('MEMBER','grants.request',null),
   ('NON_MEMBER','profile.self.view',null),('NON_MEMBER','profile.self.edit',null),('NON_MEMBER','activities.book.self',null),
   ('BOARD','profile.view',null),('BOARD','governance.view',null),('BOARD','finance.view',null),
   ('BOARD','benefits.view',null),('BOARD','grants.review',null),
