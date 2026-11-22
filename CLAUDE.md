@@ -2,6 +2,7 @@
 
 **تحدّث مع المستخدم بالعربية دائماً.** المستخدم يعمل غالباً من الموبايل؛ نفّذ بنفسك ما تستطيع.
 
+- **ابدأ بـ `HANDOFF.md`** (أين توقفنا والخطوات التالية بالترتيب).
 - **المرجع الأساسي:** `docs/ARCHITECTURE.md` (اتفاقية المعمارية والتنفيذ). اقرأها أولاً، وحدّث «سجل القرارات» وجدول المراحل مع كل تقدم.
 - **ممنوع المساس بمنظومة الكتب:** مستودع `we-books`، schema `books`، دالة `books-api`. الربط معها قراءة فقط.
 - **Supabase:** نفس مشروع mynekaba (`bulfwclnhbwpzqwnxjie`) بـ schemas جديدة فقط (core/governance/finance/treasury/benefits/activities/grants/audit/legacy). لا تعديل على `books` أو `public`.
