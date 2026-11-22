@@ -132,6 +132,7 @@ function homeView() {
       <h2>ملفك مكتمل ${c.percent}%<span class="sp"></span><span class="pill warn">كمّله</span></h2>
       <div class="prog"><div style="width:${c.percent}%"></div></div>
       <div class="muted">ناقص: ${c.missing.map(esc).join('، ')}</div></a>` : ''}
+    ${installCard()}
     <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/mybenefits">
       <span style="font-size:30px">🎁</span><div style="flex:1"><b>استفاداتي من النقابة</b><div class="muted">المنح والبدلات والدعم والتوفير — كل اللي استفدت بيه</div></div><span class="pill ok">عرض</span></a>
     <div class="tiles">${tiles.map(t => t.soon
@@ -1016,6 +1017,22 @@ async function loadGov() { const r = await call('GOV_OVERVIEW'); if (r.success) 
 
 // ───────── الموجّه ─────────
 async function loadLists() { const r = await call('GET_LISTS'); if (r.success) S.lists = r.lists || {}; }
+// ───────── التثبيت كتطبيق (PWA) ─────────
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (location.hash.startsWith('#/home')) render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('اتثبّت التطبيق ✓'); });
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+function installCard() {
+  if (isStandalone()) return '';
+  if (installEvt) return `<div class="card row" style="align-items:center"><span style="font-size:28px">📲</span>
+    <div style="flex:1"><b>ثبّت المنصة على موبايلك</b><div class="muted">تفتح من أيقونة على الشاشة زي أي تطبيق</div></div>
+    <button class="btn sm" data-act="install">تثبيت</button></div>`;
+  if (isIOS()) return `<div class="card row" style="align-items:center"><span style="font-size:28px">📲</span>
+    <div style="flex:1"><b>ثبّت المنصة على الآيفون</b><div class="muted">من Safari: زر المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية»</div></div></div>`;
+  return '';
+}
+
 async function boot() {
   if (!S.token) { location.hash = '#/login'; return render(); }
   const r = await call('GET_ME');
@@ -1467,6 +1484,7 @@ function bindPage() {
   if (repf) repf.onsubmit = e => { e.preventDefault(); S.repYear = repf.year.value; render(); };
   on('repPrint', () => window.print());
 
+  on('install', async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); });
   // ── المزايا ──
   const byf = $('#byf');
   if (byf) byf.onsubmit = e => { e.preventDefault(); S.benYear = formData(byf).year; render(); };
