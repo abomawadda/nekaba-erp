@@ -101,11 +101,11 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة', can('devices.manage') || can('treasury.receipt')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
-       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/account', '⚙️', 'حسابي', true]];
+       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/reports', '📊', 'التقارير', can('reports.view')], ['#/account', '⚙️', 'حسابي', true]];
   return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
       <button data-act="logout">خروج</button></div>
     <div class="wrap">${body}</div>
@@ -121,7 +121,7 @@ function homeView() {
     { i: '🚌', b: 'الرحلات والفعاليات', s: 'احجز لك ولأسرتك', href: '#/trips', internal: true },
     { i: '🏖️', b: 'المصايف', s: 'قدّم على مصيف الصيف', href: '#/summer', internal: true },
     { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'زواج، مولود، وفاة، تفوق، علاج' : 'لأعضاء النقابة العامة', href: '#/grants', internal: true },
-    { i: '📱', b: 'أجهزة بالتقسيط', s: 'بالتقسيط والاستقطاع من المرتب', href: '#/devices', internal: true },
+    { i: '📱', b: 'أجهزة بالتقسيط', s: 'عروض بالتقسيط — احجز', href: '#/devices', internal: true },
     { i: '🌙', b: 'الإفطار والفعاليات', s: 'قريباً', soon: true },
   ];
   return `<div class="card"><h2>أهلاً ${esc((p.full_name || '').split(' ')[0])} 👋</h2>
@@ -738,7 +738,7 @@ function grantCard(g, admin) {
     ${g.status === 'ناقص مستندات' && !admin ? '<div class="alert warn">سلّم أصل المستندات الناقصة لمكتب النقابة.</div>' : ''}
     ${g.reject_reason ? `<div class="alert bad">سبب الرفض: ${esc(g.reject_reason)}</div>` : ''}
     ${g.cheque ? kvh('الشيك', `${esc(g.cheque.cheque_no || 'بدون رقم')} — ${dt(g.cheque.issue_date)}`) : ''}
-    ${g.decision ? kvh('القرار', esc(g.decision.decision_no)) : ''}
+    ${g.decision ? kvh('القرار', esc(g.decision.decision_no)) : ''}${g.exception_note ? kvh('استثناء', esc(g.exception_note)) : ''}
     <div class="row" style="margin-top:8px">
       ${!admin && ['مقدَّم', 'ناقص مستندات', 'مستوفى'].includes(g.status) ? `<button class="btn sm bad" data-act="grtCancel" data-id="${g.id}">إلغاء الطلب</button>` : ''}
       ${admin && g.status === 'مستوفى' && can('grants.approve') ? `<button class="btn sm" data-act="grtApprove" data-id="${g.id}" data-amt="${g.amount || ''}">اعتماد</button>` : ''}
@@ -769,70 +769,81 @@ function grantsAdminView() {
       <button class="btn sm sec" data-act="grtRate" style="margin-top:8px">تعديل مبلغ بقرار</button></div>` : ''}`;
 }
 
-// ───────── الأجهزة بالتقسيط ─────────
-const DEV_ST = { 'مسدد': 'ok', 'مسلّم': 'ok', 'معتمد': '', 'مطلوب': 'warn', 'مرفوض': 'bad', 'ملغى': 'bad' };
+// ───────── الأجهزة (خدمة إعلان وحجز فقط — التقسيط والسداد مع المورد) ─────────
+const DEV_ST = { 'مسلّم': 'ok', 'مؤكد': 'ok', 'مطلوب': 'warn', 'مرفوض': 'bad', 'ملغى': 'bad' };
 const devPill = st => `<span class="pill ${DEV_ST[st] || ''}">${esc(st)}</span>`;
 function devOrderCard(o, admin) {
-  const paid = (o.installments || []).filter(i => +i.paid >= +i.amount).length;
-  return `<div class="card"><h2>📱 ${esc(o.item.name)} <small class="muted">${esc(o.order_no)}</small><span class="sp"></span>${devPill(o.status)}</h2>
-    ${admin ? kvh('العضو', `${esc(o.person.full_name)} <small class="muted">${esc(o.person.job_id || '')}</small>`) : kvh('العرض', esc(o.offer.title))}
-    ${kvh('السعر', money(o.price))}${+o.down_payment ? kvh('المقدم', money(o.down_payment)) : ''}
-    ${kvh('القسط', `${money(o.monthly)} × ${o.months} شهر <small class="muted">(${esc(o.method)})</small>`)}
-    ${+o.subsidy ? kvh('دعم النقابة', money(o.subsidy)) : ''}
-    ${o.installments.length ? kvh('المتبقي', `${money(o.remaining)} <small class="muted">(${paid}/${o.installments.length} قسط)</small>`) : ''}
+  return `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${admin ? esc(o.person.full_name) + ' <small class="muted">' + esc(o.person.job_id || '') + (o.person.phone ? ' · ' + esc(o.person.phone) : '') + '</small>' : '📱 ' + esc(o.item.name)}</b>${devPill(o.status)}</div>
+    <div class="muted">${admin ? esc(o.item.name) + ' · ' : ''}${esc(o.order_no)} · ${esc(o.method)}${o.months ? ' ' + o.months + ' شهر' : ''} · ${money(o.offer_price)}${o.notes ? ' · ' + esc(o.notes) : ''}</div>
     ${o.reject_reason ? `<div class="alert bad">${esc(o.reject_reason)}</div>` : ''}
-    ${o.installments.length ? `<details><summary class="muted">جدول الأقساط</summary>${o.installments.map(i => kvh(`${i.seq}. ${dt(String(i.due_month).slice(0, 7))}`,
-      `${money(i.amount)} ${+i.paid >= +i.amount ? '✅ ' + esc(i.paid_via || '') : ''}`)).join('')}</details>` : ''}
-    <div class="row" style="margin-top:8px">
-      ${!admin && o.status === 'مطلوب' ? `<button class="btn sm bad" data-act="devCancel" data-id="${o.id}">إلغاء الطلب</button>` : ''}
-      ${admin && o.status === 'مطلوب' && can('devices.manage') ? `<button class="btn sm" data-act="devDecide" data-v="1" data-id="${o.id}">اعتماد</button><button class="btn sm bad" data-act="devDecide" data-v="0" data-id="${o.id}">رفض</button>` : ''}
-      ${admin && o.status === 'معتمد' && can('devices.manage') ? `<button class="btn sm gold" data-act="devDeliver" data-id="${o.id}">تسليم${+o.down_payment ? ' وتحصيل المقدم' : ''}</button>` : ''}
-      ${admin && o.status === 'مسلّم' && can('treasury.receipt') ? `<button class="btn sm sec" data-act="devPay" data-id="${o.id}" data-rest="${o.remaining}">قسط نقدي</button>` : ''}</div></div>`;
+    <div class="row" style="margin-top:4px">
+      ${!admin && ['مطلوب', 'مؤكد'].includes(o.status) ? `<button class="btn sm bad" data-act="devCancel" data-id="${o.id}">إلغاء الحجز</button>` : ''}
+      ${admin && o.status === 'مطلوب' ? `<button class="btn sm" data-act="devDecide" data-s="مؤكد" data-id="${o.id}">تأكيد</button>` : ''}
+      ${admin && o.status === 'مؤكد' ? `<button class="btn sm gold" data-act="devDecide" data-s="مسلّم" data-id="${o.id}">اتسلّم</button>` : ''}
+      ${admin && ['مطلوب', 'مؤكد'].includes(o.status) ? `<button class="btn sm bad" data-act="devDecide" data-s="مرفوض" data-id="${o.id}">رفض</button>` : ''}</div></div>`;
 }
 function devicesView() {
-  const offers = (S.devOffers || []).filter(f => f.status === 'الطلب مفتوح' || f.myOrder);
-  return `${offers.map(f => `<div class="card"><h2>🛒 ${esc(f.title)}<span class="sp"></span><span class="pill">${esc(f.status)}</span></h2>
-      <div class="muted">${esc(f.supplier)}${f.order_close ? ' · آخر طلب ' + dt(f.order_close) : ''}${f.first_due ? ' · أول قسط ' + dt(String(f.first_due).slice(0, 7)) : ''}</div>
-      ${f.myOrder ? '' : f.items.map(i => `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${esc(i.name)}</b><b>${money(i.member_price)}</b></div>
-        <div class="muted">${i.market_price ? 'سعر السوق ' + Number(i.market_price).toLocaleString('ar-EG') + ' · ' : ''}حتى ${i.max_months} شهر${i.down_pct ? ' · مقدم ' + i.down_pct + '%' : ''}${i.left !== null && i.left !== undefined ? ' · متبقي ' + i.left : ''}</div>
-        ${f.status === 'الطلب مفتوح' && (i.left === null || i.left === undefined || i.left > 0) ? `<form class="row" data-devorder="${i.id}" style="margin-top:4px">
-          <select class="input" name="months" style="flex:2" title="عدد الشهور × القسط">${Array.from({ length: i.max_months }, (_, k) => i.max_months - k).map(m => `<option value="${m}">${m}×${Math.ceil((i.member_price * (1 - i.down_pct / 100)) / m)}</option>`).join('')}</select>
-          <select class="input" name="method" style="flex:1"><option>استقطاع</option><option>نقدي</option></select><button class="btn sm">اطلب</button></form>` : ''}</div>`).join('')}</div>
-      ${f.myOrder ? devOrderCard(f.myOrder, false) : ''}`).join('') || '<div class="card empty">لا توجد عروض حالياً</div>'}
-    ${S.devCap ? `<div class="muted" style="margin:6px">سقف الاستقطاع الشهري: ${S.devCap} ج</div>` : ''}
-    ${(S.devMy || []).filter(o => !(S.devOffers || []).some(f => f.myOrder && f.myOrder.id === o.id)).map(o => devOrderCard(o, false)).join('')}`;
+  const offers = (S.devOffers || []).filter(f => f.status === 'الطلب مفتوح' || f.myOrders.length);
+  return `<div class="alert">خدمة إعلان وحجز: النقابة بتعلن العروض وتجمع الحجوزات، والتقسيط والسداد بيتم مع المورد مباشرة.</div>
+  ${offers.map(f => `<div class="card"><h2>🛒 ${esc(f.title)}<span class="sp"></span><span class="pill">${esc(f.status)}</span></h2>
+      <div class="muted">${esc(f.supplier)}${f.contact ? ' · ' + esc(f.contact) : ''}${f.order_close ? ' · آخر حجز ' + dt(f.order_close) : ''}</div>
+      ${f.notes ? `<div style="margin-top:6px">${esc(f.notes)}</div>` : ''}
+      ${f.items.map(i => `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${esc(i.name)}</b><b>${money(i.offer_price)}</b></div>
+        <div class="muted">${i.market_price ? 'سعر السوق ' + Number(i.market_price).toLocaleString('ar-EG') + ' · ' : ''}تقسيط حتى ${i.max_months} شهر${i.left !== null && i.left !== undefined ? ' · متبقي ' + i.left : ''}${i.notes ? ' · ' + esc(i.notes) : ''}</div>
+        ${f.status === 'الطلب مفتوح' && !f.myOrders.some(o => o.item_id === i.id) && (i.left === null || i.left === undefined || i.left > 0) ? `<form class="row" data-devorder="${i.id}" style="margin-top:4px">
+          <select class="input" name="method" style="flex:1"><option>تقسيط</option><option>كاش</option></select>
+          <select class="input" name="months" style="flex:1">${Array.from({ length: i.max_months }, (_, k) => i.max_months - k).map(m => `<option value="${m}">${m} شهر</option>`).join('')}</select>
+          <button class="btn sm">احجز</button></form>` : ''}</div>`).join('')}
+      ${f.myOrders.length ? '<b style="display:block;margin-top:8px">حجوزاتي</b>' + f.myOrders.map(o => devOrderCard(o, false)).join('') : ''}</div>`).join('') || '<div class="card empty">لا توجد عروض حالياً</div>'}`;
 }
 function devAdminView() {
   const f = S.devOffer;
-  return `<div class="tabs" style="margin-bottom:10px">${[['offers', 'العروض والطلبات'], ['runs', 'كشوف الاستقطاع']].map(([k, t]) =>
-      `<button data-devtab="${k}" class="${(S.devTab || 'offers') === k ? 'on' : ''}">${t}</button>`).join('')}</div>` + ((S.devTab || 'offers') === 'runs'
-    ? `${can('devices.manage') ? `<div class="card"><form id="drf" class="row"><input class="input" type="month" name="month" style="flex:1" value="${new Date().toISOString().slice(0, 7)}"><button class="btn">إعداد/تحديث كشف الشهر</button></form></div>` : ''}
-       ${(S.devRuns || []).map(r => `<div class="card"><h2>🧾 كشف ${esc(String(r.month).slice(0, 7))}<span class="sp"></span><span class="pill ${r.status === 'محصّل' ? 'ok' : ''}">${esc(r.status)}</span></h2>
-         ${r.lines.map(l => kvh(`${esc(l.full_name)} <small class="muted">${esc(l.job_id || '')}</small>`, money(l.amount))).join('')}
-         ${kvh('<b>الإجمالي</b>', `<b>${money(r.total)}</b>`)}
-         <div class="row" style="margin-top:8px">${r.status === 'مسودة' && (can('treasury.payment.approve') || can('treasury.receipt')) ? `<button class="btn sm" data-act="runApprove" data-id="${r.id}">اعتماد (أُرسل لجهة العمل)</button>` : ''}
-           ${r.status === 'معتمد' && can('treasury.receipt') ? `<button class="btn sm gold" data-act="runReceive" data-id="${r.id}">تحصيل التحويل</button>` : ''}</div></div>`).join('') || '<div class="card empty">لا كشوف</div>'}`
-    : `${can('devices.manage') ? '<div class="card"><button class="btn" data-act="devNew">+ عرض جديد</button></div>' : ''}
-       ${(S.devOffers || []).map(o => `<div class="card" ${f && f.id === o.id ? 'style="outline:2px solid var(--brand)"' : ''}><h2>🛒 ${esc(o.title)} <small class="muted">${esc(o.code)}</small><span class="sp"></span><span class="pill">${esc(o.status)}</span></h2>
-         <div class="muted">${esc(o.supplier)} · ${o.items.length} صنف</div>
-         <div class="row" style="margin-top:8px"><button class="btn sm sec" data-act="devOrders" data-id="${o.id}">الطلبات</button>
-           ${can('devices.manage') ? `<button class="btn sm sec" data-act="devEdit" data-id="${o.id}">تعديل</button>
-             ${o.status === 'مسودة' || o.status === 'الطلب مقفول' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مفتوح" data-id="${o.id}">فتح الطلب</button>` : ''}
-             ${o.status === 'الطلب مفتوح' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مقفول" data-id="${o.id}">قفل الطلب</button>` : ''}` : ''}</div></div>`).join('')}
-       ${f ? `<h3 style="margin:12px 4px 6px">طلبات: ${esc(f.title)}</h3>${(S.devOrders || []).map(o => devOrderCard(o, true)).join('') || '<div class="card empty">لا طلبات</div>'}` : ''}`);
+  return `<div class="card"><button class="btn" data-act="devNew">+ عرض جديد</button></div>
+    ${(S.devOffers || []).map(o => `<div class="card" ${f && f.id === o.id ? 'style="outline:2px solid var(--brand)"' : ''}><h2>🛒 ${esc(o.title)}<span class="sp"></span><span class="pill">${esc(o.status)}</span></h2>
+      <div class="muted">${esc(o.supplier)} · ${o.items.length} صنف · ${o.orderCount} حجز</div>
+      <div class="row" style="margin-top:8px"><button class="btn sm sec" data-act="devOrders" data-id="${o.id}">الحجوزات</button>
+        <button class="btn sm sec" data-act="devEdit" data-id="${o.id}">تعديل</button>
+        ${o.status === 'مسودة' || o.status === 'الطلب مقفول' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مفتوح" data-id="${o.id}">فتح الحجز</button>` : ''}
+        ${o.status === 'الطلب مفتوح' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مقفول" data-id="${o.id}">قفل الحجز</button>` : ''}
+        ${o.status === 'الطلب مقفول' ? `<button class="btn sm sec" data-act="devStatus" data-s="منتهٍ" data-id="${o.id}">إنهاء</button>` : ''}</div></div>`).join('')}
+    ${f ? `<div class="card"><h2>📋 حجوزات: ${esc(f.title)} (${(S.devOrders || []).length})</h2>${(S.devOrders || []).map(o => devOrderCard(o, true)).join('') || '<div class="empty">لا حجوزات</div>'}</div>` : ''}`;
 }
 function devOfferForm(o) {
   o = o || {};
-  const il = (o.items || []).map(i => [i.name, i.supplier_price ?? '', i.member_price, i.market_price ?? '', i.max_months, i.down_pct, i.stock ?? ''].join(' | ')).join('\n');
+  const il = (o.items || []).map(i => [i.name, i.offer_price, i.market_price ?? '', i.max_months, i.stock ?? '', i.notes ?? ''].join(' | ')).join('\n');
   return `<h3>${o.id ? 'تعديل العرض' : 'عرض جديد'}</h3><form id="dof">
     <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(o.title)}" required></label>
-    <label class="f"><span>المعرض/المورد</span><input class="input" name="supplier" value="${esc(o.supplier)}" required></label>
-    <div class="grid2"><label class="f"><span>آخر موعد للطلب</span><input class="input" type="date" name="order_close" value="${esc(o.order_close || '')}"></label>
-      <label class="f"><span>أول شهر قسط</span><input class="input" type="date" name="first_due" value="${esc(o.first_due || '')}"></label></div>
-    <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${(S.decOpts || []).map(d => `<option value="${d.id}" ${d.id === o.decision_id ? 'selected' : ''}>${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('')}</select></label>
-    <label class="f"><span>الأصناف — سطر لكل صنف: الاسم | سعر المورد | سعر العضو | سعر السوق | أقصى شهور | مقدم % | الكمية</span>
-      <textarea class="input" name="items" rows="4" placeholder="ثلاجة 16 قدم | 8000 | 9000 | 10000 | 10 | 10 |">${esc(il)}</textarea></label>
+    <div class="grid2"><label class="f"><span>المعرض/المورد</span><input class="input" name="supplier" value="${esc(o.supplier)}" required></label>
+      <label class="f"><span>التواصل</span><input class="input" name="contact" value="${esc(o.contact)}"></label></div>
+    <label class="f"><span>آخر موعد للحجز</span><input class="input" type="date" name="order_close" value="${esc(o.order_close || '')}"></label>
+    <label class="f"><span>تفاصيل/شروط العرض</span><textarea class="input" name="notes" rows="2">${esc(o.notes)}</textarea></label>
+    <label class="f"><span>الأصناف — سطر لكل صنف: الاسم | سعر العرض | سعر السوق | أقصى شهور | الكمية | ملاحظات</span>
+      <textarea class="input" name="items" rows="4" placeholder="غسالة 8 كيلو | 6500 | 7000 | 10 | |">${esc(il)}</textarea></label>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+
+// ───────── التقارير الشاملة ─────────
+function reportsView() {
+  const r = S.rep; if (!r) return '<div class="spin"></div>';
+  const m = r.members, b = r.benefits, f = r.finance, num = v => Number(v || 0).toLocaleString('ar-EG');
+  const kv2 = o => Object.entries(o || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => kvh(esc(k), num(v))).join('');
+  return `<div class="card"><form id="repf" class="row"><select class="input" style="flex:1" name="year"><option value="">كل السنوات</option>
+      ${(r.years || []).map(y => `<option ${String(y) === String(r.year) ? 'selected' : ''}>${y}</option>`).join('')}</select><button class="btn">عرض</button>
+      <button class="btn sec" type="button" data-act="repPrint">طباعة</button></form></div>
+    <div class="tiles" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px">
+      <div class="tile"><i>⬆️</i><b>${money(f.revenue)}</b><small>الإيرادات</small></div>
+      <div class="tile"><i>⬇️</i><b>${money(f.expense)}</b><small>المصروفات</small></div>
+      <div class="tile"><i>🎁</i><b>${money(b.total)}</b><small>المزايا (${num(b.people)} مستفيد)</small></div>
+      <div class="tile"><i>🏦</i><b>${money(f.bank)}</b><small>البنك الدفتري (الآن)</small></div></div>
+    <div class="card"><h2>👥 الأعضاء (${num(m.total)})</h2><b>التنظيم</b>${kv2(m.byOrg)}<b style="display:block;margin-top:8px">الحالة</b>${kv2(m.byState)}</div>
+    <div class="card"><h2>🎁 المزايا حسب البند</h2>${(b.byCategory || []).map(c => kvh(`${esc(c.category)} <small class="muted">(${num(c.people)})</small>`, money(c.total))).join('') || '<div class="empty">لا شيء</div>'}</div>
+    <div class="card"><h2>🎁 المنح</h2>${(r.grants.byType || []).map(g => kvh(`${esc(g.type)} <small class="muted">(${num(g.paid)} مصروفة${g.open ? ' · ' + num(g.open) + ' تحت الإجراء' : ''})</small>`, money(g.amount))).join('') || '<div class="empty">لا طلبات</div>'}</div>
+    <div class="card"><h2>🚌 الأنشطة (${(r.activities || []).length})</h2>${(r.activities || []).map(a => `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${esc(a.title)}</b><small class="muted">${esc(a.kind)} · ${dt(a.date)}</small></div>
+      <div class="muted">${num(a.people)} مشارك · محصّل ${num(a.collected)} · دعم ${num(a.subsidy)} · مصروفات ${num(a.expenses)}</div></div>`).join('') || '<div class="empty">لا أنشطة</div>'}</div>
+    ${(r.summer || []).length ? `<div class="card"><h2>🏖️ المصايف</h2>${r.summer.map(s => kvh(esc(s.title) + ' <small class="muted">' + esc(s.status) + '</small>', `${num(s.applied)} طلب · ${num(s.slots)} خانة · دعم ${num(s.subsidy)}`)).join('')}</div>` : ''}
+    <div class="card"><h2>📱 الأجهزة (خدمة)</h2>${kvh('عروض', num(r.devices.offers))}${kvh('حجوزات', num(r.devices.bookings))}${kvh('اتسلّمت', num(r.devices.delivered))}</div>
+    <div class="card"><h2>📒 الإيرادات والمصروفات حسب الحساب</h2>${(f.byAccount || []).map(a => kvh(`<small class="muted">${esc(a.code)}</small> ${esc(a.name)} <small class="muted">(${esc(a.type)})</small>`, money(a.amount))).join('')}
+      ${kvh('<b>الفائض / (العجز)</b>', `<b>${money(+f.revenue - +f.expense)}</b>`)}${kvh('الخزينة الآن', money(f.cash))}${kvh('عُهد تحت التسوية الآن', money(f.custody))}</div>`;
 }
 
 // ───────── سجل المزايا ─────────
@@ -1054,15 +1065,22 @@ async function render() {
     if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
     S.trip = g.activity; S.actBk = b.items; S.actSum = b.summary; body = actAdminView();
   }
+  else if (h.startsWith('#/reports')) {
+    title = 'التقارير الشاملة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    if (S.repYear === undefined) S.repYear = String(new Date().getFullYear());
+    const r = await call('REP_OVERVIEW', { year: S.repYear }); if (!r.success) return toast(r.message, true);
+    S.rep = r.report; body = reportsView();
+  }
   else if (h.startsWith('#/devadmin')) {
-    title = 'الأجهزة بالتقسيط'; app.innerHTML = shell(title, '<div class="spin"></div>');
-    const [o, rr] = await Promise.all([call('DEV_OFFERS'), (S.devTab === 'runs' ? call('DEV_RUNS') : Promise.resolve({}))]);
-    S.devOffers = o.success ? o.items : []; S.devRuns = rr.success ? rr.items : []; body = devAdminView();
+    title = 'عروض الأجهزة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const o = await call('DEV_OFFERS'); S.devOffers = o.success ? o.items : [];
+    if (S.devOffer) { const r = await call('DEV_ORDERS', { offerId: S.devOffer.id }); S.devOrders = r.success ? r.items : []; }
+    body = devAdminView();
   }
   else if (h.startsWith('#/devices')) {
     title = 'أجهزة بالتقسيط'; app.innerHTML = shell(title, '<div class="spin"></div>');
-    const [o, m] = await Promise.all([call('DEV_OFFERS'), call('DEV_MY')]);
-    S.devOffers = o.success ? o.items : []; S.devCap = o.cap; S.devMy = m.success ? m.items : []; body = devicesView();
+    const o = await call('DEV_OFFERS');
+    S.devOffers = o.success ? o.items : []; body = devicesView();
   }
   else if (h.startsWith('#/grantsadmin')) {
     title = 'طلبات المنح'; app.innerHTML = shell(title, '<div class="spin"></div>');
@@ -1382,7 +1400,8 @@ function bindPage() {
     grtDo(f.querySelector('button'), 'GRT_REVIEW', { requestId: g.id, docs }, 'اتحفظت المراجعة ✓'); });
   on('grtApprove', async b => { await loadDecs();
     openModal(`<h3>اعتماد المنحة</h3><form id="gdf"><label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" value="${esc(b.dataset.amt)}"></label>
-      <label class="f"><span>قرار المجلس (إلزامي لو المبلغ غير المقرر)</span><select class="input" name="decision_id"><option value="">—</option>${(S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('')}</select></label>
+      <label class="f"><span>استثناء: موافقة رئيس المجلس (لو المبلغ غير المقرر)</span><input class="input" name="exception_note" placeholder="مثلاً: موافقة رئيس المجلس بتاريخ …"></label>
+      <label class="f"><span>أو قرار المجلس</span><select class="input" name="decision_id"><option value="">—</option>${(S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('')}</select></label>
       <div id="ferr"></div><div class="acts"><button class="btn" type="submit">اعتماد</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
       $('#modal [data-close]').onclick = closeModal;
       $('#gdf').onsubmit = async e => { e.preventDefault();
@@ -1416,40 +1435,32 @@ function bindPage() {
         closeModal(); toast('اتحفظ المبلغ ✓'); render(); }; }); });
 
   // ── الأجهزة ──
-  const devDo = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true); toast(typeof msg === 'function' ? msg(r) : msg); render(); };
+  const devDo = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true); toast(msg); render(); };
   app.querySelectorAll('form[data-devorder]').forEach(f => f.onsubmit = e => { e.preventDefault();
-    if (!confirm('تأكيد طلب الجهاز بالتقسيط؟')) return;
-    devDo(f.querySelector('button'), 'DEV_ORDER', { itemId: f.dataset.devorder, ...formData(f) }, 'اتسجل الطلب ✓ بانتظار الاعتماد'); });
-  on('devCancel', b => { if (confirm('إلغاء الطلب؟')) devDo(b, 'DEV_CANCEL_MY', { orderId: b.dataset.id }, 'اتلغى'); });
-  app.querySelectorAll('[data-devtab]').forEach(b => b.onclick = () => { S.devTab = b.dataset.devtab; render(); });
-  on('devOrders', async b => { S.devOffer = S.devOffers.find(o => o.id === b.dataset.id);
-    const r = await busy(b, () => call('DEV_ORDERS', { offerId: b.dataset.id })); S.devOrders = r.success ? r.items : []; render(); });
-  const devFormOpen = async o => { await loadDecs();
-    openModal(devOfferForm(o), () => {
-      $('#modal [data-close]').onclick = closeModal;
-      $('#dof').onsubmit = async e => { e.preventDefault(); const d = formData(e.target);
-        const items = d.items.split('\n').map(x => x.split('|').map(y => y.trim())).filter(x => x[0]).map(x => ({ name: x[0], supplier_price: x[1], member_price: x[2],
-          market_price: x[3], max_months: x[4], down_pct: x[5], stock: x[6] }));
-        const r = await busy(e.target.querySelector('[type=submit]'), () => call('DEV_SAVE', { offer: { ...d, id: o && o.id, items } }));
-        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
-        closeModal(); toast('اتحفظ ✓'); render(); }; }); };
+    devDo(f.querySelector('button'), 'DEV_ORDER', { itemId: f.dataset.devorder, ...formData(f) }, 'اتسجل الحجز ✓ — المسئول هيأكد معاك'); });
+  on('devCancel', b => { if (confirm('إلغاء الحجز؟')) devDo(b, 'DEV_CANCEL_MY', { orderId: b.dataset.id }, 'اتلغى'); });
+  const reloadOrders = async () => { if (S.devOffer) { const r = await call('DEV_ORDERS', { offerId: S.devOffer.id }); S.devOrders = r.success ? r.items : []; } };
+  on('devOrders', async b => { S.devOffer = S.devOffers.find(o => o.id === b.dataset.id); await reloadOrders(); render(); });
+  const devFormOpen = o => openModal(devOfferForm(o), () => {
+    $('#modal [data-close]').onclick = closeModal;
+    $('#dof').onsubmit = async e => { e.preventDefault(); const d = formData(e.target);
+      const items = d.items.split('\n').map(x => x.split('|').map(y => y.trim())).filter(x => x[0]).map(x => ({ name: x[0], offer_price: x[1], market_price: x[2],
+        max_months: x[3], stock: x[4], notes: x[5] }));
+      const r = await busy(e.target.querySelector('[type=submit]'), () => call('DEV_SAVE', { offer: { ...d, id: o && o.id, items } }));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      closeModal(); toast('اتحفظ ✓'); render(); }; });
   on('devNew', () => devFormOpen(null));
   on('devEdit', b => devFormOpen(S.devOffers.find(o => o.id === b.dataset.id)));
   on('devStatus', b => devDo(b, 'DEV_SET_STATUS', { offerId: b.dataset.id, status: b.dataset.s }, 'اتغيرت الحالة ✓'));
-  const reloadOrders = async () => { if (S.devOffer) { const r = await call('DEV_ORDERS', { offerId: S.devOffer.id }); S.devOrders = r.success ? r.items : []; } };
-  const devAdm = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true);
-    toast(typeof msg === 'function' ? msg(r) : msg); await reloadOrders(); render(); };
-  on('devDecide', b => { const ok = b.dataset.v === '1'; let reason = '';
-    if (!ok) { reason = prompt('سبب الرفض (إجباري):'); if (!reason) return; }
-    devAdm(b, 'DEV_DECIDE', { orderId: b.dataset.id, approve: ok, reason }, ok ? 'اتعتمد واتعمل جدول الأقساط ✓' : 'اترفض'); });
-  on('devDeliver', b => { if (confirm('تسليم الجهاز؟ هيتقيّد البيع ومستحق المورد، والمقدم يتحصّل نقداً.'))
-    devAdm(b, 'DEV_DELIVER', { orderId: b.dataset.id }, 'اتسلّم ✓'); });
-  on('devPay', b => { const amt = prompt('المبلغ المحصّل:', b.dataset.rest); if (!amt) return;
-    devAdm(b, 'DEV_PAY', { orderId: b.dataset.id, amount: amt }, r => 'اتحصّل — إيصال ' + r.receipt_no); });
-  const drf = $('#drf');
-  if (drf) drf.onsubmit = e => { e.preventDefault(); devDo(drf.querySelector('button'), 'DEV_RUN_BUILD', { month: drf.month.value + '-01' }, 'اتعمل الكشف ✓'); };
-  on('runApprove', b => { if (confirm('اعتماد الكشف؟ الأقساط هتتحسب مسددة بالاستقطاع.')) devDo(b, 'DEV_RUN_APPROVE', { runId: b.dataset.id }, 'اتعتمد ✓'); });
-  on('runReceive', b => { if (confirm('تحصيل تحويل جهة العمل للبنك؟')) devDo(b, 'DEV_RUN_RECEIVE', { runId: b.dataset.id }, 'اتحصّل ✓'); });
+  on('devDecide', async b => { let reason = '';
+    if (b.dataset.s === 'مرفوض') { reason = prompt('السبب (إجباري):'); if (!reason) return; }
+    const r = await busy(b, () => call('DEV_DECIDE', { orderId: b.dataset.id, status: b.dataset.s, reason }));
+    if (!r.success) return toast(r.message, true); toast('اتحدّث ✓'); await reloadOrders(); render(); });
+
+  // ── التقارير ──
+  const repf = $('#repf');
+  if (repf) repf.onsubmit = e => { e.preventDefault(); S.repYear = repf.year.value; render(); };
+  on('repPrint', () => window.print());
 
   // ── المزايا ──
   const byf = $('#byf');
