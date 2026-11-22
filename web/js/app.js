@@ -101,11 +101,11 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة', can('devices.manage')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
-       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/account', '⚙️', 'حسابي', true]];
+       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/reports', '📊', 'التقارير', can('reports.view')], ['#/account', '⚙️', 'حسابي', true]];
   return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
       <button data-act="logout">خروج</button></div>
     <div class="wrap">${body}</div>
@@ -822,6 +822,30 @@ function devOfferForm(o) {
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 
+// ───────── التقارير الشاملة ─────────
+function reportsView() {
+  const r = S.rep; if (!r) return '<div class="spin"></div>';
+  const m = r.members, b = r.benefits, f = r.finance, num = v => Number(v || 0).toLocaleString('ar-EG');
+  const kv2 = o => Object.entries(o || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => kvh(esc(k), num(v))).join('');
+  return `<div class="card"><form id="repf" class="row"><select class="input" style="flex:1" name="year"><option value="">كل السنوات</option>
+      ${(r.years || []).map(y => `<option ${String(y) === String(r.year) ? 'selected' : ''}>${y}</option>`).join('')}</select><button class="btn">عرض</button>
+      <button class="btn sec" type="button" data-act="repPrint">طباعة</button></form></div>
+    <div class="tiles" style="grid-template-columns:repeat(2,1fr);margin-bottom:14px">
+      <div class="tile"><i>⬆️</i><b>${money(f.revenue)}</b><small>الإيرادات</small></div>
+      <div class="tile"><i>⬇️</i><b>${money(f.expense)}</b><small>المصروفات</small></div>
+      <div class="tile"><i>🎁</i><b>${money(b.total)}</b><small>المزايا (${num(b.people)} مستفيد)</small></div>
+      <div class="tile"><i>🏦</i><b>${money(f.bank)}</b><small>البنك الدفتري (الآن)</small></div></div>
+    <div class="card"><h2>👥 الأعضاء (${num(m.total)})</h2><b>التنظيم</b>${kv2(m.byOrg)}<b style="display:block;margin-top:8px">الحالة</b>${kv2(m.byState)}</div>
+    <div class="card"><h2>🎁 المزايا حسب البند</h2>${(b.byCategory || []).map(c => kvh(`${esc(c.category)} <small class="muted">(${num(c.people)})</small>`, money(c.total))).join('') || '<div class="empty">لا شيء</div>'}</div>
+    <div class="card"><h2>🎁 المنح</h2>${(r.grants.byType || []).map(g => kvh(`${esc(g.type)} <small class="muted">(${num(g.paid)} مصروفة${g.open ? ' · ' + num(g.open) + ' تحت الإجراء' : ''})</small>`, money(g.amount))).join('') || '<div class="empty">لا طلبات</div>'}</div>
+    <div class="card"><h2>🚌 الأنشطة (${(r.activities || []).length})</h2>${(r.activities || []).map(a => `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${esc(a.title)}</b><small class="muted">${esc(a.kind)} · ${dt(a.date)}</small></div>
+      <div class="muted">${num(a.people)} مشارك · محصّل ${num(a.collected)} · دعم ${num(a.subsidy)} · مصروفات ${num(a.expenses)}</div></div>`).join('') || '<div class="empty">لا أنشطة</div>'}</div>
+    ${(r.summer || []).length ? `<div class="card"><h2>🏖️ المصايف</h2>${r.summer.map(s => kvh(esc(s.title) + ' <small class="muted">' + esc(s.status) + '</small>', `${num(s.applied)} طلب · ${num(s.slots)} خانة · دعم ${num(s.subsidy)}`)).join('')}</div>` : ''}
+    <div class="card"><h2>📱 الأجهزة (خدمة)</h2>${kvh('عروض', num(r.devices.offers))}${kvh('حجوزات', num(r.devices.bookings))}${kvh('اتسلّمت', num(r.devices.delivered))}</div>
+    <div class="card"><h2>📒 الإيرادات والمصروفات حسب الحساب</h2>${(f.byAccount || []).map(a => kvh(`<small class="muted">${esc(a.code)}</small> ${esc(a.name)} <small class="muted">(${esc(a.type)})</small>`, money(a.amount))).join('')}
+      ${kvh('<b>الفائض / (العجز)</b>', `<b>${money(+f.revenue - +f.expense)}</b>`)}${kvh('الخزينة الآن', money(f.cash))}${kvh('عُهد تحت التسوية الآن', money(f.custody))}</div>`;
+}
+
 // ───────── سجل المزايا ─────────
 const KIND_ICON = { 'منحة': '🎁', 'بدل': '💼', 'جائزة': '🏆', 'دعم': '🤝', 'إعفاء': '🎟️', 'خصم': '📚', 'ميزة عينية': '📦' };
 function benefitsBody(b, title) {
@@ -1040,6 +1064,12 @@ async function render() {
     const [g, b] = await Promise.all([call('ACT_GET', { activityId: id }), call('ACT_BOOKINGS', { activityId: id })]);
     if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
     S.trip = g.activity; S.actBk = b.items; S.actSum = b.summary; body = actAdminView();
+  }
+  else if (h.startsWith('#/reports')) {
+    title = 'التقارير الشاملة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    if (S.repYear === undefined) S.repYear = String(new Date().getFullYear());
+    const r = await call('REP_OVERVIEW', { year: S.repYear }); if (!r.success) return toast(r.message, true);
+    S.rep = r.report; body = reportsView();
   }
   else if (h.startsWith('#/devadmin')) {
     title = 'عروض الأجهزة'; app.innerHTML = shell(title, '<div class="spin"></div>');
@@ -1426,6 +1456,11 @@ function bindPage() {
     if (b.dataset.s === 'مرفوض') { reason = prompt('السبب (إجباري):'); if (!reason) return; }
     const r = await busy(b, () => call('DEV_DECIDE', { orderId: b.dataset.id, status: b.dataset.s, reason }));
     if (!r.success) return toast(r.message, true); toast('اتحدّث ✓'); await reloadOrders(); render(); });
+
+  // ── التقارير ──
+  const repf = $('#repf');
+  if (repf) repf.onsubmit = e => { e.preventDefault(); S.repYear = repf.year.value; render(); };
+  on('repPrint', () => window.print());
 
   // ── المزايا ──
   const byf = $('#byf');
