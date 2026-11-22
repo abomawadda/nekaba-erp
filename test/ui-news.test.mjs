@@ -1,0 +1,30 @@
+// اختبار الأخبار في المتصفح: مسئول zz_news (مجلس) ينشر خبراً مثبتاً، العضو ZZ-W1 يراه في «أنشطتي» وصفحة الأخبار ويوصله إشعار، ثم الإخفاء.
+// النشر يولّد إعلاناً عاماً حقيقياً — احذف الخبر والإشعار فور الانتهاء.
+import { createRequire } from 'node:module';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const OUT = process.argv[2] || '.', BASE = 'http://127.0.0.1:8787/';
+const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
+const browser = await chromium.launch({ proxy });
+let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
+const errors = [];
+const page = async () => { const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'ar-EG' });
+  const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept()); await p.goto(BASE); return p; };
+const p = await page();
+await p.click('[data-tab=staff]'); await p.fill('[name=username]', 'zz_news'); await p.fill('[name=password]', 'News#2026x'); await p.click('#lf [type=submit]');
+await p.waitForSelector('a[href="#/news"]'); await p.click('a[href="#/news"]'); await p.waitForSelector('[data-act=newsNew]');
+await p.click('[data-act=newsNew]'); await p.waitForSelector('#nwf');
+await p.selectOption('#nwf [name=category]', 'موعد'); await p.fill('#nwf [name=title]', 'ZZ اجتماع الجمعية العمومية');
+await p.fill('#nwf [name=body]', 'يوم الخميس الساعة 5 مساءً\nبمقر النقابة'); await p.check('#nwf [name=pinned]');
+await p.click('#nwf [type=submit]'); await p.waitForSelector('[data-act=newsHide]');
+ok((await p.textContent('.wrap')).includes('ZZ اجتماع الجمعية العمومية'), 'published'); await p.screenshot({ path: `${OUT}/w1-admin.png`, fullPage: true });
+const m = await page();
+await m.fill('[name=jobId]', 'ZZ-W1'); await m.fill('[name=secret]', '7777'); await m.click('#lf [type=submit]');
+await m.waitForSelector('.tiles'); let t = await m.textContent('.wrap');
+ok(t.includes('أخبار النقابة') && t.includes('ZZ اجتماع الجمعية العمومية') && t.includes('📌'), 'home shows pinned news');
+ok(!!(await m.waitForSelector('.top .bell .badge', { timeout: 10000 }).catch(() => null)), 'bell badge'); await m.screenshot({ path: `${OUT}/w2-home.png`, fullPage: true });
+await m.goto(BASE + '#/news'); await m.waitForFunction(() => document.querySelector('.top b')?.textContent.includes('أخبار النقابة') && document.querySelector('.wrap .card'));
+t = await m.textContent('.wrap'); ok(t.includes('بمقر النقابة') && !t.includes('خبر / إعلان جديد'), 'news page full, no manage for member');
+await p.click('[data-act=newsHide]'); await p.waitForSelector('[data-show="1"]');
+await m.reload(); await m.waitForSelector('.wrap .card'); ok(!(await m.textContent('.wrap')).includes('ZZ اجتماع'), 'hidden from member');
+ok(errors.length === 0, 'no JS errors: ' + errors.join(' | '));
+await browser.close(); console.log(`\n${pass} نجح · ${fail} فشل`); process.exit(fail ? 1 : 0);
