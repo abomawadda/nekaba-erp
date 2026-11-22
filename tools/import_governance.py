@@ -9,6 +9,7 @@ JOIN = {'elected': 'انتخاب', 'escalated': 'تصعيد', 'appointed': 'تع
 KIND = {'ordinary': 'عادي', 'emergency': 'طارئ', 'annual': 'سنوي', 'general_assembly': 'جمعية عمومية'}
 ATT = {'present': 'حاضر', 'absent': 'غائب', 'excused': 'غائب بعذر', 'invited': 'مدعو'}
 POS = {'president': 'رئيس', 'member': 'عضو'}
+END = {'death': 'وفاة', 'retirement': 'معاش', 'resignation': 'استقالة من المجلس', 'removed': 'إسقاط عضوية', 'term_end': 'انتهاء الدورة'}
 RES = {'won_original': 'فائز أصلي', 'won_reserve': 'احتياطي', 'lost': 'لم يفز', 'withdrawn': 'منسحب'}
 
 def call(action, payload, token=None):
@@ -41,7 +42,7 @@ def build(c):
             'legacy_ref': m['id'], 'job_id': job(m, 'memberJobId') or by_member_id.get(m.get('memberId')),
             'role': m['role'] if m.get('role') in ROLE else 'عضو مجلس إدارة',
             'from_date': d(m.get('roleStartDate')) or d(m.get('joinDate')), 'to_date': d(m.get('endDate')),
-            'join_method': JOIN.get(m.get('joinMethod'), 'انتخاب'), 'end_reason': m.get('endReason') or None,
+            'join_method': JOIN.get(m.get('joinMethod'), 'انتخاب'), 'end_reason': END.get(m.get('endReason'), m.get('endReason')) or None,
             'decision_ref': m.get('decisionRef') or None, 'votes': m.get('electionVotes'), 'rank': m.get('electionRank'),
             'replaces_legacy': m.get('replacementForMembershipId') or None})
     for x in c['board_candidates']:
