@@ -101,7 +101,7 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
@@ -118,7 +118,7 @@ function homeView() {
   const elig = pr.eligibleToday;
   const tiles = [
     { i: '📚', b: 'الكتب الخارجية', s: 'احجز كتب ولادك بالتقسيط', href: C.BOOKS_URL },
-    { i: '🚌', b: 'الرحلات', s: 'قريباً', soon: true },
+    { i: '🚌', b: 'الرحلات والفعاليات', s: 'احجز لك ولأسرتك', href: '#/trips', internal: true },
     { i: '🏖️', b: 'المصايف', s: 'قريباً', soon: true },
     { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'قريباً' : 'لأعضاء النقابة العامة', soon: true },
     { i: '📱', b: 'أجهزة بالتقسيط', s: 'قريباً', soon: true },
@@ -135,7 +135,7 @@ function homeView() {
       <span style="font-size:30px">🎁</span><div style="flex:1"><b>استفاداتي من النقابة</b><div class="muted">المنح والبدلات والدعم والتوفير — كل اللي استفدت بيه</div></div><span class="pill ok">عرض</span></a>
     <div class="tiles">${tiles.map(t => t.soon
       ? `<div class="tile soon"><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></div>`
-      : `<a class="tile" href="${esc(t.href)}" target="_blank" rel="noopener"><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></a>`).join('')}</div>`;
+      : `<a class="tile" href="${esc(t.href)}" ${t.internal ? '' : 'target="_blank" rel="noopener"'}><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></a>`).join('')}</div>`;
 }
 
 // ───────── ملفي ─────────
@@ -501,6 +501,112 @@ function meetingForm(m) {
     <button class="btn sm sec" type="button" data-act="decAdd">+ قرار</button>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
+// ───────── الأنشطة والرحلات ─────────
+const BK_PILL = { 'مؤكد': 'ok', 'بانتظار السداد': 'warn', 'قائمة انتظار': 'warn', 'ملغى': 'bad', 'منتهٍ': '' };
+const bkPill = s => `<span class="pill ${BK_PILL[s] ?? ''}">${esc(s)}</span>`;
+function tripsView() {
+  const items = S.acts || [];
+  return `${can('activities.manage') ? '<div class="card row"><button class="btn" data-act="actNew">+ نشاط جديد</button><a class="btn sec" href="#/mytrips" style="text-decoration:none">حجوزاتي</a></div>'
+          : '<div class="card"><a class="btn sec" href="#/mytrips" style="text-decoration:none;display:inline-block">🎫 حجوزاتي</a></div>'}
+  ${items.map(a => `<div class="card" data-trip="${a.id}" style="cursor:pointer"><h2>🚌 ${esc(a.title)}<span class="sp"></span>${a.myStatus ? bkPill(a.myStatus) : `<span class="pill ${a.status === 'الحجز مفتوح' ? 'ok' : ''}">${esc(a.status)}</span>`}</h2>
+    <div class="muted">${dt(a.start_date)}${a.location ? ' · ' + esc(a.location) : ''} · ${esc(a.kind)}</div>
+    <div class="row" style="margin-top:6px">${a.memberPrice != null ? `<span class="pill ok">للعضو من ${money(a.memberPrice)} ج</span>` : ''}
+      <span class="pill">${a.seatsLeft} مقعد متاح من ${a.capacity}</span></div></div>`).join('') || '<div class="card empty">لا توجد أنشطة معلنة حالياً</div>'}`;
+}
+function tripView() {
+  const a = S.trip; if (!a) return '';
+  const mb = a.myBooking, fam = (S.me.profile && S.me.profile.family) || [];
+  const prices = (a.prices || []).map(p => kvh(`${esc(p.label)} <small class="muted">(${esc(p.applies_to)}${p.max_age != null ? ' حتى ' + p.max_age + ' سنة' : ''}${p.takes_seat ? '' : ' · بدون كرسي'})</small>`,
+    p.applies_to !== 'المرافق' && a.eligible !== false && +p.member_price < +p.full_price ? `${money(p.member_price)} <s class="muted">${money(p.full_price)}</s>` : money(p.full_price))).join('');
+  const pol = (mb ? mb.cancelPolicy : a.cancel_policy) || [];
+  return `<a href="#/trips" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأنشطة</a>
+  <div class="card"><h2>🚌 ${esc(a.title)}<span class="sp"></span><span class="pill">${esc(a.status)}</span></h2>
+    ${kvh('الموعد', dt(a.start_date))}${a.location ? kvh('المكان', esc(a.location)) : ''}${kvh('المقاعد المتاحة', `${a.seatsLeft} من ${a.capacity}`)}
+    ${a.decision ? kvh('القرار', esc(a.decision.decision_no)) : ''}${a.description ? `<p>${esc(a.description)}</p>` : ''}
+    ${a.eligible === false ? '<div class="alert warn">بتشارك بالسعر الكامل — الدعم لأعضاء النقابة العامة النشطين.</div>' : ''}</div>
+  ${(a.program || []).length ? `<div class="card"><h2>🗓️ البرنامج</h2><div class="tl">${a.program.map(x => `<div class="it"><b>${esc(x.time || '')}</b>${esc(x.text || x)}</div>`).join('')}</div></div>` : ''}
+  <div class="card"><h2>💵 الأسعار للفرد</h2>${prices}<div class="muted" style="margin-top:6px">حد المرافقين: ${a.max_companions} · مهلة السداد بعد الحجز: ${a.hold_hours} ساعة</div></div>
+  <div class="card"><h2>↩️ الإلغاء والاسترداد</h2>${pol.map(x => kvh(+x.days_before ? `قبل الموعد بـ ${x.days_before} أيام أو أكثر` : 'أقل من ذلك', x.refund_pct + '%')).join('')}
+    <div class="muted">لو النشاط اتلغى من النقابة: استرداد كامل.</div></div>
+  ${mb ? myBookingCard(mb, a) : a.status === 'الحجز مفتوح' && can('activities.book.self') ? `<div class="card"><h2>🎫 احجز</h2><form id="bkf">
+      <div class="muted">أنت محجوز تلقائياً. اختار مين جاي معاك:</div>
+      ${fam.map(f => `<label class="f row"><input type="checkbox" name="fam" value="${f.id}"> ${esc(f.full_name)} <small class="muted">(${esc(f.relation)}${f.birth_date ? ' · ' + ageOf(f.birth_date) : ''})</small></label>`).join('')
+        || '<div class="muted">سجّل أسرتك في «أسرتي» علشان تختارهم هنا.</div>'}
+      <b style="display:block;margin-top:8px">مرافقين من خارج الأسرة</b><div id="comps"></div>
+      ${a.max_companions ? '<button class="btn sm sec" type="button" data-act="compAdd">+ مرافق</button>' : ''}
+      <div id="ferr"></div><button class="btn block" style="margin-top:12px" type="submit">تأكيد الحجز</button></form></div>` : ''}
+  ${a.whatsapp_link && mb ? `<a class="card" style="display:block;text-decoration:none" href="${esc(a.whatsapp_link)}" target="_blank" rel="noopener">💬 جروب الرحلة على واتساب</a>` : ''}
+  ${can('activities.manage') ? `<a class="btn" style="display:block;text-align:center;text-decoration:none" href="#/actadmin/${a.id}">⚙️ إدارة النشاط</a>` : ''}`;
+}
+function myBookingCard(b, a) {
+  return `<div class="card"><h2>🎫 حجزي ${esc(b.booking_no)}<span class="sp"></span>${bkPill(b.status)}</h2>
+    ${b.status === 'قائمة انتظار' ? `<div class="alert warn">أنت رقم ${b.waitlistNo} في قائمة الانتظار — هيتأكد لك تلقائياً لو فضي مكان.</div>` : ''}
+    ${b.status === 'بانتظار السداد' && b.hold_until ? `<div class="alert warn">ادفع قبل ${dt(String(b.hold_until).slice(0, 16).replace('T', ' '))} وإلا الحجز يسقط ويروح للمنتظرين.</div>` : ''}
+    ${b.people.map(p => kvh(`${esc(p.full_name)} <small class="muted">(${esc(p.relation)}${p.seat_no ? ' · كرسي ' + p.seat_no : ''})</small>`, money(p.price))).join('')}
+    ${kvh('<b>الإجمالي</b>', `<b>${money(b.total)}</b>`)}${+b.subsidy ? kvh('دعم النقابة', money(b.subsidy)) : ''}${kvh('المدفوع', money(b.paid))}
+    ${['مؤكد', 'بانتظار السداد', 'قائمة انتظار'].includes(b.status) ? `<div class="muted" style="margin-top:6px">لو ألغيت دلوقتي: تسترد ${b.refundPctNow}% من المدفوع.</div>
+      <button class="btn bad block" style="margin-top:8px" data-act="myCancel" data-id="${b.id}">إلغاء الحجز</button>` : ''}</div>`;
+}
+function myTripsView() {
+  return `<a href="#/trips" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأنشطة</a>` +
+    ((S.myBk || []).map(b => `<div class="card" data-trip="${b.activity.id}" style="cursor:pointer"><h2>${esc(b.activity.title)}<span class="sp"></span>${bkPill(b.status)}</h2>
+      <div class="muted">${dt(b.activity.start_date)} · ${b.people.length} فرد · ${money(b.total)} ج${+b.paid ? ' · مدفوع ' + money(b.paid) : ''}</div></div>`).join('')
+     || '<div class="card empty">لا توجد حجوزات</div>');
+}
+function actAdminView() {
+  const a = S.trip, s = S.actSum || {}, items = S.actBk || []; if (!a) return '';
+  const next = { 'مسودة': ['الحجز مفتوح'], 'الحجز مفتوح': ['الحجز مقفول'], 'الحجز مقفول': ['الحجز مفتوح'] }[a.status] || [];
+  return `<a href="#/trip/${a.id}" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ صفحة النشاط</a>
+  <div class="card"><h2>⚙️ ${esc(a.title)} <small class="muted">${esc(a.code)}</small><span class="sp"></span><span class="pill">${esc(a.status)}</span></h2>
+    <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+      <div class="tile"><b>${s.used}/${s.seats}</b><small>مقاعد</small></div><div class="tile"><b>${s.confirmed}</b><small>مؤكد</small></div>
+      <div class="tile"><b>${s.pending}+${s.waitlist}</b><small>سداد/انتظار</small></div>
+      <div class="tile"><b>${money(s.collected)}</b><small>محصّل</small></div><div class="tile"><b>${money(s.subsidy)}</b><small>دعم</small></div>
+      <div class="tile"><b>${money(s.expenses)}</b><small>مصروفات</small></div></div>
+    <div class="row" style="margin-top:10px">${next.map(x => `<button class="btn sm" data-act="actStatus" data-s="${x}">${x === 'الحجز مفتوح' ? 'فتح الحجز' : 'قفل الحجز'}</button>`).join('')}
+      <button class="btn sm sec" data-act="actEdit">تعديل</button><button class="btn sm sec" data-act="actSeats">توزيع الكراسي</button>
+      <button class="btn sm sec" data-act="actSup">+ مشرف</button>
+      ${['الحجز مفتوح', 'الحجز مقفول'].includes(a.status) ? '<button class="btn sm gold" data-act="actClose">إقفال بعد الرحلة</button>' : ''}
+      ${!['انتهى', 'مغلق', 'ملغى'].includes(a.status) ? '<button class="btn sm bad" data-act="actCancelAll">إلغاء النشاط</button>' : ''}</div></div>
+  ${(a.supervisors || []).length ? `<div class="card"><h2>🧑‍✈️ المشرفون</h2>${a.supervisors.map(x => kvh(esc(x.full_name) + ' <small class="muted">' + esc(x.task) + '</small>', 'إعفاء ' + x.self_exempt_pct + '%')).join('')}</div>` : ''}
+  <div class="card"><h2>🎫 الحجوزات (${items.length})</h2>${items.map(b => `<div class="kv" style="display:block">
+      <div class="row"><b style="flex:1">${esc(b.person.full_name)} <small class="muted">${esc(b.person.job_id || '')} · ${esc(b.booking_no)}</small></b>${bkPill(b.status)}</div>
+      <div class="muted">${b.people.map(p => esc(p.full_name) + (p.seat_no ? ' [' + p.seat_no + ']' : '')).join('، ')}</div>
+      <div class="row" style="margin-top:4px"><span>المطلوب ${money(b.total)} · مدفوع ${money(b.paid)}${+b.refunded ? ' · مردود ' + money(b.refunded) : ''}${b.eligible ? '' : ' · <span class="pill warn">سعر كامل</span>'}</span><span class="sp" style="flex:1"></span>
+        ${['بانتظار السداد', 'مؤكد'].includes(b.status) && +b.paid < +b.total && can('treasury.receipt') ? `<button class="btn sm" data-act="bkPay" data-id="${b.id}" data-rest="${(+b.total - +b.paid).toFixed(2)}">تحصيل</button>` : ''}
+        ${['بانتظار السداد', 'مؤكد', 'قائمة انتظار'].includes(b.status) ? `<button class="btn sm bad" data-act="bkCancel" data-id="${b.id}">إلغاء</button>` : ''}</div></div>`).join('') || '<div class="empty">لا حجوزات بعد</div>'}</div>`;
+}
+function activityForm(a) {
+  a = a || {};
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}" ${d.id === a.decision_id ? 'selected' : ''}>${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('');
+  const pr = (a.prices && a.prices.length) ? a.prices : [{ label: 'العضو', applies_to: 'العضو' }, { label: 'فرد من الأسرة', applies_to: 'الأسرة' },
+    { label: 'طفل حتى 6 سنين', applies_to: 'الأسرة', max_age: 6, takes_seat: false }, { label: 'مرافق', applies_to: 'المرافق' }];
+  const pol = (a.cancel_policy || [{ days_before: 7, refund_pct: 100 }, { days_before: 3, refund_pct: 50 }, { days_before: 0, refund_pct: 0 }]);
+  return `<h3>${a.id ? 'تعديل النشاط' : 'نشاط جديد'}</h3><form id="acf">
+    <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(a.title)}" required></label>
+    <div class="grid2"><label class="f"><span>النوع</span><select class="input" name="kind">${options(['رحلة يوم واحد', 'رحلة بإقامة', 'مصيف', 'إفطار', 'فعالية', 'عمرة/حج'], a.kind || 'رحلة يوم واحد', false)}</select></label>
+      <label class="f"><span>الموعد</span><input class="input" type="date" name="start_date" value="${esc(a.start_date)}" required></label></div>
+    <label class="f"><span>المكان</span><input class="input" name="location" value="${esc(a.location)}"></label>
+    <div class="grid2"><label class="f"><span>عدد المقاعد</span><input class="input" name="capacity" inputmode="numeric" value="${esc(a.capacity || 50)}" required></label>
+      <label class="f"><span>حد المرافقين للعضو</span><input class="input" name="max_companions" inputmode="numeric" value="${esc(a.max_companions ?? 4)}"></label></div>
+    <div class="grid2"><label class="f"><span>مهلة السداد (ساعة)</span><input class="input" name="hold_hours" inputmode="numeric" value="${esc(a.hold_hours || 48)}"></label>
+      <label class="f"><span>رابط جروب واتساب</span><input class="input" name="whatsapp_link" value="${esc(a.whatsapp_link)}"></label></div>
+    <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${decs}</select></label>
+    <label class="f"><span>الوصف</span><textarea class="input" name="description" rows="2">${esc(a.description)}</textarea></label>
+    <label class="f"><span>البرنامج (سطر لكل بند: الوقت - النشاط)</span><textarea class="input" name="program" rows="3">${esc((a.program || []).map(x => (x.time ? x.time + ' - ' : '') + (x.text || '')).join('\n'))}</textarea></label>
+    <b>الأسعار للفرد (السعر الكامل / سعر المستحق للدعم)</b>
+    ${pr.map((p, i) => `<div class="row" data-pr style="margin:4px 0"><input class="input" style="flex:2" name="label" value="${esc(p.label)}">
+      <select class="input" style="flex:1" name="applies_to">${options(['العضو', 'الأسرة', 'المرافق'], p.applies_to, false)}</select>
+      <input class="input" style="flex:1" name="max_age" placeholder="حتى سن" value="${esc(p.max_age ?? '')}">
+      <input class="input" style="flex:1" name="full_price" placeholder="كامل" inputmode="decimal" value="${esc(p.full_price ?? '')}">
+      <input class="input" style="flex:1" name="member_price" placeholder="للمستحق" inputmode="decimal" value="${esc(p.member_price ?? '')}">
+      <label style="flex:1;font-size:12px"><input type="checkbox" name="takes_seat" ${p.takes_seat === false ? '' : 'checked'}> كرسي</label></div>`).join('')}
+    <b style="display:block;margin-top:8px">الاسترداد عند الإلغاء</b>
+    ${pol.map(x => `<div class="row" data-pol style="margin:4px 0"><span>قبل</span><input class="input" style="width:70px" name="days" value="${x.days_before}"><span>يوم ⇐ استرداد</span>
+      <input class="input" style="width:70px" name="pct" value="${x.refund_pct}"><span>%</span></div>`).join('')}
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+
 // ───────── سجل المزايا ─────────
 const KIND_ICON = { 'منحة': '🎁', 'بدل': '💼', 'جائزة': '🏆', 'دعم': '🤝', 'إعفاء': '🎟️', 'خصم': '📚', 'ميزة عينية': '📦' };
 function benefitsBody(b, title) {
@@ -700,6 +806,26 @@ async function render() {
     const r = await call('LIST_CHANGE_REQUESTS'); S.requests = r.success ? r.items : []; body = requestsView();
   }
   else if (h.startsWith('#/lists')) { title = 'القوائم'; body = listsView(); }
+  else if (h.startsWith('#/trips')) {
+    title = 'الرحلات والفعاليات'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('ACT_LIST'); S.acts = r.success ? r.items : []; body = tripsView();
+  }
+  else if (h.startsWith('#/trip/')) {
+    title = 'الرحلة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('ACT_GET', { activityId: h.split('/')[2] }); if (!r.success) return toast(r.message, true);
+    S.trip = r.activity; body = tripView();
+  }
+  else if (h.startsWith('#/mytrips')) {
+    title = 'حجوزاتي'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('ACT_MY_BOOKINGS'); S.myBk = r.success ? r.items : []; body = myTripsView();
+  }
+  else if (h.startsWith('#/actadmin/')) {
+    title = 'إدارة النشاط'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const id = h.split('/')[2];
+    const [g, b] = await Promise.all([call('ACT_GET', { activityId: id }), call('ACT_BOOKINGS', { activityId: id })]);
+    if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
+    S.trip = g.activity; S.actBk = b.items; S.actSum = b.summary; body = actAdminView();
+  }
   else if (h.startsWith('#/mybenefits')) {
     title = 'استفاداتي'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('BEN_MY'); if (!r.success) return toast(r.message, true);
@@ -837,6 +963,54 @@ function bindPage() {
   if (df) df.onsubmit = async e => { e.preventDefault(); S.decF = formData(df);
     const r = await busy(df.querySelector('button'), () => call('GOV_LIST_DECISIONS', S.decF));
     S.decisions = r.success ? r.items : []; render(); };
+
+  // ── الأنشطة ──
+  app.querySelectorAll('[data-trip]').forEach(c => c.onclick = () => { location.hash = '#/trip/' + c.dataset.trip; });
+  const compRow = () => `<div class="row" data-comp style="margin:4px 0"><input class="input" style="flex:2" name="c_name" placeholder="اسم المرافق">
+    <input class="input" style="flex:1" name="c_rel" placeholder="صلته"><input class="input" style="flex:1" name="c_age" inputmode="numeric" placeholder="السن"></div>`;
+  on('compAdd', () => { const box = $('#comps'); if (box.querySelectorAll('[data-comp]').length >= S.trip.max_companions) return toast('وصلت للحد الأقصى للمرافقين', true);
+    box.insertAdjacentHTML('beforeend', compRow()); });
+  const bkf = $('#bkf');
+  if (bkf) bkf.onsubmit = async e => { e.preventDefault();
+    const people = [...bkf.querySelectorAll('[name=fam]:checked')].map(c => ({ family_member_id: c.value }))
+      .concat([...bkf.querySelectorAll('[data-comp]')].map(r => ({ full_name: r.querySelector('[name=c_name]').value.trim(),
+        relation: r.querySelector('[name=c_rel]').value.trim() || 'مرافق', age: r.querySelector('[name=c_age]').value.trim() })).filter(x => x.full_name));
+    const r = await busy(bkf.querySelector('[type=submit]'), () => call('ACT_BOOK', { activityId: S.trip.id, people }));
+    if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+    toast(r.booking.status === 'قائمة انتظار' ? 'المقاعد اكتملت — اتسجلت في قائمة الانتظار' : 'اتحجز ✓ ادفع خلال المهلة علشان يتأكد'); render(); };
+  on('myCancel', async b => { if (!confirm('متأكد من إلغاء الحجز؟')) return;
+    const r = await busy(b, () => call('ACT_CANCEL_MY', { bookingId: b.dataset.id }));
+    if (!r.success) return toast(r.message, true); toast(+r.refund ? `اتلغى — هيترد لك ${r.refund} ج` : 'اتلغى الحجز'); render(); });
+  const loadDecs = async () => { if (!S.decOpts) { const r = await call('GOV_LIST_DECISIONS'); S.decOpts = r.success ? r.items.filter(d => ['صرف', 'دعم نشاط', 'منحة', 'إعفاء'].includes(d.category)) : []; } };
+  const actFormOpen = async a => { await loadDecs();
+    openModal(activityForm(a), () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#acf').onsubmit = async e => { e.preventDefault(); const f = e.target, d = formData(f);
+        const act = { ...d, id: a && a.id, program: f.program.value.split('\n').map(x => x.trim()).filter(Boolean).map(x => { const m = x.split(' - '); return m.length > 1 ? { time: m[0], text: m.slice(1).join(' - ') } : { text: x }; }),
+          cancel_policy: [...f.querySelectorAll('[data-pol]')].map(r => ({ days_before: +r.querySelector('[name=days]').value || 0, refund_pct: +r.querySelector('[name=pct]').value || 0 })) };
+        delete act.label; delete act.applies_to; delete act.max_age; delete act.full_price; delete act.member_price; delete act.takes_seat; delete act.days; delete act.pct;
+        if (!a || !(S.actBk || []).some(b => b.status !== 'ملغى')) act.prices = [...f.querySelectorAll('[data-pr]')].map(r => ({ label: r.querySelector('[name=label]').value,
+          applies_to: r.querySelector('[name=applies_to]').value, max_age: r.querySelector('[name=max_age]').value, full_price: r.querySelector('[name=full_price]').value,
+          member_price: r.querySelector('[name=member_price]').value, takes_seat: r.querySelector('[name=takes_seat]').checked })).filter(p => p.label && p.full_price !== '');
+        const r = await busy(f.querySelector('[type=submit]'), () => call('ACT_SAVE', { activity: act }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتحفظ ✓'); location.hash = '#/actadmin/' + r.activity.id; render(); };
+    }); };
+  on('actNew', () => actFormOpen(null));
+  on('actEdit', () => actFormOpen(S.trip));
+  const actDo = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, { activityId: S.trip.id, ...extra }));
+    if (!r.success) return toast(r.message, true); toast(msg(r)); render(); };
+  on('actStatus', b => actDo(b, 'ACT_SET_STATUS', { status: b.dataset.s }, () => 'اتغيرت الحالة ✓'));
+  on('actSeats', b => actDo(b, 'ACT_ASSIGN_SEATS', {}, r => `اتوزعت ${r.seats} كرسي بالأسبقية ✓`));
+  on('actClose', b => { if (confirm('إقفال النشاط؟ هيتسجل الدعم للحاضرين وإعفاءات المشرفين في سجل المزايا.'))
+    actDo(b, 'ACT_CLOSE', {}, r => `اتقفل ✓ — ${r.result.benefits} ميزة دعم و${r.result.supervisors} إعفاء مشرف`); });
+  on('actCancelAll', b => { if (confirm('إلغاء النشاط كله؟ كل المدفوع هيترد بالكامل.')) actDo(b, 'ACT_SET_STATUS', { status: 'ملغى' }, () => 'اتلغى النشاط واترد المدفوع'); });
+  on('actSup', b => { const job = prompt('الرقم الوظيفي للمشرف:'); if (!job) return; const pct = prompt('نسبة إعفائه من الاشتراك %', '100');
+    actDo(b, 'ACT_SUPERVISOR', { jobId: job, task: 'مشرف', self_exempt_pct: +pct || 0 }, () => 'اتضاف المشرف ✓'); });
+  on('bkPay', b => { const amt = prompt('المبلغ المحصّل:', b.dataset.rest); if (!amt) return;
+    busy(b, () => call('ACT_PAY', { bookingId: b.dataset.id, amount: amt })).then(r => { if (!r.success) return toast(r.message, true); toast('اتحصّل — إيصال ' + r.receipt_no); render(); }); });
+  on('bkCancel', b => { const reason = prompt('سبب الإلغاء (إجباري):'); if (!reason) return;
+    busy(b, () => call('ACT_CANCEL', { bookingId: b.dataset.id, reason })).then(r => { if (!r.success) return toast(r.message, true); toast(+r.refund ? 'اتلغى — مردود ' + r.refund : 'اتلغى'); render(); }); });
 
   // ── المزايا ──
   const byf = $('#byf');
