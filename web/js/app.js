@@ -43,6 +43,7 @@ const FIELD_LBL = { full_name: 'الاسم', national_id: 'الرقم القوم
   job_title: 'الوظيفة', grade: 'الدرجة', workplace: 'جهة العمل', union_org: 'التنظيم النقابي', member_state: 'الحالة',
   phone: 'الموبايل', phone2: 'موبايل 2', email: 'البريد', address: 'العنوان', qualification: 'المؤهل',
   specialization: 'التخصص', marital_status: 'الحالة الاجتماعية', blood_type: 'فصيلة الدم', special_needs: 'احتياجات خاصة' };
+const dt = v => v ? `<span class="dt">${esc(v)}</span>` : '';
 const relIcon = r => ({ 'ابن': '👦', 'ابنة': '👧', 'زوج': '👨', 'زوجة': '👩', 'أب': '👴', 'أم': '👵', 'حفيد': '🧒', 'حفيدة': '🧒' }[r] || '🧑');
 const ageOf = d => { if (!d) return ''; const b = new Date(d), n = new Date(); let a = n.getFullYear() - b.getFullYear();
   if (n < new Date(n.getFullYear(), b.getMonth(), b.getDate())) a--; return a >= 0 ? a + ' سنة' : ''; };
@@ -97,10 +98,12 @@ function shell(title, body) {
   const me = S.me, p = me && me.profile && me.profile.person;
   const name = p ? p.full_name : (me && me.username) || '';
   const h = location.hash;
+  const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
-    ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
+    ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
-    : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/account', '⚙️', 'حسابي', true]];
+    : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
+       ['#/board', '🏛️', 'المجلس', gov], ['#/account', '⚙️', 'حسابي', true]];
   return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
       <button data-act="logout">خروج</button></div>
     <div class="wrap">${body}</div>
@@ -161,6 +164,9 @@ function profileBody(pr, admin) {
     ${kv('النوع', p.gender)}${kv('تاريخ الميلاد', p.birth_date)}${kv('فصيلة الدم', p.blood_type)}
     ${kv('للطوارئ', em.name ? `${em.name} (${em.relation || ''}) ${em.phone || ''}` : '')}
   </div>
+  ${(pr.board || []).length ? `<div class="card"><h2>🏛️ ${admin ? 'عضوية المجلس' : 'عضويتي في المجلس'}</h2>
+    <div class="tl">${pr.board.map(b => `<div class="it"><b>${esc(b.role)}</b>
+      <div class="muted">${esc(b.term)} · من ${dt(b.from_date)}${b.to_date ? ' إلى ' + dt(b.to_date) : ' — حتى الآن'} · ${esc(b.join_method)}</div></div>`).join('')}</div></div>` : ''}
   <div class="card"><h2>🕓 مسيرتي</h2>${movementsHTML(pr)}</div>`;
 }
 function movementsHTML(pr) {
@@ -171,7 +177,7 @@ function movementsHTML(pr) {
     const d = per[x.field + '|' + x.effective_date];
     return `<div class="it"><b>${esc(x.kind)}</b>
       <div>${esc(FIELD_LBL[x.field] || x.field)}: ${x.from_value ? esc(x.from_value) + ' ← ' : ''}<b style="display:inline">${esc(x.to_value)}</b></div>
-      <div class="muted">من ${esc(x.effective_date)}${d != null ? ' · ' + durTxt(d) : ''}${x.decision_ref ? ' · قرار ' + esc(x.decision_ref) : ''}</div></div>`;
+      <div class="muted">من ${dt(x.effective_date)}${d != null ? ' · ' + durTxt(d) : ''}${x.decision_ref ? ' · قرار ' + esc(x.decision_ref) : ''}</div></div>`;
   }).join('')}</div>`;
 }
 const durTxt = d => { const y = Math.floor(d / 365), mo = Math.floor((d % 365) / 30);
@@ -371,6 +377,128 @@ function listsView() {
       <button class="btn sm bad" data-act="hideItem" data-v="${esc(x.value)}">إخفاء</button></div>`).join('') || '<div class="empty">القائمة فاضية</div>'}</div></div>`;
 }
 
+// ───────── المجلس (الحوكمة) ─────────
+const ROLES = ['رئيس المجلس', 'نائب الرئيس', 'الأمين العام', 'أمين الصندوق', 'عضو مجلس إدارة'];
+const DEC_CATS = ['صرف', 'دعم نشاط', 'منحة', 'إعفاء', 'تكليف', 'موازنة', 'لائحة', 'إداري', 'أخرى'];
+const govTabs = act => `<div class="tabs" style="margin-bottom:12px">${[['#/board', 'الدورة والمقاعد'], ['#/meetings', 'الاجتماعات'], ['#/decisions', 'القرارات']]
+  .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+function boardView() {
+  const g = S.gov, t = g && g.term;
+  if (!t) return govTabs('#/board') + `<div class="card empty">لا توجد دورة جارية${g && g.canManage ? '<br><button class="btn" style="margin-top:10px" data-act="termEdit">+ دورة جديدة</button>' : ''}</div>`;
+  const cur = t.seats.filter(s => !s.to_date), old = t.seats.filter(s => s.to_date);
+  const seat = s => `<div class="fam"><div class="av">${s.role === 'رئيس المجلس' ? '⭐' : s.role === 'أمين الصندوق' ? '💰' : s.role === 'الأمين العام' ? '📜' : '👤'}</div>
+    <div class="nm"><b>${esc(s.full_name)}</b><span class="muted">${esc(s.role)} · من ${dt(s.from_date)}${s.to_date ? ' إلى ' + dt(s.to_date) : ''}
+      · ${esc(s.join_method)}${s.workplace ? ' · ' + esc(s.workplace) : ''}${s.end_reason ? ' · ' + esc(s.end_reason) : ''}</span></div>
+    ${g.canManage && !s.to_date ? `<button class="btn sm sec" data-act="seatEnd" data-id="${s.id}">إنهاء/تغيير</button>` : ''}</div>`;
+  return govTabs('#/board') + `<div class="card"><h2>🏛️ ${esc(t.title)}<span class="sp"></span>
+      ${g.canManage ? '<button class="btn sm sec" data-act="termEdit">تعديل</button>' : ''}</h2>
+    ${kv('المدة', `${t.start_date} ← ${t.end_date || '—'}`)}${kv('قرار الاعتماد', t.approval_ref)}${kv('المقاعد المستهدفة', t.target_seats)}
+    ${t.opening_balance != null ? kv('الرصيد الافتتاحي', Number(t.opening_balance).toLocaleString('ar-EG') + ' ج') : ''}
+    <div class="row" style="margin-top:8px"><span class="pill ok">${cur.length} عضواً حالياً</span>
+      <span class="pill">${t.stats.meetings} اجتماعاً</span><span class="pill">${t.stats.decisions} قراراً</span></div></div>
+  <div class="card"><h2>👥 المجلس الحالي<span class="sp"></span>${g.canManage ? '<button class="btn sm" data-act="seatAdd">+ مقعد</button>' : ''}</h2>
+    ${cur.map(seat).join('') || '<div class="empty">لا مقاعد</div>'}</div>
+  ${old.length ? `<div class="card"><h2>📁 مقاعد منتهية</h2>${old.map(seat).join('')}</div>` : ''}
+  ${t.candidates.length ? `<div class="card"><h2>🗳️ نتيجة الانتخابات</h2>${t.candidates.map(c => `<div class="kv">
+    <span>${esc(c.full_name)} <small class="muted">(${esc(c.position)})</small></span>
+    <span>${c.votes ?? '—'} صوت · <span class="pill ${c.result === 'فائز أصلي' ? 'ok' : c.result === 'احتياطي' ? 'warn' : ''}">${esc(c.result || '')}</span></span></div>`).join('')}</div>` : ''}`;
+}
+function meetingsView() {
+  const items = S.meetings || [], g = S.gov || {};
+  return govTabs('#/meetings') + `<div class="card"><h2>📅 الاجتماعات<span class="sp"></span>${g.canManage ? '<button class="btn sm" data-act="meetNew">+ اجتماع</button>' : ''}</h2>
+    <div class="list">${items.map(m => {
+      const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
+      return `<div class="li" data-meet="${m.id}"><div class="nm"><b>${esc(m.title)}</b>
+        <span class="muted">${dt(m.meeting_date)} · ${esc(m.kind)} · ${m.decisions_count} قرار</span></div>
+        <span class="pill ${m.present ? (q ? 'ok' : 'bad') : ''}">${m.present ? `${m.present}/${m.seats} ${q ? 'نصاب' : 'بلا نصاب'}` : 'حضور غير مسجّل'}</span></div>`;
+    }).join('') || '<div class="empty">لا اجتماعات</div>'}</div></div>`;
+}
+function meetingView() {
+  const m = S.meeting, g = S.gov || {}; if (!m) return '';
+  const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
+  return `<a href="#/meetings" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الاجتماعات</a>
+  <div class="card"><h2>${esc(m.title)}<span class="sp"></span>${g.canManage ? '<button class="btn sm sec" data-act="meetEdit">تعديل</button>' : ''}</h2>
+    ${kv('التاريخ', m.meeting_date + (m.meeting_time ? ' · ' + m.meeting_time : ''))}${kv('النوع', m.kind)}${kv('المكان', m.venue)}
+    ${kv('النصاب', m.present ? `${m.present} من ${m.seats} — ${q ? 'مكتمل' : 'غير مكتمل'}` : 'الحضور غير مسجّل')}
+    ${(m.agenda || []).length ? `<b>جدول الأعمال</b><ol style="margin:6px 0">${m.agenda.map(a => `<li>${esc(a)}</li>`).join('')}</ol>` : ''}</div>
+  <div class="card"><h2>✅ القرارات (${m.decisions.length})</h2>${m.decisions.map(d => `<div class="kv" style="display:block">
+      <b>${esc(d.decision_no)}</b> — ${esc(d.text)}
+      <div class="row" style="margin-top:4px"><span class="pill">${esc(d.category)}</span>
+        ${d.amount != null ? `<span class="pill warn">${Number(d.amount).toLocaleString('ar-EG')} ج</span>` : ''}
+        <span class="pill ${d.status === 'معتمد' ? 'ok' : 'bad'}">${esc(d.status)}</span>
+        ${d.votes_for != null ? `<span class="muted">موافق ${d.votes_for} · معترض ${d.votes_against ?? 0} · ممتنع ${d.votes_abstain ?? 0}</span>` : ''}</div></div>`).join('') || '<div class="empty">لا قرارات</div>'}</div>
+  <div class="card"><h2>🧾 الحضور</h2>${m.attendance.map(a => `<div class="kv"><span>${esc(a.full_name)} <small class="muted">${esc(a.role || '')}</small></span>
+      <span class="pill ${a.status === 'حاضر' ? 'ok' : a.status === 'غائب' ? 'bad' : 'warn'}">${esc(a.status)}</span></div>`).join('') || '<div class="empty">الحضور غير مسجّل</div>'}</div>`;
+}
+function decisionsView() {
+  const items = S.decisions || [], f = S.decF || {};
+  return govTabs('#/decisions') + `<div class="card"><h2>📚 سجل القرارات</h2>
+    <form id="df" class="row"><input class="input" style="flex:2;min-width:140px" name="q" value="${esc(f.q || '')}" placeholder="بحث في النص أو رقم القرار">
+      <select class="input" style="flex:1;min-width:110px" name="category"><option value="">كل الفئات</option>${options(DEC_CATS, f.category, false)}</select>
+      <button class="btn">بحث</button></form></div>
+  <div class="card list">${items.map(d => `<div class="li" data-meet="${d.meeting_id}"><div class="nm"><b>${esc(d.decision_no)} — ${esc(d.text)}</b>
+      <span class="muted">${esc(d.meeting_title)} · ${dt(d.meeting_date)}</span></div>
+      <span class="pill">${esc(d.category)}</span></div>`).join('') || '<div class="empty">لا نتائج</div>'}</div>`;
+}
+function termForm(t = {}) {
+  return `<h3>${t.id ? 'تعديل الدورة' : 'دورة جديدة'}</h3><form id="tf">
+    <label class="f"><span>اسم الدورة</span><input class="input" name="title" value="${esc(t.title)}" required></label>
+    <div class="grid2"><label class="f"><span>رقم الدورة</span><input class="input" name="term_no" inputmode="numeric" value="${esc(t.term_no)}"></label>
+      <label class="f"><span>تاريخ الانتخاب</span><input class="input" type="date" name="election_date" value="${esc(t.election_date)}"></label></div>
+    <div class="grid2"><label class="f"><span>البداية</span><input class="input" type="date" name="start_date" value="${esc(t.start_date)}" required></label>
+      <label class="f"><span>النهاية</span><input class="input" type="date" name="end_date" value="${esc(t.end_date)}"></label></div>
+    <div class="grid2"><label class="f"><span>قرار الاعتماد</span><input class="input" name="approval_ref" value="${esc(t.approval_ref)}"></label>
+      <label class="f"><span>تاريخ الاعتماد</span><input class="input" type="date" name="approval_date" value="${esc(t.approval_date)}"></label></div>
+    <div class="grid2"><label class="f"><span>المقاعد المستهدفة</span><input class="input" name="target_seats" inputmode="numeric" value="${esc(t.target_seats)}"></label>
+      <label class="f"><span>الرصيد الافتتاحي</span><input class="input" name="opening_balance" inputmode="decimal" value="${esc(t.opening_balance)}"></label></div>
+    <label class="f"><span>الحالة</span><select class="input" name="status">${options(['مخططة', 'جارية', 'منتهية'], t.status || 'جارية', false)}</select></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+function seatAddForm() {
+  return `<h3>إضافة مقعد</h3><form id="saf">
+    <label class="f"><span>الرقم الوظيفي للعضو</span><input class="input" name="jobId" inputmode="numeric" required></label>
+    <label class="f"><span>المنصب</span><select class="input" name="role">${options(ROLES, 'عضو مجلس إدارة', false)}</select></label>
+    <div class="grid2"><label class="f"><span>من تاريخ</span><input class="input" type="date" name="fromDate" required></label>
+      <label class="f"><span>طريقة الشغل</span><select class="input" name="joinMethod">${options(['انتخاب', 'تصعيد', 'تعيين', 'توزيع مناصب'], 'انتخاب', false)}</select></label></div>
+    <label class="f"><span>رقم القرار</span><input class="input" name="decisionRef"></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">إضافة</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+function seatEndForm(s) {
+  return `<h3>${esc(s.full_name)} — ${esc(s.role)}</h3><form id="sef">
+    <div class="grid2"><label class="f"><span>تاريخ الانتهاء</span><input class="input" type="date" name="toDate" required></label>
+      <label class="f"><span>رقم القرار</span><input class="input" name="decisionRef"></label></div>
+    <label class="f"><span>السبب</span><select class="input" name="reason" required>${options(['إعادة توزيع المناصب', 'استقالة من المجلس', 'معاش', 'وفاة', 'إسقاط عضوية', 'انتهاء الدورة', 'أخرى'])}</select></label>
+    <label class="f"><span>يكمل بمنصب جديد؟ (اختياري — يبدأ من اليوم التالي)</span><select class="input" name="newRole">${options(ROLES)}</select></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تأكيد</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+const decRow = (d, i) => `<div class="card" style="box-shadow:none;border:1px solid var(--line);padding:10px" data-dec>
+      <label class="f"><span>القرار ${i + 1}</span><textarea class="input" name="d_text" rows="2">${esc(d.text)}</textarea></label>
+      <div class="grid2"><label class="f"><span>الفئة</span><select class="input" name="d_category">${options(DEC_CATS, d.category || 'إداري', false)}</select></label>
+        <label class="f"><span>المبلغ (إن وُجد)</span><input class="input" name="d_amount" inputmode="decimal" value="${esc(d.amount)}"></label></div>
+      <div class="grid2"><label class="f"><span>موافق / معترض / ممتنع</span><div class="row">
+        <input class="input" style="flex:1" name="d_for" inputmode="numeric" value="${esc(d.votes_for)}">
+        <input class="input" style="flex:1" name="d_against" inputmode="numeric" value="${esc(d.votes_against)}">
+        <input class="input" style="flex:1" name="d_abstain" inputmode="numeric" value="${esc(d.votes_abstain)}"></div></label>
+        <label class="f"><span>الحالة</span><select class="input" name="d_status">${options(['معتمد', 'مرفوض', 'مؤجل', 'ملغى'], d.status || 'معتمد', false)}</select></label></div></div>`;
+function meetingForm(m) {
+  const board = (m && m.board) || (S.gov ? S.gov.term.seats.filter(s => !s.to_date) : []);
+  const att = {}; ((m && m.attendance) || []).forEach(a => (att[a.person_id] = a.status));
+  const decs = (m && m.decisions && m.decisions.length) ? m.decisions : [{}];
+  return `<h3>${m && m.id ? 'تعديل الاجتماع' : 'اجتماع جديد'}</h3><form id="mtf">
+    <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(m && m.title)}" required placeholder="اجتماع رقم ..."></label>
+    <div class="grid2"><label class="f"><span>التاريخ</span><input class="input" type="date" name="meeting_date" value="${esc(m && m.meeting_date)}" required></label>
+      <label class="f"><span>النوع</span><select class="input" name="kind">${options(['عادي', 'طارئ', 'سنوي', 'جمعية عمومية'], (m && m.kind) || 'عادي', false)}</select></label></div>
+    <div class="grid2"><label class="f"><span>الوقت</span><input class="input" name="meeting_time" value="${esc(m && m.meeting_time)}"></label>
+      <label class="f"><span>المكان</span><input class="input" name="venue" value="${esc(m && m.venue)}"></label></div>
+    <label class="f"><span>جدول الأعمال (بند في كل سطر)</span><textarea class="input" name="agenda" rows="3">${esc(((m && m.agenda) || []).join('\n'))}</textarea></label>
+    <b>الحضور</b>${board.map(b => `<div class="kv"><span>${esc(b.full_name)} <small class="muted">${esc(b.role)}</small></span>
+      <select class="input" style="width:auto" data-att="${b.person_id}">${options(['حاضر', 'غائب بعذر', 'غائب'], att[b.person_id] || 'حاضر', false)}</select></div>`).join('')}
+    <b style="display:block;margin-top:10px">القرارات</b><div id="decs">${decs.map(decRow).join('')}</div>
+    <button class="btn sm sec" type="button" data-act="decAdd">+ قرار</button>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+async function loadGov() { const r = await call('GOV_OVERVIEW'); if (r.success) S.gov = r; else toast(r.message, true); }
+
 // ───────── الموجّه ─────────
 async function loadLists() { const r = await call('GET_LISTS'); if (r.success) S.lists = r.lists || {}; }
 async function boot() {
@@ -405,6 +533,25 @@ async function render() {
     const r = await call('LIST_CHANGE_REQUESTS'); S.requests = r.success ? r.items : []; body = requestsView();
   }
   else if (h.startsWith('#/lists')) { title = 'القوائم'; body = listsView(); }
+  else if (h.startsWith('#/board') || h.startsWith('#/meetings') || h.startsWith('#/meeting/') || h.startsWith('#/decisions')) {
+    title = 'المجلس';
+    if (!S.gov) { app.innerHTML = shell(title, '<div class="spin"></div>'); await loadGov(); }
+    if (h.startsWith('#/board')) body = boardView();
+    else if (h.startsWith('#/meetings')) {
+      if (!S.meetings) { const r = await call('GOV_LIST_MEETINGS'); S.meetings = r.success ? r.items : []; }
+      body = meetingsView();
+    } else if (h.startsWith('#/meeting/')) {
+      const id = h.split('/')[2];
+      if (!S.meeting || S.meeting.id !== id) {
+        app.innerHTML = shell(title, '<div class="spin"></div>');
+        const r = await call('GOV_GET_MEETING', { id }); if (!r.success) return toast(r.message, true); S.meeting = r.meeting;
+      }
+      body = meetingView();
+    } else {
+      if (!S.decisions) { const r = await call('GOV_LIST_DECISIONS', S.decF || {}); S.decisions = r.success ? r.items : []; }
+      body = decisionsView();
+    }
+  }
   else { location.hash = isStaff() ? '#/admin' : '#/home'; return; }
   app.innerHTML = shell(title, body);
   bindPage();
@@ -466,6 +613,42 @@ function bindPage() {
   on('hideItem', async b => { if (!confirm('إخفاء «' + b.dataset.v + '» من القائمة؟')) return;
     const r = await call('SAVE_LIST_ITEM', { listKey: S.listKey || 'workplace', value: b.dataset.v, active: false });
     if (!r.success) return toast(r.message, true); await loadLists(); render(); });
+
+  // ── المجلس ──
+  app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { location.hash = b.dataset.go; });
+  app.querySelectorAll('[data-meet]').forEach(li => li.onclick = () => { location.hash = '#/meeting/' + li.dataset.meet; });
+  const govDone = r => { S.gov = { ...S.gov, term: r.term || S.gov.term }; closeModal(); toast('اتحفظ ✓'); render(); };
+  const govForm = (html, formId, build, action, after) => openModal(html, () => {
+    $('#modal [data-close]').onclick = closeModal;
+    $(formId).onsubmit = async e => { e.preventDefault();
+      const r = await busy(e.target.querySelector('[type=submit]'), () => call(action, build(e.target)));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      after(r); };
+  });
+  on('termEdit', () => govForm(termForm(S.gov && S.gov.term || {}), '#tf',
+    f => ({ term: { ...formData(f), id: S.gov && S.gov.term ? S.gov.term.id : undefined } }), 'GOV_SAVE_TERM', r => { S.gov = null; closeModal(); toast('اتحفظ ✓'); render(); }));
+  on('seatAdd', () => govForm(seatAddForm(), '#saf', f => ({ termId: S.gov.term.id, ...formData(f) }), 'GOV_ADD_SEAT', govDone));
+  on('seatEnd', b => { const s = S.gov.term.seats.find(x => x.id === b.dataset.id);
+    govForm(seatEndForm(s), '#sef', f => ({ seatId: s.id, ...formData(f) }), 'GOV_END_SEAT', govDone); });
+  const meetBuild = (f, id) => ({ termId: S.gov.term.id, meeting: { ...formData(f), id,
+    agenda: f.agenda.value.split('\n').map(x => x.trim()).filter(Boolean),
+    attendance: [...f.querySelectorAll('[data-att]')].map(s => ({ person_id: s.dataset.att, status: s.value })),
+    decisions: [...f.querySelectorAll('[data-dec]')].map(d => ({ text: d.querySelector('[name=d_text]').value.trim(),
+      category: d.querySelector('[name=d_category]').value, amount: d.querySelector('[name=d_amount]').value.trim(),
+      votes_for: d.querySelector('[name=d_for]').value.trim(), votes_against: d.querySelector('[name=d_against]').value.trim(),
+      votes_abstain: d.querySelector('[name=d_abstain]').value.trim(), status: d.querySelector('[name=d_status]').value })).filter(d => d.text) } });
+  const meetAfter = r => { S.meeting = r.meeting; S.meetings = null; S.decisions = null; S.gov = null; closeModal(); toast('اتحفظ ✓');
+    location.hash = '#/meeting/' + r.meeting.id; render(); };
+  const bindDecAdd = () => { const b = $('#modal [data-act=decAdd]'); if (b) b.onclick = () => {
+    const box = $('#decs'), n = box.querySelectorAll('[data-dec]').length, tmp = document.createElement('div');
+    tmp.innerHTML = decRow({}, n);
+    box.appendChild(tmp.firstElementChild); }; };
+  on('meetNew', () => { govForm(meetingForm(null), '#mtf', f => meetBuild(f), 'GOV_SAVE_MEETING', meetAfter); bindDecAdd(); });
+  on('meetEdit', () => { govForm(meetingForm(S.meeting), '#mtf', f => meetBuild(f, S.meeting.id), 'GOV_SAVE_MEETING', meetAfter); bindDecAdd(); });
+  const df = $('#df');
+  if (df) df.onsubmit = async e => { e.preventDefault(); S.decF = formData(df);
+    const r = await busy(df.querySelector('button'), () => call('GOV_LIST_DECISIONS', S.decF));
+    S.decisions = r.success ? r.items : []; render(); };
 
   const pw = $('#pw');
   if (pw) pw.onsubmit = async e => { e.preventDefault();
