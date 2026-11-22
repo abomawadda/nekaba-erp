@@ -101,7 +101,7 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة', can('devices.manage') || can('treasury.receipt')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
@@ -120,8 +120,8 @@ function homeView() {
     { i: '📚', b: 'الكتب الخارجية', s: 'احجز كتب ولادك بالتقسيط', href: C.BOOKS_URL },
     { i: '🚌', b: 'الرحلات والفعاليات', s: 'احجز لك ولأسرتك', href: '#/trips', internal: true },
     { i: '🏖️', b: 'المصايف', s: 'قدّم على مصيف الصيف', href: '#/summer', internal: true },
-    { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'قريباً' : 'لأعضاء النقابة العامة', soon: true },
-    { i: '📱', b: 'أجهزة بالتقسيط', s: 'قريباً', soon: true },
+    { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'زواج، مولود، وفاة، تفوق، علاج' : 'لأعضاء النقابة العامة', href: '#/grants', internal: true },
+    { i: '📱', b: 'أجهزة بالتقسيط', s: 'بالتقسيط والاستقطاع من المرتب', href: '#/devices', internal: true },
     { i: '🌙', b: 'الإفطار والفعاليات', s: 'قريباً', soon: true },
   ];
   return `<div class="card"><h2>أهلاً ${esc((p.full_name || '').split(' ')[0])} 👋</h2>
@@ -721,6 +721,120 @@ function seasonForm(s) {
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 
+// ───────── منح المناسبات ─────────
+const GRT_ST = { 'مصروف': 'ok', 'معتمد': 'ok', 'مستوفى': '', 'مقدَّم': '', 'ناقص مستندات': 'warn', 'مرفوض': 'bad', 'ملغى': 'bad' };
+const grtPill = st => `<span class="pill ${GRT_ST[st] || ''}">${esc(st)}</span>`;
+const canGrtAdmin = () => can('grants.review') || can('grants.approve') || can('treasury.cheque.issue');
+function grantCard(g, admin) {
+  const docs = g.docs || [];
+  return `<div class="card"><h2>🎁 ${esc(g.type_name)} <small class="muted">${esc(g.req_no)}</small><span class="sp"></span>${grtPill(g.status)}</h2>
+    ${admin ? kvh('العضو', `${esc(g.person.full_name)} <small class="muted">${esc(g.person.job_id || '')}</small>`) : ''}
+    ${kvh('المستفيد', `${esc(g.subject_name || '')} <small class="muted">(${esc(g.subject_relation || '')})</small>`)}
+    ${kvh('تاريخ الواقعة', dt(g.event_date))}${kvh('المبلغ', g.amount ? money(g.amount) : '<span class="muted">يحدده المجلس</span>')}
+    ${docs.length ? `<div style="margin-top:6px"><b>المستندات</b> ${admin && ['مقدَّم', 'ناقص مستندات', 'مستوفى'].includes(g.status) && can('grants.review')
+      ? `<form data-docs="${g.id}">${docs.map((d, i) => `<label class="row"><input type="checkbox" name="d${i}" ${d.received ? 'checked' : ''}> ${esc(d.name)}</label>`).join('')}
+         <button class="btn sm" style="margin-top:4px">حفظ المراجعة</button></form>`
+      : docs.map(d => `<div>${d.received ? '✅' : '⏳'} ${esc(d.name)}</div>`).join('')}</div>` : ''}
+    ${g.status === 'ناقص مستندات' && !admin ? '<div class="alert warn">سلّم أصل المستندات الناقصة لمكتب النقابة.</div>' : ''}
+    ${g.reject_reason ? `<div class="alert bad">سبب الرفض: ${esc(g.reject_reason)}</div>` : ''}
+    ${g.cheque ? kvh('الشيك', `${esc(g.cheque.cheque_no || 'بدون رقم')} — ${dt(g.cheque.issue_date)}`) : ''}
+    ${g.decision ? kvh('القرار', esc(g.decision.decision_no)) : ''}
+    <div class="row" style="margin-top:8px">
+      ${!admin && ['مقدَّم', 'ناقص مستندات', 'مستوفى'].includes(g.status) ? `<button class="btn sm bad" data-act="grtCancel" data-id="${g.id}">إلغاء الطلب</button>` : ''}
+      ${admin && g.status === 'مستوفى' && can('grants.approve') ? `<button class="btn sm" data-act="grtApprove" data-id="${g.id}" data-amt="${g.amount || ''}">اعتماد</button>` : ''}
+      ${admin && !['مصروف', 'مرفوض', 'ملغى'].includes(g.status) && can('grants.approve') ? `<button class="btn sm bad" data-act="grtReject" data-id="${g.id}">رفض</button>` : ''}
+      ${admin && g.status === 'معتمد' && can('treasury.cheque.issue') ? `<button class="btn sm gold" data-act="grtPay" data-id="${g.id}">صرف شيك</button>` : ''}</div></div>`;
+}
+function grantsView() {
+  const types = S.grtTypes || [], my = S.grtMy || [], fam = (S.me.profile && S.me.profile.family) || [];
+  return `${S.grtElig === false ? '<div class="alert warn">المنح لأعضاء النقابة العامة النشطين.</div>' : ''}
+  <div class="card"><h2>📝 طلب منحة</h2><form id="gaf">
+    <label class="f"><span>نوع المنحة</span><select class="input" name="type">${types.map(t => `<option value="${t.code}">${esc(t.name)}${t.amount ? ' — ' + Number(t.amount) + ' ج' : ''}</option>`).join('')}</select></label>
+    <label class="f"><span>تاريخ الواقعة</span><input class="input" type="date" name="event_date" required></label>
+    <label class="f"><span>المستفيد</span><select class="input" name="who"><option value="self">أنا (العضو)</option>
+      ${fam.map(f => `<option value="${f.id}">${esc(f.full_name)} (${esc(f.relation)})</option>`).join('')}<option value="other">شخص آخر من الأسرة (اكتب)</option></select></label>
+    <div class="grid2" id="gother" hidden><input class="input" name="subject_name" placeholder="الاسم"><select class="input" name="subject_relation">${options(['أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], '', false)}</select></div>
+    <div class="muted" id="gdocs"></div>
+    <label class="f"><span>ملاحظات</span><input class="input" name="notes"></label>
+    <div id="ferr"></div><button class="btn block" type="submit">تقديم</button></form></div>
+  <h3 style="margin:14px 4px 6px">طلباتي</h3>${my.map(g => grantCard(g, false)).join('') || '<div class="card empty">لا طلبات</div>'}`;
+}
+function grantsAdminView() {
+  const c = S.grtCounts || {}, f = S.grtF || {};
+  return `<div class="tabs" style="margin-bottom:10px;overflow-x:auto">${[['', 'المفتوحة'], ['مقدَّم', 'جديد'], ['ناقص مستندات', 'ناقص'], ['مستوفى', 'للاعتماد'], ['معتمد', 'للصرف'], ['مصروف', 'مصروف'], ['مرفوض', 'مرفوض']]
+      .map(([s, t]) => `<button data-gst="${s}" class="${(f.status || '') === s ? 'on' : ''}" style="white-space:nowrap">${t}${s && c[s] ? ' ' + c[s] : ''}</button>`).join('')}</div>
+    ${can('grants.review') ? '<div class="card"><button class="btn sec" data-act="grtProxy">+ طلب نيابة عن عضو (مثلاً وفاة العضو)</button></div>' : ''}
+    ${(S.grtList || []).map(g => grantCard(g, true)).join('') || '<div class="card empty">لا طلبات</div>'}
+    ${can('grants.approve') ? `<div class="card"><h2>💰 المبالغ المقررة</h2>${(S.grtTypes || []).map(t => kvh(esc(t.name), t.amount ? money(t.amount) : '<span class="muted">غير محدد</span>')).join('')}
+      <button class="btn sm sec" data-act="grtRate" style="margin-top:8px">تعديل مبلغ بقرار</button></div>` : ''}`;
+}
+
+// ───────── الأجهزة بالتقسيط ─────────
+const DEV_ST = { 'مسدد': 'ok', 'مسلّم': 'ok', 'معتمد': '', 'مطلوب': 'warn', 'مرفوض': 'bad', 'ملغى': 'bad' };
+const devPill = st => `<span class="pill ${DEV_ST[st] || ''}">${esc(st)}</span>`;
+function devOrderCard(o, admin) {
+  const paid = (o.installments || []).filter(i => +i.paid >= +i.amount).length;
+  return `<div class="card"><h2>📱 ${esc(o.item.name)} <small class="muted">${esc(o.order_no)}</small><span class="sp"></span>${devPill(o.status)}</h2>
+    ${admin ? kvh('العضو', `${esc(o.person.full_name)} <small class="muted">${esc(o.person.job_id || '')}</small>`) : kvh('العرض', esc(o.offer.title))}
+    ${kvh('السعر', money(o.price))}${+o.down_payment ? kvh('المقدم', money(o.down_payment)) : ''}
+    ${kvh('القسط', `${money(o.monthly)} × ${o.months} شهر <small class="muted">(${esc(o.method)})</small>`)}
+    ${+o.subsidy ? kvh('دعم النقابة', money(o.subsidy)) : ''}
+    ${o.installments.length ? kvh('المتبقي', `${money(o.remaining)} <small class="muted">(${paid}/${o.installments.length} قسط)</small>`) : ''}
+    ${o.reject_reason ? `<div class="alert bad">${esc(o.reject_reason)}</div>` : ''}
+    ${o.installments.length ? `<details><summary class="muted">جدول الأقساط</summary>${o.installments.map(i => kvh(`${i.seq}. ${dt(String(i.due_month).slice(0, 7))}`,
+      `${money(i.amount)} ${+i.paid >= +i.amount ? '✅ ' + esc(i.paid_via || '') : ''}`)).join('')}</details>` : ''}
+    <div class="row" style="margin-top:8px">
+      ${!admin && o.status === 'مطلوب' ? `<button class="btn sm bad" data-act="devCancel" data-id="${o.id}">إلغاء الطلب</button>` : ''}
+      ${admin && o.status === 'مطلوب' && can('devices.manage') ? `<button class="btn sm" data-act="devDecide" data-v="1" data-id="${o.id}">اعتماد</button><button class="btn sm bad" data-act="devDecide" data-v="0" data-id="${o.id}">رفض</button>` : ''}
+      ${admin && o.status === 'معتمد' && can('devices.manage') ? `<button class="btn sm gold" data-act="devDeliver" data-id="${o.id}">تسليم${+o.down_payment ? ' وتحصيل المقدم' : ''}</button>` : ''}
+      ${admin && o.status === 'مسلّم' && can('treasury.receipt') ? `<button class="btn sm sec" data-act="devPay" data-id="${o.id}" data-rest="${o.remaining}">قسط نقدي</button>` : ''}</div></div>`;
+}
+function devicesView() {
+  const offers = (S.devOffers || []).filter(f => f.status === 'الطلب مفتوح' || f.myOrder);
+  return `${offers.map(f => `<div class="card"><h2>🛒 ${esc(f.title)}<span class="sp"></span><span class="pill">${esc(f.status)}</span></h2>
+      <div class="muted">${esc(f.supplier)}${f.order_close ? ' · آخر طلب ' + dt(f.order_close) : ''}${f.first_due ? ' · أول قسط ' + dt(String(f.first_due).slice(0, 7)) : ''}</div>
+      ${f.myOrder ? '' : f.items.map(i => `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${esc(i.name)}</b><b>${money(i.member_price)}</b></div>
+        <div class="muted">${i.market_price ? 'سعر السوق ' + Number(i.market_price).toLocaleString('ar-EG') + ' · ' : ''}حتى ${i.max_months} شهر${i.down_pct ? ' · مقدم ' + i.down_pct + '%' : ''}${i.left !== null && i.left !== undefined ? ' · متبقي ' + i.left : ''}</div>
+        ${f.status === 'الطلب مفتوح' && (i.left === null || i.left === undefined || i.left > 0) ? `<form class="row" data-devorder="${i.id}" style="margin-top:4px">
+          <select class="input" name="months" style="flex:2" title="عدد الشهور × القسط">${Array.from({ length: i.max_months }, (_, k) => i.max_months - k).map(m => `<option value="${m}">${m}×${Math.ceil((i.member_price * (1 - i.down_pct / 100)) / m)}</option>`).join('')}</select>
+          <select class="input" name="method" style="flex:1"><option>استقطاع</option><option>نقدي</option></select><button class="btn sm">اطلب</button></form>` : ''}</div>`).join('')}</div>
+      ${f.myOrder ? devOrderCard(f.myOrder, false) : ''}`).join('') || '<div class="card empty">لا توجد عروض حالياً</div>'}
+    ${S.devCap ? `<div class="muted" style="margin:6px">سقف الاستقطاع الشهري: ${S.devCap} ج</div>` : ''}
+    ${(S.devMy || []).filter(o => !(S.devOffers || []).some(f => f.myOrder && f.myOrder.id === o.id)).map(o => devOrderCard(o, false)).join('')}`;
+}
+function devAdminView() {
+  const f = S.devOffer;
+  return `<div class="tabs" style="margin-bottom:10px">${[['offers', 'العروض والطلبات'], ['runs', 'كشوف الاستقطاع']].map(([k, t]) =>
+      `<button data-devtab="${k}" class="${(S.devTab || 'offers') === k ? 'on' : ''}">${t}</button>`).join('')}</div>` + ((S.devTab || 'offers') === 'runs'
+    ? `${can('devices.manage') ? `<div class="card"><form id="drf" class="row"><input class="input" type="month" name="month" style="flex:1" value="${new Date().toISOString().slice(0, 7)}"><button class="btn">إعداد/تحديث كشف الشهر</button></form></div>` : ''}
+       ${(S.devRuns || []).map(r => `<div class="card"><h2>🧾 كشف ${esc(String(r.month).slice(0, 7))}<span class="sp"></span><span class="pill ${r.status === 'محصّل' ? 'ok' : ''}">${esc(r.status)}</span></h2>
+         ${r.lines.map(l => kvh(`${esc(l.full_name)} <small class="muted">${esc(l.job_id || '')}</small>`, money(l.amount))).join('')}
+         ${kvh('<b>الإجمالي</b>', `<b>${money(r.total)}</b>`)}
+         <div class="row" style="margin-top:8px">${r.status === 'مسودة' && (can('treasury.payment.approve') || can('treasury.receipt')) ? `<button class="btn sm" data-act="runApprove" data-id="${r.id}">اعتماد (أُرسل لجهة العمل)</button>` : ''}
+           ${r.status === 'معتمد' && can('treasury.receipt') ? `<button class="btn sm gold" data-act="runReceive" data-id="${r.id}">تحصيل التحويل</button>` : ''}</div></div>`).join('') || '<div class="card empty">لا كشوف</div>'}`
+    : `${can('devices.manage') ? '<div class="card"><button class="btn" data-act="devNew">+ عرض جديد</button></div>' : ''}
+       ${(S.devOffers || []).map(o => `<div class="card" ${f && f.id === o.id ? 'style="outline:2px solid var(--brand)"' : ''}><h2>🛒 ${esc(o.title)} <small class="muted">${esc(o.code)}</small><span class="sp"></span><span class="pill">${esc(o.status)}</span></h2>
+         <div class="muted">${esc(o.supplier)} · ${o.items.length} صنف</div>
+         <div class="row" style="margin-top:8px"><button class="btn sm sec" data-act="devOrders" data-id="${o.id}">الطلبات</button>
+           ${can('devices.manage') ? `<button class="btn sm sec" data-act="devEdit" data-id="${o.id}">تعديل</button>
+             ${o.status === 'مسودة' || o.status === 'الطلب مقفول' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مفتوح" data-id="${o.id}">فتح الطلب</button>` : ''}
+             ${o.status === 'الطلب مفتوح' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مقفول" data-id="${o.id}">قفل الطلب</button>` : ''}` : ''}</div></div>`).join('')}
+       ${f ? `<h3 style="margin:12px 4px 6px">طلبات: ${esc(f.title)}</h3>${(S.devOrders || []).map(o => devOrderCard(o, true)).join('') || '<div class="card empty">لا طلبات</div>'}` : ''}`);
+}
+function devOfferForm(o) {
+  o = o || {};
+  const il = (o.items || []).map(i => [i.name, i.supplier_price ?? '', i.member_price, i.market_price ?? '', i.max_months, i.down_pct, i.stock ?? ''].join(' | ')).join('\n');
+  return `<h3>${o.id ? 'تعديل العرض' : 'عرض جديد'}</h3><form id="dof">
+    <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(o.title)}" required></label>
+    <label class="f"><span>المعرض/المورد</span><input class="input" name="supplier" value="${esc(o.supplier)}" required></label>
+    <div class="grid2"><label class="f"><span>آخر موعد للطلب</span><input class="input" type="date" name="order_close" value="${esc(o.order_close || '')}"></label>
+      <label class="f"><span>أول شهر قسط</span><input class="input" type="date" name="first_due" value="${esc(o.first_due || '')}"></label></div>
+    <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${(S.decOpts || []).map(d => `<option value="${d.id}" ${d.id === o.decision_id ? 'selected' : ''}>${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('')}</select></label>
+    <label class="f"><span>الأصناف — سطر لكل صنف: الاسم | سعر المورد | سعر العضو | سعر السوق | أقصى شهور | مقدم % | الكمية</span>
+      <textarea class="input" name="items" rows="4" placeholder="ثلاجة 16 قدم | 8000 | 9000 | 10000 | 10 | 10 |">${esc(il)}</textarea></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+
 // ───────── سجل المزايا ─────────
 const KIND_ICON = { 'منحة': '🎁', 'بدل': '💼', 'جائزة': '🏆', 'دعم': '🤝', 'إعفاء': '🎟️', 'خصم': '📚', 'ميزة عينية': '📦' };
 function benefitsBody(b, title) {
@@ -939,6 +1053,27 @@ async function render() {
     const [g, b] = await Promise.all([call('ACT_GET', { activityId: id }), call('ACT_BOOKINGS', { activityId: id })]);
     if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
     S.trip = g.activity; S.actBk = b.items; S.actSum = b.summary; body = actAdminView();
+  }
+  else if (h.startsWith('#/devadmin')) {
+    title = 'الأجهزة بالتقسيط'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const [o, rr] = await Promise.all([call('DEV_OFFERS'), (S.devTab === 'runs' ? call('DEV_RUNS') : Promise.resolve({}))]);
+    S.devOffers = o.success ? o.items : []; S.devRuns = rr.success ? rr.items : []; body = devAdminView();
+  }
+  else if (h.startsWith('#/devices')) {
+    title = 'أجهزة بالتقسيط'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const [o, m] = await Promise.all([call('DEV_OFFERS'), call('DEV_MY')]);
+    S.devOffers = o.success ? o.items : []; S.devCap = o.cap; S.devMy = m.success ? m.items : []; body = devicesView();
+  }
+  else if (h.startsWith('#/grantsadmin')) {
+    title = 'طلبات المنح'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const [t, l] = await Promise.all([call('GRT_TYPES'), call('GRT_LIST', S.grtF || {})]);
+    if (!l.success) return toast(l.message, true);
+    S.grtTypes = t.success ? t.items : []; S.grtList = l.items; S.grtCounts = l.counts || {}; body = grantsAdminView();
+  }
+  else if (h.startsWith('#/grants')) {
+    title = 'المنح والمناسبات'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const [t, m] = await Promise.all([call('GRT_TYPES'), call('GRT_MY')]);
+    S.grtTypes = t.success ? t.items : []; S.grtElig = t.eligibleToday; S.grtMy = m.success ? m.items : []; body = grantsView();
   }
   else if (h.startsWith('#/summer')) {
     title = 'المصايف'; app.innerHTML = shell(title, '<div class="spin"></div>');
@@ -1222,6 +1357,99 @@ function bindPage() {
         closeModal(); const x = r.result;
         toast(k === 'تسليم' ? (+x.deposit ? `اتسلّمت — تأمين ${x.deposit} إيصال ${x.receipt_no}` : 'اتسلّمت ✓') : `اتسلّمت — خصم ${x.deducted} ورد ${x.returned}${+x.uncovered ? ' · غير مغطى ' + x.uncovered : ''}`); render(); };
     }); });
+
+  // ── المنح ──
+  const gaf = $('#gaf');
+  if (gaf) {
+    const sync = () => { const t = (S.grtTypes || []).find(x => x.code === gaf.type.value);
+      $('#gother').hidden = gaf.who.value !== 'other';
+      $('#gdocs').textContent = t && t.docs.length ? 'المستندات المطلوبة: ' + t.docs.join('، ') + (t.deadline_days ? ` — خلال ${t.deadline_days} يوم من الواقعة` : '') : ''; };
+    gaf.onchange = sync; sync();
+    gaf.onsubmit = async e => { e.preventDefault(); const d = formData(gaf);
+      const p = { type: d.type, event_date: d.event_date, notes: d.notes };
+      if (d.who === 'other') Object.assign(p, { subject_name: d.subject_name, subject_relation: d.subject_relation });
+      else if (d.who !== 'self') p.family_member_id = d.who;
+      const r = await busy(gaf.querySelector('[type=submit]'), () => call('GRT_APPLY', p));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      toast('اتقدّم الطلب ✓ رقم ' + r.request.req_no); render(); };
+  }
+  app.querySelectorAll('[data-gst]').forEach(b => b.onclick = () => { S.grtF = { status: b.dataset.gst || undefined }; render(); });
+  const grtDo = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true); toast(msg); render(); };
+  on('grtCancel', b => { if (confirm('إلغاء الطلب؟')) grtDo(b, 'GRT_CANCEL_MY', { requestId: b.dataset.id }, 'اتلغى الطلب'); });
+  app.querySelectorAll('form[data-docs]').forEach(f => f.onsubmit = e => { e.preventDefault();
+    const g = S.grtList.find(x => x.id === f.dataset.docs);
+    const docs = g.docs.map((d, i) => ({ ...d, received: f.querySelector(`[name=d${i}]`).checked }));
+    grtDo(f.querySelector('button'), 'GRT_REVIEW', { requestId: g.id, docs }, 'اتحفظت المراجعة ✓'); });
+  on('grtApprove', async b => { await loadDecs();
+    openModal(`<h3>اعتماد المنحة</h3><form id="gdf"><label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" value="${esc(b.dataset.amt)}"></label>
+      <label class="f"><span>قرار المجلس (إلزامي لو المبلغ غير المقرر)</span><select class="input" name="decision_id"><option value="">—</option>${(S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('')}</select></label>
+      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">اعتماد</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#gdf').onsubmit = async e => { e.preventDefault();
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('GRT_DECIDE', { requestId: b.dataset.id, approve: true, ...formData(e.target) }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتعتمد ✓ — جاهز للصرف من أمين الصندوق'); render(); }; }); });
+  on('grtReject', b => { const reason = prompt('سبب الرفض (إجباري):'); if (!reason) return; grtDo(b, 'GRT_DECIDE', { requestId: b.dataset.id, approve: false, reason }, 'اترفض'); });
+  on('grtPay', b => { const no = prompt('رقم الشيك:'); if (no === null) return;
+    grtDo(b, 'GRT_PAY', { requestId: b.dataset.id, cheque_no: no }, 'اتصرف الشيك ✓ واتسجل في المزايا'); });
+  on('grtProxy', () => { openModal(`<h3>طلب نيابة عن عضو</h3><form id="gpf"><label class="f"><span>الرقم الوظيفي</span><input class="input" name="jobId" required></label>
+      <label class="f"><span>النوع</span><select class="input" name="type">${(S.grtTypes || []).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
+      <label class="f"><span>تاريخ الواقعة</span><input class="input" type="date" name="event_date" required></label>
+      <div class="grid2"><input class="input" name="subject_name" placeholder="اسم المستفيد/المتوفى (فارغ = العضو)"><select class="input" name="subject_relation">${options(['العضو', 'أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], 'العضو', false)}</select></div>
+      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تقديم</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#gpf').onsubmit = async e => { e.preventDefault();
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('GRT_APPLY', formData(e.target)));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتسجل الطلب ' + r.request.req_no); render(); }; }); });
+  on('grtRate', async b => { await loadDecs();
+    openModal(`<h3>تعديل مبلغ منحة</h3><form id="grf"><label class="f"><span>النوع</span><select class="input" name="type">${(S.grtTypes || []).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
+      <div class="grid2"><label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" required></label>
+        <label class="f"><span>لصلة معينة (اختياري)</span><select class="input" name="relation"><option value="">الكل</option>${options(['العضو', 'أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], '', false)}</select></label></div>
+      <div class="grid2"><label class="f"><span>يسري من</span><input class="input" type="date" name="valid_from"></label>
+        <label class="f"><span>القرار</span><select class="input" name="decision_id"><option value="">—</option>${(S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)}</option>`).join('')}</select></label></div>
+      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#grf').onsubmit = async e => { e.preventDefault();
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('GRT_SET_RATE', formData(e.target)));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتحفظ المبلغ ✓'); render(); }; }); });
+
+  // ── الأجهزة ──
+  const devDo = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true); toast(typeof msg === 'function' ? msg(r) : msg); render(); };
+  app.querySelectorAll('form[data-devorder]').forEach(f => f.onsubmit = e => { e.preventDefault();
+    if (!confirm('تأكيد طلب الجهاز بالتقسيط؟')) return;
+    devDo(f.querySelector('button'), 'DEV_ORDER', { itemId: f.dataset.devorder, ...formData(f) }, 'اتسجل الطلب ✓ بانتظار الاعتماد'); });
+  on('devCancel', b => { if (confirm('إلغاء الطلب؟')) devDo(b, 'DEV_CANCEL_MY', { orderId: b.dataset.id }, 'اتلغى'); });
+  app.querySelectorAll('[data-devtab]').forEach(b => b.onclick = () => { S.devTab = b.dataset.devtab; render(); });
+  on('devOrders', async b => { S.devOffer = S.devOffers.find(o => o.id === b.dataset.id);
+    const r = await busy(b, () => call('DEV_ORDERS', { offerId: b.dataset.id })); S.devOrders = r.success ? r.items : []; render(); });
+  const devFormOpen = async o => { await loadDecs();
+    openModal(devOfferForm(o), () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#dof').onsubmit = async e => { e.preventDefault(); const d = formData(e.target);
+        const items = d.items.split('\n').map(x => x.split('|').map(y => y.trim())).filter(x => x[0]).map(x => ({ name: x[0], supplier_price: x[1], member_price: x[2],
+          market_price: x[3], max_months: x[4], down_pct: x[5], stock: x[6] }));
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('DEV_SAVE', { offer: { ...d, id: o && o.id, items } }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتحفظ ✓'); render(); }; }); };
+  on('devNew', () => devFormOpen(null));
+  on('devEdit', b => devFormOpen(S.devOffers.find(o => o.id === b.dataset.id)));
+  on('devStatus', b => devDo(b, 'DEV_SET_STATUS', { offerId: b.dataset.id, status: b.dataset.s }, 'اتغيرت الحالة ✓'));
+  const reloadOrders = async () => { if (S.devOffer) { const r = await call('DEV_ORDERS', { offerId: S.devOffer.id }); S.devOrders = r.success ? r.items : []; } };
+  const devAdm = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true);
+    toast(typeof msg === 'function' ? msg(r) : msg); await reloadOrders(); render(); };
+  on('devDecide', b => { const ok = b.dataset.v === '1'; let reason = '';
+    if (!ok) { reason = prompt('سبب الرفض (إجباري):'); if (!reason) return; }
+    devAdm(b, 'DEV_DECIDE', { orderId: b.dataset.id, approve: ok, reason }, ok ? 'اتعتمد واتعمل جدول الأقساط ✓' : 'اترفض'); });
+  on('devDeliver', b => { if (confirm('تسليم الجهاز؟ هيتقيّد البيع ومستحق المورد، والمقدم يتحصّل نقداً.'))
+    devAdm(b, 'DEV_DELIVER', { orderId: b.dataset.id }, 'اتسلّم ✓'); });
+  on('devPay', b => { const amt = prompt('المبلغ المحصّل:', b.dataset.rest); if (!amt) return;
+    devAdm(b, 'DEV_PAY', { orderId: b.dataset.id, amount: amt }, r => 'اتحصّل — إيصال ' + r.receipt_no); });
+  const drf = $('#drf');
+  if (drf) drf.onsubmit = e => { e.preventDefault(); devDo(drf.querySelector('button'), 'DEV_RUN_BUILD', { month: drf.month.value + '-01' }, 'اتعمل الكشف ✓'); };
+  on('runApprove', b => { if (confirm('اعتماد الكشف؟ الأقساط هتتحسب مسددة بالاستقطاع.')) devDo(b, 'DEV_RUN_APPROVE', { runId: b.dataset.id }, 'اتعتمد ✓'); });
+  on('runReceive', b => { if (confirm('تحصيل تحويل جهة العمل للبنك؟')) devDo(b, 'DEV_RUN_RECEIVE', { runId: b.dataset.id }, 'اتحصّل ✓'); });
 
   // ── المزايا ──
   const byf = $('#byf');

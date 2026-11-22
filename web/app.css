@@ -20,8 +20,8 @@ a{color:var(--brand2)}
 .top .t small{opacity:.8;font-size:12px}
 .top button{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:10px;padding:6px 10px;cursor:pointer}
 .wrap{max-width:860px;margin:0 auto;padding:16px 16px 96px}
-.nav{position:fixed;bottom:0;inset-inline:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
-.nav a{flex:1;text-align:center;text-decoration:none;color:var(--mute);font-size:12px;padding:4px;border-radius:10px}
+.nav{position:fixed;bottom:0;inset-inline:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;overflow-x:auto;scrollbar-width:none;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+.nav a{flex:1 0 auto;min-width:58px;white-space:nowrap;text-align:center;text-decoration:none;color:var(--mute);font-size:12px;padding:4px;border-radius:10px}
 .nav a i{display:block;font-style:normal;font-size:20px;line-height:1.2}
 .nav a.on{color:var(--brand);font-weight:700;background:#eaf2f8}
 @media(min-width:900px){.nav{position:static;max-width:860px;margin:12px auto 0;border:1px solid var(--line);border-radius:var(--r)}.wrap{padding-bottom:32px}}

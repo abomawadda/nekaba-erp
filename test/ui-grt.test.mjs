@@ -1,0 +1,42 @@
+// اختبار شاشات المنح في Chromium — بلا صرف (الشيك قيد لا يُحذف): مدير zz_gadm + عضو ZZ-G1، يُحذفان بعده مع طلباتهما
+import { createRequire } from 'node:module';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const OUT = process.argv[2] || '.', BASE = 'http://127.0.0.1:8787/';
+const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
+const browser = await chromium.launch({ proxy });
+let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
+const errors = []; let promptAns = null;
+const page = async () => { const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'ar-EG' });
+  const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message));
+  p.on('dialog', d => d.type() === 'prompt' ? d.accept(promptAns ?? '') : d.accept()); await p.goto(BASE); return p; };
+const ago = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+// العضو يقدّم منحة زواج ومولود
+const m = await page();
+await m.fill('[name=jobId]', 'ZZ-G1'); await m.fill('[name=secret]', '1111'); await m.click('#lf [type=submit]');
+await m.waitForSelector('a[href="#/grants"]'); await m.click('a[href="#/grants"]'); await m.waitForSelector('#gaf');
+ok((await m.textContent('#gdocs')).includes('قسيمة الزواج'), 'required docs shown');
+await m.fill('#gaf [name=event_date]', ago(10)); await m.click('#gaf [type=submit]'); await m.waitForSelector('[data-act=grtCancel]');
+let t = await m.textContent('.wrap'); ok(t.includes('منحة زواج') && /٣٠٠|300/.test(t), 'marriage applied with 300');
+await m.selectOption('#gaf [name=type]', 'BIRTH'); await m.selectOption('#gaf [name=who]', { index: 1 });
+await m.fill('#gaf [name=event_date]', ago(3)); await m.click('#gaf [type=submit]'); await m.waitForTimeout(1500);
+ok((await m.textContent('.wrap')).includes('منحة مولود'), 'birth applied');
+await m.selectOption('#gaf [name=type]', 'MARRIAGE'); await m.selectOption('#gaf [name=who]', 'self');
+await m.fill('#gaf [name=event_date]', ago(5)); await m.click('#gaf [type=submit]'); await m.waitForSelector('#ferr .alert');
+ok((await m.textContent('#ferr')).includes('سبق'), 'duplicate blocked'); await m.screenshot({ path: `${OUT}/g1-member.png`, fullPage: true });
+// الإدارة: مراجعة ثم اعتماد
+const p = await page();
+await p.click('[data-tab=staff]'); await p.fill('[name=username]', 'zz_gadm'); await p.fill('[name=password]', 'Grt#2026x'); await p.click('#lf [type=submit]');
+await p.waitForSelector('a[href="#/grantsadmin"]'); await p.click('a[href="#/grantsadmin"]'); await p.waitForSelector('form[data-docs]');
+const card = p.locator('.card', { hasText: 'منحة زواج' }).filter({ hasText: 'عضو اختبار المنح' }).first();
+await card.locator('input[type=checkbox]').check(); await card.locator('form[data-docs] button').click(); await p.waitForSelector('[data-act=grtApprove]');
+ok(true, 'docs reviewed → مستوفى'); await p.screenshot({ path: `${OUT}/g2-admin.png`, fullPage: true });
+await p.click('[data-act=grtApprove]'); await p.waitForSelector('#gdf'); await p.click('#gdf [type=submit]'); await p.waitForTimeout(1500);
+t = await p.textContent('.wrap'); ok(t.includes('معتمد'), 'approved');
+const birth = p.locator('.card', { hasText: 'منحة مولود' }).filter({ hasText: 'عضو اختبار المنح' }).first();
+promptAns = 'اختبار رفض'; await birth.locator('[data-act=grtReject]').click(); await p.waitForTimeout(1500); promptAns = null;
+await p.click('[data-gst="مرفوض"]'); await p.waitForTimeout(1500);
+ok((await p.textContent('.wrap')).includes('اختبار رفض'), 'rejected with reason'); await p.screenshot({ path: `${OUT}/g3-rejected.png`, fullPage: true });
+await m.reload(); await m.waitForSelector('#gaf'); t = await m.textContent('.wrap');
+ok(t.includes('معتمد') && t.includes('اختبار رفض'), 'member sees statuses'); await m.screenshot({ path: `${OUT}/g4-member-after.png`, fullPage: true });
+ok(errors.length === 0, 'no JS errors: ' + errors.join(' | '));
+await browser.close(); console.log(`\n${pass} نجح · ${fail} فشل`); process.exit(fail ? 1 : 0);
