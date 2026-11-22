@@ -18,6 +18,8 @@ a{color:var(--brand2)}
 .top .t{flex:1;min-width:0}
 .top .t b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top .t small{opacity:.8;font-size:12px}
+.top .bell{position:relative;font-size:20px;text-decoration:none;padding:4px 6px}
+.top .bell .badge{position:absolute;top:-2px;inset-inline-start:-4px;background:#e0464b;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 5px;line-height:1.4}
 .top button{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:10px;padding:6px 10px;cursor:pointer}
 .wrap{max-width:860px;margin:0 auto;padding:16px 16px 96px}
 .nav{position:fixed;bottom:0;inset-inline:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;overflow-x:auto;scrollbar-width:none;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
@@ -110,4 +112,4 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .toast{position:fixed;bottom:84px;inset-inline:16px;z-index:60;background:#1d2733;color:#fff;padding:12px 14px;border-radius:12px;text-align:center;max-width:520px;margin:auto}
 .toast.bad{background:var(--bad)}
 .dt{direction:ltr;unicode-bidi:isolate;white-space:nowrap;display:inline-block}
-@media print{.nav,.top button,#repf,.toast{display:none!important}.wrap{padding-bottom:0}.card{break-inside:avoid;box-shadow:none;border:1px solid #ccc}}
+@media print{.nav,.top button,.top .bell,#repf,.toast{display:none!important}.wrap{padding-bottom:0}.card{break-inside:avoid;box-shadow:none;border:1px solid #ccc}}

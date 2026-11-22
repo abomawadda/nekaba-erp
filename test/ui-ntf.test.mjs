@@ -1,0 +1,32 @@
+// اختبار الإشعارات في المتصفح: عضو ZZ-N1 يرى إعلان فتح «ZZ رحلة إشعار» بشارة على الجرس، يحجز ويلغي فيصله إشعار؛ والمدير zz_ntf يرى «مهام مستنياك».
+// يُحذف كل ذلك بعده (بما فيه الإعلان العام) — شغّله وانظف فوراً.
+import { createRequire } from 'node:module';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const OUT = process.argv[2] || '.', BASE = 'http://127.0.0.1:8787/';
+const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } : undefined;
+const browser = await chromium.launch({ proxy });
+let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
+const errors = [];
+const page = async () => { const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'ar-EG' });
+  const p = await ctx.newPage(); p.on('pageerror', e => errors.push(e.message)); p.on('dialog', d => d.accept()); await p.goto(BASE); return p; };
+const m = await page();
+await m.fill('[name=jobId]', 'ZZ-N1'); await m.fill('[name=secret]', '6666'); await m.click('#lf [type=submit]');
+await m.waitForSelector('.top .bell .badge', { timeout: 15000 });
+ok(true, 'badge on bell');
+await m.click('.top .bell'); await m.waitForSelector('.list');
+let t = await m.textContent('.wrap'); ok(t.includes('اتفتح الحجز: ZZ رحلة إشعار') && t.includes('جديد'), 'announcement listed as new');
+await m.screenshot({ path: `${OUT}/n1-member.png`, fullPage: true });
+await m.locator('.li', { hasText: 'ZZ رحلة إشعار' }).click(); await m.waitForSelector('#bkf');
+await m.click('#bkf [type=submit]'); await m.waitForSelector('[data-act=myCancel]');
+await m.click('[data-act=myCancel]'); await m.waitForTimeout(1500);
+await m.goto(BASE + '#/notifications'); await m.waitForSelector('.list');
+t = await m.textContent('.wrap'); ok(t.includes('اتلغى حجزك'), 'booking cancel notification');
+await m.goto(BASE + '#/home'); await m.waitForSelector('.tiles'); await m.waitForTimeout(1000);
+ok(!(await m.$('.top .bell .badge')), 'badge cleared after reading');
+const p = await page();
+await p.click('[data-tab=staff]'); await p.fill('[name=username]', 'zz_ntf'); await p.fill('[name=password]', 'Ntf#2026x'); await p.click('#lf [type=submit]');
+await p.waitForSelector('.top .bell'); await p.goto(BASE + '#/notifications'); await p.waitForSelector('.wrap .card');
+t = await p.textContent('.wrap'); ok(t.includes('اتفتح الحجز: ZZ رحلة إشعار'), 'staff sees announcement');
+await p.screenshot({ path: `${OUT}/n2-staff.png`, fullPage: true });
+ok(errors.length === 0, 'no JS errors: ' + errors.join(' | '));
+await browser.close(); console.log(`\n${pass} نجح · ${fail} فشل`); process.exit(fail ? 1 : 0);

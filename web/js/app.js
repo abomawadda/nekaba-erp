@@ -107,6 +107,7 @@ function shell(title, body) {
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
        ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/reports', '📊', 'التقارير', can('reports.view')], ['#/account', '⚙️', 'حسابي', true]];
   return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
+      <a href="#/notifications" class="bell" title="الإشعارات">🔔${S.ntfCount ? `<span class="badge">${S.ntfCount > 9 ? '9+' : S.ntfCount}</span>` : ''}</a>
       <button data-act="logout">خروج</button></div>
     <div class="wrap">${body}</div>
     <nav class="nav">${nav.filter(n => n[3]).map(n => `<a href="${n[0]}" class="${h.startsWith(n[0]) ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}</nav>`;
@@ -1033,11 +1034,29 @@ function installCard() {
   return '';
 }
 
+// ───────── الإشعارات ─────────
+const NTF_ICON = { 'رحلة': '🚌', 'مصيف': '🏖️', 'منحة': '🎁', 'جهاز': '📱', 'عمرة': '🕋', 'بيانات': '🪪', 'إعلان': '📣' };
+async function refreshNtf() {
+  const r = await call('NTF_LIST'); if (!r.success) return;
+  const n = (+r.unread || 0) + (r.tasks || []).reduce((a, t) => a + +t.count, 0);
+  S.ntf = r; if (n !== S.ntfCount) { S.ntfCount = n; const b = document.querySelector('.top .bell'); if (b) b.outerHTML = `<a href="#/notifications" class="bell" title="الإشعارات">🔔${n ? `<span class="badge">${n > 9 ? '9+' : n}</span>` : ''}</a>`; }
+}
+function notificationsView() {
+  const r = S.ntf || {}, ago = d => { const m = Math.round((Date.now() - new Date(d)) / 60000);
+    return m < 60 ? `من ${Math.max(m, 1)} دقيقة` : m < 1440 ? `من ${Math.round(m / 60)} ساعة` : dt(String(d).slice(0, 10)); };
+  return `${(r.tasks || []).length ? `<div class="card"><h2>📌 مهام مستنياك</h2>${r.tasks.map(t => `<a class="kv" href="${esc(t.link)}" style="text-decoration:none;color:inherit"><span>${esc(t.title)}</span><span class="pill warn">${t.count}</span></a>`).join('')}</div>` : ''}
+    <div class="card list">${(r.items || []).map(n => `<a class="li" href="${esc(n.link || '#/home')}" style="text-decoration:none;color:inherit${n.unread ? ';background:#f3f8fc' : ''}">
+      <div class="av" style="width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#eaf2f8;flex:none">${NTF_ICON[n.kind] || '🔔'}</div>
+      <div class="nm"><b>${esc(n.title)}${n.unread ? ' <span class="pill ok" style="font-size:10px">جديد</span>' : ''}</b><span class="muted">${esc(n.body || '')} · ${ago(n.at)}</span></div></a>`).join('')
+      || '<div class="empty">لا إشعارات</div>'}</div>`;
+}
+
 async function boot() {
   if (!S.token) { location.hash = '#/login'; return render(); }
   const r = await call('GET_ME');
   if (!r.success) return;
   S.me = r; await loadLists();
+  refreshNtf(); if (!S.ntfTimer) S.ntfTimer = setInterval(() => { if (S.token && !document.hidden) refreshNtf(); }, 120000);
   if (isStaff() && r.mustChange) location.hash = '#/account';
   else if (!location.hash || location.hash === '#/login') location.hash = isStaff() ? '#/admin' : '#/home';
   render();
@@ -1085,6 +1104,11 @@ async function render() {
     const [g, b] = await Promise.all([call('ACT_GET', { activityId: id }), call('ACT_BOOKINGS', { activityId: id })]);
     if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
     S.trip = g.activity; S.actBk = b.items; S.actSum = b.summary; body = actAdminView();
+  }
+  else if (h.startsWith('#/notifications')) {
+    title = 'الإشعارات'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    await refreshNtf(); body = notificationsView();
+    if (+(S.ntf || {}).unread) { await call('NTF_READ'); S.ntf.unread = 0; S.ntfCount = (S.ntf.tasks || []).reduce((a, t) => a + +t.count, 0); }
   }
   else if (h.startsWith('#/reports')) {
     title = 'التقارير الشاملة'; app.innerHTML = shell(title, '<div class="spin"></div>');
