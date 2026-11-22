@@ -101,7 +101,7 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
@@ -119,7 +119,7 @@ function homeView() {
   const tiles = [
     { i: '📚', b: 'الكتب الخارجية', s: 'احجز كتب ولادك بالتقسيط', href: C.BOOKS_URL },
     { i: '🚌', b: 'الرحلات والفعاليات', s: 'احجز لك ولأسرتك', href: '#/trips', internal: true },
-    { i: '🏖️', b: 'المصايف', s: 'قريباً', soon: true },
+    { i: '🏖️', b: 'المصايف', s: 'قدّم على مصيف الصيف', href: '#/summer', internal: true },
     { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'قريباً' : 'لأعضاء النقابة العامة', soon: true },
     { i: '📱', b: 'أجهزة بالتقسيط', s: 'قريباً', soon: true },
     { i: '🌙', b: 'الإفطار والفعاليات', s: 'قريباً', soon: true },
@@ -607,6 +607,120 @@ function activityForm(a) {
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 
+// ───────── المصايف ─────────
+const SUM_ST = { 'مؤكد': 'ok', 'منتهٍ': 'ok', 'بانتظار السداد': 'warn', 'احتياطي': 'warn', 'مقدَّم': '', 'معتذر': 'bad', 'ملغى': 'bad', 'لم يُقبل': 'bad' };
+const sumPill = st => `<span class="pill ${SUM_ST[st] || ''}">${esc(st)}</span>`;
+const back = (h, t) => `<a href="${h}" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ ${t}</a>`;
+function summerListView() {
+  return `${can('summer.manage') ? '<div class="card row"><button class="btn" data-act="sumNew">+ موسم جديد</button></div>' : ''}
+  <div class="card list">${(S.seasons || []).map(s => `<div class="li" data-season="${s.id}" style="cursor:pointer"><div class="nm"><b>🏖️ ${esc(s.title)}</b>
+      <span class="muted">${s.start ? 'من ' + dt(s.start) + ' · ' : ''}التوزيع: ${esc(s.method)}${s.apply_close ? ' · آخر تقديم ' + dt(String(s.apply_close).slice(0, 10)) : ''}</span></div>
+      <div style="text-align:left"><span class="pill">${esc(s.status)}</span>${s.myStatus ? '<br>' + sumPill(s.myStatus) : ''}</div></div>`).join('') || '<div class="empty">لا توجد مواسم حالياً</div>'}</div>`;
+}
+const unitLbl = u => u ? `${esc(u.resort)} — ${esc(u.unit_type)} ${esc(u.code)} (${u.beds} سراير)` : '';
+function sumAppCard(ap, mine) {
+  const pend = ap.status === 'بانتظار السداد';
+  return `<div class="card"><h2>📝 طلب ${esc(ap.app_no)}<span class="sp"></span>${sumPill(ap.status)}</h2>
+    ${ap.status === 'مقدَّم' ? '<div class="alert">طلبك اتسجل — النتيجة بعد غلق التقديم والتوزيع.</div>' : ''}
+    ${ap.status === 'احتياطي' ? `<div class="alert warn">أنت رقم ${ap.reserve_rank} في الاحتياطي — لو حد اعتذر هتتصعّد تلقائياً.</div>` : ''}
+    ${pend && ap.hold_until ? `<div class="alert warn">اتقبلت! ادفع قبل ${dt(String(ap.hold_until).slice(0, 16).replace('T', ' '))} وإلا يسقط ويروح للاحتياطي.</div>` : ''}
+    ${ap.unit ? kvh('الوحدة', unitLbl(ap.unit)) : ''}${ap.batch ? kvh('الفوج', `${esc(ap.batch.name)} <small class="muted">${dt(ap.batch.start_date)} ← ${dt(ap.batch.end_date)}</small>`) : ''}
+    ${kvh('الأفراد', ap.family_size + ' <small class="muted">' + (ap.people || []).map(p => esc(p.full_name)).join('، ') + '</small>')}
+    ${+ap.total ? kvh('<b>المطلوب</b>', `<b>${money(ap.total)}</b>`) + (+ap.subsidy ? kvh('دعم النقابة', money(ap.subsidy)) : '') + kvh('المدفوع', money(ap.paid)) : ''}
+    ${ap.unit && +ap.unit.deposit ? kvh('تأمين يُدفع عند الاستلام ويُرد', money(ap.unit.deposit)) : ''}
+    ${(ap.swaps || []).map(w => `<div class="alert">${w.mine ? 'طلبت' : 'طلب منك'} ${esc(w.kind)}${w.other_app ? ' مع ' + esc(w.other_app) : ''} — ${esc(w.status)}
+      ${!w.mine && w.status === 'مطلوب' && mine ? `<div class="row" style="margin-top:6px"><button class="btn sm" data-act="swAccept" data-id="${w.id}" data-v="1">موافق</button><button class="btn sm bad" data-act="swAccept" data-id="${w.id}" data-v="0">رفض</button></div>` : ''}</div>`).join('')}
+    ${mine ? `<div class="row" style="margin-top:8px">
+      ${ap.status === 'مقدَّم' ? `<button class="btn sm bad" data-act="sumWithdraw" data-id="${ap.id}">سحب الطلب</button>` : ''}
+      ${['بانتظار السداد', 'مؤكد', 'احتياطي'].includes(ap.status) && !(ap.handovers || []).length ? `<button class="btn sm bad" data-act="sumApolMy" data-id="${ap.id}">اعتذار (تسترد ${ap.refundPctNow}%)</button>` : ''}
+      ${['بانتظار السداد', 'مؤكد'].includes(ap.status) && !(ap.handovers || []).length ? `<button class="btn sm sec" data-act="sumSwapMy" data-id="${ap.id}">طلب تبديل</button>` : ''}</div>` : ''}
+    <details style="margin-top:8px"><summary class="muted">سجل الحركات (${(ap.events || []).length})</summary>
+      ${(ap.events || []).map(e => kvh(esc(e.kind), `<small class="muted">${dt(String(e.at).slice(0, 10))}</small>`)).join('')}</details></div>`;
+}
+function seasonView() {
+  const s = S.season; if (!s) return '';
+  const my = s.myApp, open = s.status === 'التقديم مفتوح';
+  const units = s.resorts.flatMap(r => r.units.filter(u => u.active).map(u => ({ ...u, resort: r.name })));
+  return back('#/summer', 'المصايف') + `<div class="card"><h2>🏖️ ${esc(s.title)}<span class="sp"></span><span class="pill">${esc(s.status)}</span></h2>
+    ${kvh('طريقة التوزيع', esc(s.method) + (s.method === 'أولوية لمن لم يستفد' ? ` <small class="muted">(خلال ${s.lookback_years} سنة)</small>` : ''))}
+    ${s.apply_close ? kvh('آخر موعد للتقديم', dt(String(s.apply_close).slice(0, 10))) : ''}
+    ${s.decision ? kvh('القرار', esc(s.decision.decision_no)) : ''}
+    ${s.lottery_hash ? `<div class="alert" style="font-size:12px;word-break:break-all">🎲 القرعة: البذرة المعلنة «${esc(s.lottery_seed)}» — مفتاح كل طلب = sha256(البذرة|رقم الطلب) بالترتيب التصاعدي.<br>بصمة النتيجة: ${esc(s.lottery_hash)}</div>` : ''}
+    ${can('summer.manage') ? `<a class="btn sm gold" href="#/sumadmin/${s.id}" style="display:inline-block;margin-top:8px;text-decoration:none">⚙️ إدارة الموسم</a>` : ''}</div>
+  <div class="card"><h2>📅 الأفواج</h2>${s.batches.map(b => kvh(esc(b.name), `${dt(b.start_date)} ← ${dt(b.end_date)}`)).join('')}</div>
+  <div class="card"><h2>🏠 الوحدات</h2>${units.map(u => kvh(`${esc(u.resort)} — ${esc(u.unit_type)} ${esc(u.code)} <small class="muted">${u.beds} سراير</small>`,
+      `${money(s.eligible === false ? u.full_price : u.member_price)}${+u.deposit ? ' <small class="muted">+ تأمين ' + Number(u.deposit) + '</small>' : ''}`)).join('')}
+    ${s.eligible === false ? '<div class="muted">السعر الكامل (غير مستحق للدعم في تاريخ الموسم).</div>' : '<div class="muted">الأسعار للفوج بعد دعم النقابة.</div>'}</div>
+  ${my ? sumAppCard(my, true) : open && S.me.profile ? `<div class="card"><h2>📝 قدّم طلبك</h2><form id="saf">
+      <b>رتّب تفضيلاتك (حتى ${s.max_prefs})</b>
+      ${Array.from({ length: s.max_prefs }, (_, i) => `<div class="row" data-pref style="margin:4px 0"><span>${i + 1}.</span>
+        <select class="input" style="flex:2" name="batch_id"><option value="">— الفوج —</option>${s.batches.map(b => `<option value="${b.id}">${esc(b.name)} (${dt(b.start_date)})</option>`).join('')}</select>
+        <select class="input" style="flex:2" name="resort_id"><option value="">أي مصيف</option>${s.resorts.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select>
+        <select class="input" style="flex:1" name="unit_type"><option value="">أي نوع</option>${options([...new Set(units.map(u => u.unit_type))], '', false)}</select></div>`).join('')}
+      <b style="display:block;margin-top:8px">مين معاك من أسرتك؟</b>
+      ${(S.me.profile.family || []).filter(f => f.active !== false).map(f => `<label class="row"><input type="checkbox" name="fam" value="${f.id}"> ${esc(f.full_name)} <small class="muted">(${esc(f.relation)})</small></label>`).join('') || '<div class="muted">لا أفراد في ملفك — ضيفهم من «أسرتي».</div>'}
+      <div class="muted" style="margin-top:6px">الوحدة لازم تسع كل الأفراد (أكبر وحدة ${Math.max(...units.map(u => u.beds), 0)} سراير).</div>
+      <div id="ferr"></div><button class="btn block" type="submit" style="margin-top:8px">تقديم الطلب</button></form></div>`
+    : `<div class="card empty">${open ? 'التقديم للأعضاء فقط' : 'التقديم غير متاح الآن'}</div>`}`;
+}
+function sumAdminView() {
+  const s = S.season, m = S.sumSum || {}, items = S.sumApps || [], swaps = S.sumSwaps || []; if (!s) return '';
+  const st = s.status, by = m.byStatus || {};
+  return back('#/season/' + s.id, 'صفحة الموسم') + `<div class="card"><h2>⚙️ ${esc(s.title)} <small class="muted">${esc(s.code)}</small><span class="sp"></span><span class="pill">${esc(st)}</span></h2>
+    <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+      <div class="tile"><b>${m.slots || 0}</b><small>خانة (وحدة×فوج)</small></div><div class="tile"><b>${m.applied || 0}</b><small>طلب</small></div>
+      <div class="tile"><b>${(by['مؤكد'] || 0) + (by['منتهٍ'] || 0)}</b><small>مؤكد</small></div>
+      <div class="tile"><b>${by['بانتظار السداد'] || 0}+${by['احتياطي'] || 0}</b><small>سداد/احتياطي</small></div>
+      <div class="tile"><b>${money(m.collected)}</b><small>محصّل</small></div><div class="tile"><b>${money(m.subsidy)}</b><small>دعم</small></div></div>
+    ${+m.depositsHeld ? `<div class="muted" style="margin-top:6px">تأمينات محتجزة: ${money(m.depositsHeld)}</div>` : ''}
+    <div class="row" style="margin-top:10px">
+      ${['مسودة', 'التقديم مفتوح', 'التقديم مقفول'].includes(st) ? '<button class="btn sm sec" data-act="sumEdit">تعديل الموسم والوحدات</button>' : ''}
+      ${['مسودة', 'التقديم مقفول'].includes(st) ? '<button class="btn sm" data-act="sumStatus" data-s="التقديم مفتوح">فتح التقديم</button>' : ''}
+      ${st === 'التقديم مفتوح' ? '<button class="btn sm" data-act="sumStatus" data-s="التقديم مقفول">قفل التقديم</button>' : ''}
+      ${st === 'التقديم مقفول' ? '<button class="btn sm gold" data-act="sumAlloc">التوزيع' + (s.method === 'أسبقية' ? '' : ' بالقرعة') + '</button>' : ''}
+      ${st === 'تم التوزيع' ? '<button class="btn sm gold" data-act="sumClose">إقفال الموسم</button>' : ''}
+      ${!['منتهٍ', 'ملغى'].includes(st) ? '<button class="btn sm bad" data-act="sumCancelAll">إلغاء الموسم</button>' : ''}</div></div>
+  ${swaps.length ? `<div class="card"><h2>🔁 طلبات التبديل</h2>${swaps.map(w => `<div class="kv" style="display:block"><b>${esc(w.kind)}</b> — ${esc(w.from)}${w.to ? ' ⇄ ' + esc(w.to) : ''}${w.to_batch ? ' ← ' + esc(w.to_batch) : ''}${w.to_unit ? ' / ' + esc(w.to_unit) : ''}
+      <small class="muted">${esc(w.status)}${w.reason ? ' · ' + esc(w.reason) : ''}</small>
+      <div class="row" style="margin-top:4px">${w.kind !== 'تبادل' || w.status === 'وافق الطرف الآخر' ? `<button class="btn sm" data-act="swDecide" data-id="${w.id}" data-v="1">اعتماد</button>` : '<span class="muted">بانتظار موافقة العضو الآخر</span>'}
+        <button class="btn sm bad" data-act="swDecide" data-id="${w.id}" data-v="0">رفض</button></div></div>`).join('')}</div>` : ''}
+  <div class="card"><h2>📋 الطلبات (${items.length})</h2>${items.map(ap => {
+    const ho = (ap.handovers || []).map(h => h.kind);
+    return `<div class="kv" style="display:block" data-app="${ap.id}">
+      <div class="row"><b style="flex:1">${ap.rank ? '#' + ap.rank + ' ' : ''}${esc(ap.person.full_name)} <small class="muted">${esc(ap.person.job_id || '')} · ${esc(ap.app_no)} · ${ap.family_size} فرد</small></b>${sumPill(ap.status)}</div>
+      <div class="muted">${ap.unit ? unitLbl(ap.unit) + ' · ' + esc(ap.batch.name) : ap.reserve_rank ? 'احتياطي رقم ' + ap.reserve_rank : ''}${ap.prior_benefit ? ' · <span class="pill warn">استفاد سابقاً</span>' : ''}${ap.eligible ? '' : ' · <span class="pill warn">سعر كامل</span>'}</div>
+      <div class="row" style="margin-top:4px"><span>${+ap.total ? 'المطلوب ' + money(ap.total) + ' · مدفوع ' + money(ap.paid) : ''}${+ap.refunded ? ' · مردود ' + money(ap.refunded) : ''}${+ap.deposit_held ? ' · تأمين ' + money(ap.deposit_held) : ''}</span><span style="flex:1"></span>
+        ${['بانتظار السداد', 'مؤكد'].includes(ap.status) && +ap.paid < +ap.total && can('treasury.receipt') ? `<button class="btn sm" data-act="sumPay" data-id="${ap.id}" data-rest="${(+ap.total - +ap.paid).toFixed(2)}">تحصيل</button>` : ''}
+        ${ap.status === 'مؤكد' && !ho.length && can('treasury.receipt') ? `<button class="btn sm sec" data-act="sumHand" data-k="تسليم" data-id="${ap.id}">محضر تسليم</button>` : ''}
+        ${ho.includes('تسليم') && !ho.includes('استلام') && can('treasury.receipt') ? `<button class="btn sm sec" data-act="sumHand" data-k="استلام" data-id="${ap.id}">محضر استلام</button>` : ''}
+        ${['بانتظار السداد', 'مؤكد'].includes(ap.status) && !ho.length ? `<button class="btn sm sec" data-act="sumSwapAdm" data-id="${ap.id}">تبديل</button>` : ''}
+        ${['بانتظار السداد', 'مؤكد', 'احتياطي'].includes(ap.status) && !ho.length ? `<button class="btn sm bad" data-act="sumApol" data-id="${ap.id}">اعتذار</button>` : ''}</div></div>`; }).join('') || '<div class="empty">لا طلبات بعد</div>'}</div>`;
+}
+function seasonForm(s) {
+  s = s || {}; const locked = (S.sumApps || []).length > 0;
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}" ${d.id === s.decision_id ? 'selected' : ''}>${esc(d.decision_no)} — ${esc(d.text.slice(0, 50))}</option>`).join('');
+  const pol = s.cancel_policy || [{ days_before: 14, refund_pct: 100 }, { days_before: 7, refund_pct: 50 }, { days_before: 0, refund_pct: 0 }];
+  const bl = (s.batches || []).map(b => `${b.name} | ${b.start_date} | ${b.end_date}`).join('\n');
+  const ul = (s.resorts || []).flatMap(r => r.units.map(u => [r.name, r.owner_party || '', u.code, u.unit_type, u.beds, +u.full_price, +u.member_price, +u.deposit, +u.owner_cost].join(' | '))).join('\n');
+  return `<h3>${s.id ? 'تعديل الموسم' : 'موسم جديد'}</h3><form id="ssf">
+    <div class="grid2"><label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(s.title || 'مصيف ' + (new Date().getFullYear() + 1))}" required></label>
+      <label class="f"><span>السنة</span><input class="input" name="year" inputmode="numeric" value="${esc(s.year || new Date().getFullYear() + 1)}" required></label></div>
+    <div class="grid2"><label class="f"><span>طريقة التوزيع (قرار الموسم)</span><select class="input" name="method">${options(['قرعة', 'أسبقية', 'أولوية لمن لم يستفد'], s.method || 'قرعة', false)}</select></label>
+      <label class="f"><span>«لم يستفد» خلال (سنة)</span><input class="input" name="lookback_years" inputmode="numeric" value="${esc(s.lookback_years ?? 2)}"></label></div>
+    <div class="grid2"><label class="f"><span>آخر موعد للتقديم</span><input class="input" type="date" name="apply_close" value="${esc(String(s.apply_close || '').slice(0, 10))}"></label>
+      <label class="f"><span>عدد التفضيلات</span><input class="input" name="max_prefs" inputmode="numeric" value="${esc(s.max_prefs || 3)}"></label></div>
+    <div class="grid2"><label class="f"><span>مهلة السداد بعد القبول (ساعة)</span><input class="input" name="hold_hours" inputmode="numeric" value="${esc(s.hold_hours || 72)}"></label>
+      <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${decs}</select></label></div>
+    <label class="f"><span>الأفواج — سطر لكل فوج: الاسم | من | إلى ${locked ? '<small class="muted">(فيه طلبات: لا تحذف أفواجاً)</small>' : ''}</span>
+      <textarea class="input" name="batches" rows="3" placeholder="الفوج الأول | 2027-07-01 | 2027-07-07" ${locked ? 'readonly' : ''}>${esc(bl)}</textarea></label>
+    <label class="f"><span>الوحدات — سطر لكل وحدة: المصيف | المالك/الشركة | رقم الوحدة | النوع | السراير | السعر الكامل | سعر المستحق | التأمين | تكلفة المالك</span>
+      <textarea class="input" name="units" rows="5" placeholder="رأس البر | شركة كذا | A1 | شقة | 5 | 3000 | 1200 | 500 | 2500">${esc(ul)}</textarea></label>
+    <b>الاسترداد عند الاعتذار</b>
+    ${pol.map(x => `<div class="row" data-pol style="margin:4px 0"><span>قبل الفوج بـ</span><input class="input" style="width:70px" name="days" value="${x.days_before}"><span>يوم ⇐</span>
+      <input class="input" style="width:70px" name="pct" value="${x.refund_pct}"><span>%</span></div>`).join('')}
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+
 // ───────── سجل المزايا ─────────
 const KIND_ICON = { 'منحة': '🎁', 'بدل': '💼', 'جائزة': '🏆', 'دعم': '🤝', 'إعفاء': '🎟️', 'خصم': '📚', 'ميزة عينية': '📦' };
 function benefitsBody(b, title) {
@@ -826,6 +940,22 @@ async function render() {
     if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
     S.trip = g.activity; S.actBk = b.items; S.actSum = b.summary; body = actAdminView();
   }
+  else if (h.startsWith('#/summer')) {
+    title = 'المصايف'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('SUM_LIST'); S.seasons = r.success ? r.items : []; body = summerListView();
+  }
+  else if (h.startsWith('#/season/')) {
+    title = 'المصيف'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('SUM_GET', { seasonId: h.split('/')[2] }); if (!r.success) return toast(r.message, true);
+    S.season = r.season; body = seasonView();
+  }
+  else if (h.startsWith('#/sumadmin/')) {
+    title = 'إدارة المصيف'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const id = h.split('/')[2];
+    const [g, b] = await Promise.all([call('SUM_GET', { seasonId: id }), call('SUM_APPS', { seasonId: id })]);
+    if (!g.success) return toast(g.message, true); if (!b.success) return toast(b.message, true);
+    S.season = g.season; S.sumApps = b.items; S.sumSum = b.summary; S.sumSwaps = b.swaps; body = sumAdminView();
+  }
   else if (h.startsWith('#/mybenefits')) {
     title = 'استفاداتي'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('BEN_MY'); if (!r.success) return toast(r.message, true);
@@ -1011,6 +1141,87 @@ function bindPage() {
     busy(b, () => call('ACT_PAY', { bookingId: b.dataset.id, amount: amt })).then(r => { if (!r.success) return toast(r.message, true); toast('اتحصّل — إيصال ' + r.receipt_no); render(); }); });
   on('bkCancel', b => { const reason = prompt('سبب الإلغاء (إجباري):'); if (!reason) return;
     busy(b, () => call('ACT_CANCEL', { bookingId: b.dataset.id, reason })).then(r => { if (!r.success) return toast(r.message, true); toast(+r.refund ? 'اتلغى — مردود ' + r.refund : 'اتلغى'); render(); }); });
+
+  // ── المصايف ──
+  app.querySelectorAll('[data-season]').forEach(c => c.onclick = () => { location.hash = '#/season/' + c.dataset.season; });
+  const sumCall = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra));
+    if (!r.success) { toast(r.message, true); return null; } if (msg) toast(msg(r)); render(); return r; };
+  const saf = $('#saf');
+  if (saf) saf.onsubmit = async e => { e.preventDefault();
+    const prefs = [...saf.querySelectorAll('[data-pref]')].map(r => ({ batch_id: r.querySelector('[name=batch_id]').value,
+      resort_id: r.querySelector('[name=resort_id]').value, unit_type: r.querySelector('[name=unit_type]').value })).filter(p => p.batch_id);
+    const fam = [...saf.querySelectorAll('[name=fam]:checked')].map(c => c.value);
+    const r = await busy(saf.querySelector('[type=submit]'), () => call('SUM_APPLY', { seasonId: S.season.id, prefs, family_member_ids: fam }));
+    if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+    toast('اتقدّم الطلب ✓ رقم ' + r.application.app_no); render(); };
+  on('sumWithdraw', b => { if (confirm('سحب الطلب؟')) sumCall(b, 'SUM_WITHDRAW', { applicationId: b.dataset.id }, () => 'اتسحب الطلب'); });
+  on('sumApolMy', b => { const reason = prompt('سبب الاعتذار:'); if (reason === null) return;
+    sumCall(b, 'SUM_APOLOGIZE_MY', { applicationId: b.dataset.id, reason }, r => +r.refund ? `اتسجل الاعتذار — هيترد لك ${r.refund} ج` : 'اتسجل الاعتذار'); });
+  const swapForm = (id, admin) => {
+    const s = S.season, units = s.resorts.flatMap(r => r.units.filter(u => u.active).map(u => ({ ...u, resort: r.name })));
+    openModal(`<h3>طلب تبديل</h3><form id="swf">
+      <label class="f"><span>النوع</span><select class="input" name="kind">${options(['تبديل فوج', 'تبديل وحدة', 'تبادل'], 'تبديل فوج', false)}</select></label>
+      <label class="f"><span>الفوج المطلوب</span><select class="input" name="batch_id"><option value="">نفس الفوج</option>${s.batches.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></label>
+      <label class="f"><span>الوحدة المطلوبة (اختياري)</span><select class="input" name="unit_id"><option value="">أي وحدة مناسبة</option>${units.map(u => `<option value="${u.id}">${esc(u.resort)} ${esc(u.code)} (${u.beds})</option>`).join('')}</select></label>
+      <label class="f"><span>للتبادل: رقم طلب العضو الآخر (لازم يوافق)</span><input class="input" name="withAppNo" placeholder="مصيف-2027-00012"></label>
+      <label class="f"><span>السبب</span><input class="input" name="reason"></label>
+      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">إرسال</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#swf').onsubmit = async e => { e.preventDefault(); const d = formData(e.target);
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call(admin ? 'SUM_SWAP_REQUEST' : 'SUM_SWAP_REQUEST_MY', { applicationId: id, ...d }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast(d.kind === 'تبادل' ? 'اتبعت للعضو الآخر للموافقة ثم الإدارة' : 'اتبعت للإدارة للاعتماد'); render(); };
+    }); };
+  on('sumSwapMy', b => swapForm(b.dataset.id, false));
+  on('sumSwapAdm', b => swapForm(b.dataset.id, true));
+  on('swAccept', b => sumCall(b, 'SUM_SWAP_ACCEPT', { swapId: b.dataset.id, accept: b.dataset.v === '1' }, () => b.dataset.v === '1' ? 'وافقت — بانتظار اعتماد الإدارة' : 'اترفض'));
+  on('swDecide', b => sumCall(b, 'SUM_SWAP_DECIDE', { swapId: b.dataset.id, approve: b.dataset.v === '1' }, () => b.dataset.v === '1' ? 'اتنفذ التبديل ✓' : 'اترفض'));
+  const sumFormOpen = async s => { await loadDecs();
+    openModal(seasonForm(s), () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#ssf').onsubmit = async e => { e.preventDefault(); const f = e.target, d = formData(f);
+        const season = { id: s && s.id, title: d.title, year: d.year, method: d.method, lookback_years: d.lookback_years, max_prefs: d.max_prefs,
+          hold_hours: d.hold_hours, decision_id: d.decision_id, apply_close: d.apply_close ? d.apply_close + 'T23:59:59' : '',
+          cancel_policy: [...f.querySelectorAll('[data-pol]')].map(r => ({ days_before: +r.querySelector('[name=days]').value || 0, refund_pct: +r.querySelector('[name=pct]').value || 0 })) };
+        const rows = t => t.split('\n').map(x => x.split('|').map(y => y.trim())).filter(x => x[0]);
+        if (!f.batches.readOnly) season.batches = rows(f.batches.value).map(x => ({ name: x[0], start_date: x[1], end_date: x[2] }));
+        else season.batches = s.batches.map(b => ({ id: b.id, name: b.name, start_date: b.start_date, end_date: b.end_date }));
+        const res = {};
+        rows(f.units.value).forEach(x => { const k = x[0]; const old = s && s.resorts.find(r => r.name === k);
+          res[k] = res[k] || { id: old && old.id, name: k, owner_party: x[1], location: old && old.location, units: [] };
+          res[k].units.push({ code: x[2], unit_type: x[3] || 'شقة', beds: x[4], full_price: x[5], member_price: x[6], deposit: x[7] || 0, owner_cost: x[8] || 0 }); });
+        season.resorts = Object.values(res);
+        const r = await busy(f.querySelector('[type=submit]'), () => call('SUM_SAVE', { season }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتحفظ ✓'); location.hash = '#/sumadmin/' + r.season.id; render(); };
+    }); };
+  on('sumNew', () => sumFormOpen(null));
+  on('sumEdit', () => sumFormOpen(S.season));
+  const sid = () => ({ seasonId: S.season.id });
+  on('sumStatus', b => sumCall(b, 'SUM_SET_STATUS', { ...sid(), status: b.dataset.s }, () => 'اتغيرت الحالة ✓'));
+  on('sumAlloc', b => { let seed = '';
+    if (S.season.method !== 'أسبقية') { seed = prompt('البذرة المعلنة للقرعة (مثلاً رقم يُسحب علناً أمام الحضور) — تُنشر مع النتيجة ليتحقق منها أي عضو:', S.season.lottery_seed || ''); if (!seed) return; }
+    if (!confirm('التوزيع مرة واحدة ولا يُعاد. متأكد؟')) return;
+    sumCall(b, 'SUM_ALLOCATE', { ...sid(), seed }, r => `اتوزّع ✓ ${r.result.accepted} مقبول و${r.result.reserve} احتياطي`); });
+  on('sumClose', b => { if (confirm('إقفال الموسم؟ الدعم هيتسجل في سجل المزايا ومستحقات الملاك هتتقيد.'))
+    sumCall(b, 'SUM_CLOSE', sid(), r => `اتقفل ✓ — ${r.result.benefits} ميزة دعم و${r.result.owner_entries} قيد استحقاق`); });
+  on('sumCancelAll', b => { if (confirm('إلغاء الموسم كله؟ كل المدفوع هيترد بالكامل.')) sumCall(b, 'SUM_SET_STATUS', { ...sid(), status: 'ملغى' }, () => 'اتلغى الموسم'); });
+  on('sumPay', b => { const amt = prompt('المبلغ المحصّل:', b.dataset.rest); if (!amt) return;
+    sumCall(b, 'SUM_PAY', { applicationId: b.dataset.id, amount: amt }, r => 'اتحصّل — إيصال ' + r.receipt_no); });
+  on('sumApol', b => { const reason = prompt('سبب الاعتذار (إجباري):'); if (!reason) return;
+    sumCall(b, 'SUM_APOLOGIZE', { applicationId: b.dataset.id, reason }, r => +r.refund ? 'اتسجل — مردود ' + r.refund : 'اتسجل الاعتذار'); });
+  on('sumHand', b => { const k = b.dataset.k;
+    openModal(`<h3>محضر ${k} الوحدة</h3><form id="hof"><label class="f"><span>حالة الوحدة</span><textarea class="input" name="condition" rows="2" placeholder="سليمة / ملاحظات العفش والأجهزة"></textarea></label>
+      ${k === 'استلام' ? '<label class="f"><span>قيمة التلفيات (تُخصم من التأمين)</span><input class="input" name="damages" inputmode="decimal" value="0"></label>' : '<div class="muted">هيتحصّل التأمين بإيصال ويُرد عند الاستلام.</div>'}
+      <label class="f"><span>ملاحظات</span><input class="input" name="notes"></label>
+      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#hof').onsubmit = async e => { e.preventDefault();
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('SUM_HANDOVER', { applicationId: b.dataset.id, kind: k, ...formData(e.target) }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); const x = r.result;
+        toast(k === 'تسليم' ? (+x.deposit ? `اتسلّمت — تأمين ${x.deposit} إيصال ${x.receipt_no}` : 'اتسلّمت ✓') : `اتسلّمت — خصم ${x.deducted} ورد ${x.returned}${+x.uncovered ? ' · غير مغطى ' + x.uncovered : ''}`); render(); };
+    }); });
 
   // ── المزايا ──
   const byf = $('#byf');
