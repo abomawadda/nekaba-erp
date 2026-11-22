@@ -101,7 +101,7 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
@@ -122,7 +122,8 @@ function homeView() {
     { i: '🏖️', b: 'المصايف', s: 'قدّم على مصيف الصيف', href: '#/summer', internal: true },
     { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'زواج، مولود، وفاة، تفوق، علاج' : 'لأعضاء النقابة العامة', href: '#/grants', internal: true },
     { i: '📱', b: 'أجهزة بالتقسيط', s: 'عروض بالتقسيط — احجز', href: '#/devices', internal: true },
-    { i: '🌙', b: 'الإفطار والفعاليات', s: 'قريباً', soon: true },
+    { i: '🕋', b: 'العمرة والحج', s: 'عروض الشركات — احجز', href: '#/umrah', internal: true },
+    { i: '🌙', b: 'الإفطار والفعاليات', s: 'من الرحلات والفعاليات', href: '#/trips', internal: true },
   ];
   return `<div class="card"><h2>أهلاً ${esc((p.full_name || '').split(' ')[0])} 👋</h2>
       <div class="row"><span class="pill ${elig ? 'ok' : 'warn'}">${elig ? 'عضو النقابة العامة — مستحق الدعم' : esc(p.union_org || 'التنظيم غير محدد')}</span>
@@ -773,8 +774,8 @@ function grantsAdminView() {
 const DEV_ST = { 'مسلّم': 'ok', 'مؤكد': 'ok', 'مطلوب': 'warn', 'مرفوض': 'bad', 'ملغى': 'bad' };
 const devPill = st => `<span class="pill ${DEV_ST[st] || ''}">${esc(st)}</span>`;
 function devOrderCard(o, admin) {
-  return `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${admin ? esc(o.person.full_name) + ' <small class="muted">' + esc(o.person.job_id || '') + (o.person.phone ? ' · ' + esc(o.person.phone) : '') + '</small>' : '📱 ' + esc(o.item.name)}</b>${devPill(o.status)}</div>
-    <div class="muted">${admin ? esc(o.item.name) + ' · ' : ''}${esc(o.order_no)} · ${esc(o.method)}${o.months ? ' ' + o.months + ' شهر' : ''} · ${money(o.offer_price)}${o.notes ? ' · ' + esc(o.notes) : ''}</div>
+  return `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${admin ? esc(o.person.full_name) + ' <small class="muted">' + esc(o.person.job_id || '') + (o.person.phone ? ' · ' + esc(o.person.phone) : '') + '</small>' : (['عمرة', 'حج'].includes(o.offer.category) ? '🕋 ' : '📱 ') + esc(o.item.name)}</b>${devPill(o.status)}</div>
+    <div class="muted">${admin ? esc(o.item.name) + ' · ' : ''}${esc(o.order_no)} · ${esc(o.method)}${o.months ? ' ' + o.months + ' شهر' : ''}${+o.travelers > 1 ? ' · ' + o.travelers + ' أفراد' : ''} · ${money(o.offer_price)}${o.notes ? ' · ' + esc(o.notes) : ''}</div>
     ${o.reject_reason ? `<div class="alert bad">${esc(o.reject_reason)}</div>` : ''}
     <div class="row" style="margin-top:4px">
       ${!admin && ['مطلوب', 'مؤكد'].includes(o.status) ? `<button class="btn sm bad" data-act="devCancel" data-id="${o.id}">إلغاء الحجز</button>` : ''}
@@ -783,14 +784,16 @@ function devOrderCard(o, admin) {
       ${admin && ['مطلوب', 'مؤكد'].includes(o.status) ? `<button class="btn sm bad" data-act="devDecide" data-s="مرفوض" data-id="${o.id}">رفض</button>` : ''}</div></div>`;
 }
 function devicesView() {
-  const offers = (S.devOffers || []).filter(f => f.status === 'الطلب مفتوح' || f.myOrders.length);
-  return `<div class="alert">خدمة إعلان وحجز: النقابة بتعلن العروض وتجمع الحجوزات، والتقسيط والسداد بيتم مع المورد مباشرة.</div>
-  ${offers.map(f => `<div class="card"><h2>🛒 ${esc(f.title)}<span class="sp"></span><span class="pill">${esc(f.status)}</span></h2>
+  const trip = S.devPage === 'umrah', cats = trip ? ['عمرة', 'حج'] : ['أجهزة'];
+  const offers = (S.devOffers || []).filter(f => cats.includes(f.category || 'أجهزة') && (f.status === 'الطلب مفتوح' || f.myOrders.length));
+  return `<div class="alert">خدمة إعلان وحجز: النقابة بتعلن العروض وتجمع الحجوزات، والتقسيط والسداد بيتم مع ${trip ? 'شركة السياحة' : 'المورد'} مباشرة.</div>
+  ${offers.map(f => `<div class="card"><h2>${f.category === 'عمرة' || f.category === 'حج' ? '🕋' : '🛒'} ${esc(f.title)}<span class="sp"></span><span class="pill">${esc(f.status)}</span></h2>
       <div class="muted">${esc(f.supplier)}${f.contact ? ' · ' + esc(f.contact) : ''}${f.order_close ? ' · آخر حجز ' + dt(f.order_close) : ''}</div>
       ${f.notes ? `<div style="margin-top:6px">${esc(f.notes)}</div>` : ''}
       ${f.items.map(i => `<div class="kv" style="display:block"><div class="row"><b style="flex:1">${esc(i.name)}</b><b>${money(i.offer_price)}</b></div>
         <div class="muted">${i.market_price ? 'سعر السوق ' + Number(i.market_price).toLocaleString('ar-EG') + ' · ' : ''}تقسيط حتى ${i.max_months} شهر${i.left !== null && i.left !== undefined ? ' · متبقي ' + i.left : ''}${i.notes ? ' · ' + esc(i.notes) : ''}</div>
         ${f.status === 'الطلب مفتوح' && !f.myOrders.some(o => o.item_id === i.id) && (i.left === null || i.left === undefined || i.left > 0) ? `<form class="row" data-devorder="${i.id}" style="margin-top:4px">
+          ${trip ? '<input class="input" name="travelers" inputmode="numeric" value="1" style="width:56px" title="عدد المسافرين">' : ''}
           <select class="input" name="method" style="flex:1"><option>تقسيط</option><option>كاش</option></select>
           <select class="input" name="months" style="flex:1">${Array.from({ length: i.max_months }, (_, k) => i.max_months - k).map(m => `<option value="${m}">${m} شهر</option>`).join('')}</select>
           <button class="btn sm">احجز</button></form>` : ''}</div>`).join('')}
@@ -800,7 +803,7 @@ function devAdminView() {
   const f = S.devOffer;
   return `<div class="card"><button class="btn" data-act="devNew">+ عرض جديد</button></div>
     ${(S.devOffers || []).map(o => `<div class="card" ${f && f.id === o.id ? 'style="outline:2px solid var(--brand)"' : ''}><h2>🛒 ${esc(o.title)}<span class="sp"></span><span class="pill">${esc(o.status)}</span></h2>
-      <div class="muted">${esc(o.supplier)} · ${o.items.length} صنف · ${o.orderCount} حجز</div>
+      <div class="muted">${esc(o.category || 'أجهزة')} · ${esc(o.supplier)} · ${o.items.length} صنف · ${o.orderCount} حجز</div>
       <div class="row" style="margin-top:8px"><button class="btn sm sec" data-act="devOrders" data-id="${o.id}">الحجوزات</button>
         <button class="btn sm sec" data-act="devEdit" data-id="${o.id}">تعديل</button>
         ${o.status === 'مسودة' || o.status === 'الطلب مقفول' ? `<button class="btn sm" data-act="devStatus" data-s="الطلب مفتوح" data-id="${o.id}">فتح الحجز</button>` : ''}
@@ -812,12 +815,13 @@ function devOfferForm(o) {
   o = o || {};
   const il = (o.items || []).map(i => [i.name, i.offer_price, i.market_price ?? '', i.max_months, i.stock ?? '', i.notes ?? ''].join(' | ')).join('\n');
   return `<h3>${o.id ? 'تعديل العرض' : 'عرض جديد'}</h3><form id="dof">
-    <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(o.title)}" required></label>
-    <div class="grid2"><label class="f"><span>المعرض/المورد</span><input class="input" name="supplier" value="${esc(o.supplier)}" required></label>
+    <div class="grid2"><label class="f"><span>النوع</span><select class="input" name="category">${options(['أجهزة', 'عمرة', 'حج'], o.category || 'أجهزة', false)}</select></label>
+      <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(o.title)}" required></label></div>
+    <div class="grid2"><label class="f"><span>المورد / شركة السياحة</span><input class="input" name="supplier" value="${esc(o.supplier)}" required></label>
       <label class="f"><span>التواصل</span><input class="input" name="contact" value="${esc(o.contact)}"></label></div>
     <label class="f"><span>آخر موعد للحجز</span><input class="input" type="date" name="order_close" value="${esc(o.order_close || '')}"></label>
     <label class="f"><span>تفاصيل/شروط العرض</span><textarea class="input" name="notes" rows="2">${esc(o.notes)}</textarea></label>
-    <label class="f"><span>الأصناف — سطر لكل صنف: الاسم | سعر العرض | سعر السوق | أقصى شهور | الكمية | ملاحظات</span>
+    <label class="f"><span>الأصناف/الباقات — سطر لكل واحد: الاسم | السعر | سعر السوق | أقصى شهور تقسيط | الكمية أو المقاعد | التفاصيل</span>
       <textarea class="input" name="items" rows="4" placeholder="غسالة 8 كيلو | 6500 | 7000 | 10 | |">${esc(il)}</textarea></label>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
@@ -1072,13 +1076,14 @@ async function render() {
     S.rep = r.report; body = reportsView();
   }
   else if (h.startsWith('#/devadmin')) {
-    title = 'عروض الأجهزة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    title = 'عروض الأجهزة والعمرة'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const o = await call('DEV_OFFERS'); S.devOffers = o.success ? o.items : [];
     if (S.devOffer) { const r = await call('DEV_ORDERS', { offerId: S.devOffer.id }); S.devOrders = r.success ? r.items : []; }
     body = devAdminView();
   }
-  else if (h.startsWith('#/devices')) {
-    title = 'أجهزة بالتقسيط'; app.innerHTML = shell(title, '<div class="spin"></div>');
+  else if (h.startsWith('#/devices') || h.startsWith('#/umrah')) {
+    S.devPage = h.startsWith('#/umrah') ? 'umrah' : 'devices';
+    title = S.devPage === 'umrah' ? 'العمرة والحج' : 'أجهزة بالتقسيط'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const o = await call('DEV_OFFERS');
     S.devOffers = o.success ? o.items : []; body = devicesView();
   }
