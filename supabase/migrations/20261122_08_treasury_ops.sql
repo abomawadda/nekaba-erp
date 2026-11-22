@@ -9,6 +9,9 @@ $$ select coalesce(nullif(trim(p->>'payee_name'),''), nullif(trim(p->>'party'),'
 create or replace function treasury.issue_cheque(p jsonb, p_actor text) returns uuid language plpgsql as $$
 declare v_id uuid; v_entry uuid; v_custody boolean; v_acc text; v_cc text; v_party text := treasury.party_of(p);
 begin
+  if nullif(p->>'person_id','') is null and nullif(p->>'person_job','') is not null then   -- ربط المستفيد بالعضو برقمه الوظيفي
+    p := p || jsonb_build_object('person_id', api.pid_by_job(p->>'person_job'));
+  end if;
   if p->>'legacy_ref' is not null then
     select id into v_id from treasury.cheques where legacy_ref = p->>'legacy_ref';
     if v_id is not null then return v_id; end if;

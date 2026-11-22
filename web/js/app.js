@@ -100,10 +100,11 @@ function shell(title, body) {
   const h = location.hash;
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
-    ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
+    ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
+       ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
-       ['#/board', '🏛️', 'المجلس', gov], ['#/account', '⚙️', 'حسابي', true]];
+       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/account', '⚙️', 'حسابي', true]];
   return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
       <button data-act="logout">خروج</button></div>
     <div class="wrap">${body}</div>
@@ -497,6 +498,137 @@ function meetingForm(m) {
     <button class="btn sm sec" type="button" data-act="decAdd">+ قرار</button>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
+// ───────── المالية والخزينة ─────────
+const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
+const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
+const RCPT_KINDS = ['تحويل النقابة العامة', 'اشتراكات', 'رد عهدة', 'إيرادات أخرى', 'رسوم بنكية'];
+const finTabs = act => `<div class="tabs" style="margin-bottom:12px;overflow-x:auto">${[['#/finance', 'الملخص'], ['#/cheques', 'الشيكات'],
+  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/entries', 'القيود']]
+  .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}" style="white-space:nowrap">${t}</button>`).join('')}</div>`;
+const periodForm = f => `<form id="pf" class="row" style="margin-bottom:10px"><input class="input" style="flex:1" type="date" name="from" value="${esc(f.from || '')}">
+  <input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}"><button class="btn sm">عرض</button></form>`;
+function finSummaryView() {
+  const s = S.fin || {}, y = s.year || {};
+  return finTabs('#/finance') + `<div class="card">${periodForm(S.finP || { from: s.from, to: s.to })}
+    <div class="tiles" style="grid-template-columns:repeat(2,1fr)">
+      <div class="tile" data-ledger="1102"><i>🏦</i><b>${money(s.bank)}</b><small>رصيد البنك الدفتري</small></div>
+      <div class="tile" data-ledger="1103"><i>🧾</i><b>${money(s.custody)}</b><small>عُهد تحت التسوية (${s.unsettled || 0} شيك مفتوح)</small></div>
+      <div class="tile"><i>⬆️</i><b>${money(y.revenue)}</b><small>إيرادات الفترة</small></div>
+      <div class="tile"><i>⬇️</i><b>${money(y.expense)}</b><small>مصروفات الفترة</small></div></div></div>
+  ${can('treasury.cheque.issue') || can('treasury.receipt') ? `<div class="card row">${can('treasury.cheque.issue') ? '<button class="btn" data-act="chqNew">+ صرف شيك</button>' : ''}
+    ${can('treasury.receipt') ? '<button class="btn sec" data-act="rcptNew">+ إيداع / تحصيل</button>' : ''}</div>` : ''}
+  <div class="card"><h2>📊 المصروفات حسب المجموعة</h2>${(s.byGroup || []).map(g => kvh(g.name, money(g.amount))).join('') || '<div class="empty">لا مصروفات</div>'}</div>
+  <div class="card"><h2>🧾 العُهد المفتوحة</h2>${(s.openCustody || []).map(o => kvh(esc(o.party), money(o.balance))).join('') || '<div class="empty">لا عُهد مفتوحة 👌</div>'}</div>`;
+}
+const kvh = (k, vHtml) => `<div class="kv"><span>${k}</span><span>${vHtml}</span></div>`;
+const stPill = st => `<span class="pill ${st === 'مسوّى' ? 'ok' : st === 'صادر' ? 'warn' : st === 'ملغى' ? 'bad' : ''}">${esc(st)}</span>`;
+function chequesView() {
+  const f = S.chqF || {};
+  return finTabs('#/cheques') + `<div class="card"><form id="cf" class="row"><input class="input" style="flex:2;min-width:120px" name="q" value="${esc(f.q || '')}" placeholder="مستفيد / رقم / بيان">
+      <select class="input" style="flex:1;min-width:100px" name="purpose"><option value="">كل الأغراض</option>${options(PURPOSES, f.purpose, false)}</select>
+      <select class="input" style="flex:1;min-width:100px" name="status"><option value="">كل الحالات</option>${options(['صادر', 'مسوّى', 'مرحّل الرصيد'], f.status, false)}</select>
+      <button class="btn">بحث</button></form>
+    <div class="muted" style="margin-top:6px">الفترة: ${dt(f.from || '2000-01-01')} ← ${dt(f.to || 'اليوم')}</div></div>
+  <div class="card list">${(S.cheques || []).map(c => `<div class="li" data-chq="${c.id}"><div class="nm"><b>${esc(c.payee_name)}</b>
+      <span class="muted">${dt(c.issue_date)} · ${esc(c.purpose)}${c.cheque_no ? ' · شيك ' + esc(c.cheque_no) : ''}${c.decision_no ? ' · قرار ' + esc(c.decision_no) : ''}</span></div>
+      <div style="text-align:left"><b>${money(c.amount)}</b><br>${stPill(c.status)}</div></div>`).join('') || '<div class="empty">لا شيكات</div>'}</div>`;
+}
+function chequeView() {
+  const c = S.cheque; if (!c) return '';
+  const st = c.settlement;
+  return `<a href="#/cheques" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الشيكات</a>
+  <div class="card"><h2>شيك ${esc(c.cheque_no || 'بدون رقم')}<span class="sp"></span>${stPill(c.status)}</h2>
+    ${kvh('المستفيد', esc(c.payee_name))}${kvh('التاريخ', dt(c.issue_date))}${kvh('المبلغ', money(c.amount))}${kvh('الغرض', esc(c.purpose))}
+    ${kvh('القرار', c.decision ? esc(c.decision.decision_no + ' — ' + c.decision.text) : '<span class="muted">غير مربوط</span>')}
+    ${c.notes ? kvh('البيان', esc(c.notes)) : ''}
+    ${c.entry_id ? `<button class="btn sm sec" data-entry="${c.entry_id}" style="margin-top:8px">عرض القيد</button>` : ''}
+    ${c.requires_settlement && c.status === 'صادر' && can('treasury.settlement') ? '<button class="btn sm gold" data-act="settleNew" style="margin-top:8px">تسوية العهدة</button>' : ''}</div>
+  ${st ? `<div class="card"><h2>🧮 التسوية (${dt(st.settle_date)})</h2>
+    ${kvh('العهدة', money(st.advance))}${+st.prev_balance ? kvh('رصيد مرحّل سابق', money(st.prev_balance)) : ''}
+    ${+st.subscriptions ? kvh('اشتراكات المشاركين', money(st.subscriptions)) : ''}${kvh('المصروف', money(st.spent))}
+    ${+st.returned ? kvh(esc(st.return_mode), money(st.returned)) : ''}
+    ${(st.lines || []).map(l => `<div class="kv"><span>${esc(l.category)}${l.notes ? ' <small class="muted">' + esc(l.notes) + '</small>' : ''}</span><span>${money(l.amount)}</span></div>`).join('')}
+    ${st.entry_id ? `<button class="btn sm sec" data-entry="${st.entry_id}" style="margin-top:8px">عرض قيد التسوية</button>` : ''}</div>` : ''}`;
+}
+function receiptsView() {
+  return finTabs('#/receipts') + `${can('treasury.receipt') ? '<div class="card"><button class="btn" data-act="rcptNew">+ إيداع / تحصيل / رسوم</button></div>' : ''}
+  <div class="card list">${(S.receipts || []).map(r => `<div class="li" ${r.entry_id ? `data-entry="${r.entry_id}"` : ''}><div class="nm"><b>${esc(r.kind)}${r.party ? ' — ' + esc(r.party) : ''}</b>
+      <span class="muted">${dt(r.receipt_date)} · ${esc(r.receipt_no)}</span></div><b>${money(r.amount)}</b></div>`).join('') || '<div class="empty">لا مقبوضات في الفترة</div>'}</div>`;
+}
+function trialView() {
+  const t = S.trial || {}, items = t.items || [];
+  const sum = k => items.reduce((a, x) => a + Number(x[k] || 0), 0);
+  return finTabs('#/trial') + `<div class="card">${periodForm(S.finP || { from: t.from, to: t.to })}</div>
+  <div class="card"><h2>⚖️ ميزان المراجعة</h2>
+    ${items.map(x => `<div class="kv" style="cursor:pointer" data-ledger="${x.code}"><span><b>${esc(x.code)}</b> ${esc(x.name)}</span>
+      <span>${money(x.closing)}</span></div>`).join('') || '<div class="empty">لا حركة</div>'}
+    <div class="kv"><span><b>مدين الفترة / دائن الفترة</b></span><span>${money(sum('debit'))} / ${money(sum('credit'))}</span></div>
+    <div class="alert ${Math.abs(sum('debit') - sum('credit')) < 0.005 ? 'ok' : 'bad'}" style="margin-top:8px">${Math.abs(sum('debit') - sum('credit')) < 0.005 ? 'الميزان متوازن ✓' : 'الميزان غير متوازن!'}</div></div>`;
+}
+function ledgerView() {
+  const l = S.ledger || {}; let bal = Number(l.opening || 0);
+  return `<a href="#/trial" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الميزان</a>
+  <div class="card"><h2>📒 ${esc(l.account ? l.account.code + ' — ' + l.account.name : '')}</h2>${kvh('رصيد أول المدة', money(l.opening))}</div>
+  <div class="card list">${(l.items || []).map(x => { bal += Number(x.debit) - Number(x.credit);
+    return `<div class="li" data-entry="${x.entry_id}"><div class="nm"><b>${esc(x.description)}</b>
+      <span class="muted">${dt(x.date)} · ${esc(x.entry_no)}${x.party ? ' · ' + esc(x.party) : ''}${x.status === 'معكوس' ? ' · معكوس' : ''}</span></div>
+      <div style="text-align:left">${+x.debit ? '<span class="pill ok">مدين</span> ' + money(x.debit) : '<span class="pill warn">دائن</span> ' + money(x.credit)}<br><small class="muted">رصيد ${money(bal)}</small></div></div>`; }).join('')
+    || '<div class="empty">لا حركة</div>'}</div>`;
+}
+function entriesView() {
+  return finTabs('#/entries') + `<div class="card"><form id="ef" class="row"><input class="input" style="flex:1" name="q" value="${esc((S.entF || {}).q || '')}" placeholder="بحث في البيان أو رقم القيد"><button class="btn">بحث</button></form></div>
+  <div class="card list">${(S.entries || []).map(e => `<div class="li" data-entry="${e.id}"><div class="nm"><b>${esc(e.description)}</b>
+    <span class="muted">${dt(e.entry_date)} · ${esc(e.entry_no)} · ${esc(e.source)}${e.status === 'معكوس' ? ' · <span class="pill bad">معكوس</span>' : ''}</span></div><b>${money(e.total)}</b></div>`).join('')
+    || '<div class="empty">لا قيود</div>'}</div>`;
+}
+function entryModal(e) {
+  return `<h3>${esc(e.entry_no)} <small class="muted">${dt(e.entry_date)}</small></h3><p>${esc(e.description)}</p>
+    ${e.decision ? `<p class="muted">قرار ${esc(e.decision.decision_no)} — ${esc(e.decision.text)}</p>` : ''}
+    ${(e.lines || []).map(l => `<div class="kv"><span><b>${esc(l.account)}</b> ${esc(l.name)}${l.party ? '<br><small class="muted">' + esc(l.party) + '</small>' : ''}</span>
+      <span>${+l.debit ? 'مدين ' + money(l.debit) : 'دائن ' + money(l.credit)}</span></div>`).join('')}
+    ${e.status === 'معكوس' ? '<div class="alert warn">هذا القيد معكوس</div>' : ''}
+    <div class="acts">${e.status === 'مرحّل' && can('finance.journal') ? '<button class="btn bad" data-act="revEntry">قيد عكسي</button>' : ''}
+      <button class="btn sec" type="button" data-close>إغلاق</button></div>`;
+}
+function chequeForm() {
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(d.text.slice(0, 60))}</option>`).join('');
+  return `<h3>صرف شيك</h3><form id="chf">
+    <div class="grid2"><label class="f"><span>الغرض</span><select class="input" name="purpose" id="chPurpose">${options(PURPOSES, 'عهدة', false)}</select></label>
+      <label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" required></label></div>
+    <label class="f"><span>المستفيد (الاسم كما في الشيك)</span><input class="input" name="payee_name" required></label>
+    <div class="grid2"><label class="f"><span>الرقم الوظيفي (لو عضو)</span><input class="input" name="person_job" inputmode="numeric"></label>
+      <label class="f"><span>رقم الشيك</span><input class="input" name="cheque_no" inputmode="numeric"></label></div>
+    <div class="grid2"><label class="f"><span>التاريخ</span><input class="input" type="date" name="date" required></label>
+      <label class="f" id="chAcc"><span>حساب المصروف</span><select class="input" name="expense_account">${(S.accounts || []).filter(a => a.postable && a.type === 'مصروفات')
+        .map(a => `<option value="${a.code}">${a.code} — ${esc(a.name)}</option>`).join('')}</select></label></div>
+    <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${decs}</select></label>
+    <label class="f"><span>البيان</span><input class="input" name="notes"></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">صرف</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+function settleForm(c) {
+  const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
+  const row = () => `<div class="row" data-sl style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, null, false)}</select>
+    <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند"></div>`;
+  return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3><form id="stf">
+    <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" required></label>
+    <b>المصروفات بالمستندات</b><div id="sls">${row()}${row()}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
+    <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات حُصّلت من المشاركين</span><input class="input" name="subscriptions" inputmode="decimal" value="0"></label>
+      <label class="f"><span>المتبقي المردود</span><input class="input" name="returned" inputmode="decimal" value="0"></label></div>
+    <label class="f"><span>التصرف في المتبقي</span><select class="input" name="return_mode">${options(['لا يوجد', 'رد للخزينة', 'توريد للبنك', 'ترحيل'], 'لا يوجد', false)}</select></label>
+    <div class="alert warn" id="stCalc"></div>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل التسوية</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+function receiptForm() {
+  return `<h3>إيداع / تحصيل / رسوم بنكية</h3><form id="rcf">
+    <div class="grid2"><label class="f"><span>النوع</span><select class="input" name="kind">${options(RCPT_KINDS, 'تحويل النقابة العامة', false)}</select></label>
+      <label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" required></label></div>
+    <div class="grid2"><label class="f"><span>التاريخ</span><input class="input" type="date" name="date" required></label>
+      <label class="f"><span>إلى/من</span><select class="input" name="cash_account"><option value="1102">البنك</option><option value="1101">الخزينة</option></select></label></div>
+    <label class="f"><span>الطرف</span><input class="input" name="party"></label>
+    <label class="f"><span>البيان</span><input class="input" name="notes"></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+
 async function loadGov() { const r = await call('GOV_OVERVIEW'); if (r.success) S.gov = r; else toast(r.message, true); }
 
 // ───────── الموجّه ─────────
@@ -533,6 +665,17 @@ async function render() {
     const r = await call('LIST_CHANGE_REQUESTS'); S.requests = r.success ? r.items : []; body = requestsView();
   }
   else if (h.startsWith('#/lists')) { title = 'القوائم'; body = listsView(); }
+  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
+    title = 'المالية'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const P = S.finP || {};
+    if (h.startsWith('#/finance')) { const r = await call('FIN_SUMMARY', P); if (!r.success) return toast(r.message, true); S.fin = r; body = finSummaryView(); }
+    else if (h.startsWith('#/cheques')) { const r = await call('FIN_CHEQUES', { from: '2000-01-01', ...(S.chqF || {}) }); S.cheques = r.success ? r.items : []; body = chequesView(); }
+    else if (h.startsWith('#/cheque/')) { const r = await call('FIN_CHEQUE', { id: h.split('/')[2] }); if (!r.success) return toast(r.message, true); S.cheque = r.cheque; body = chequeView(); }
+    else if (h.startsWith('#/receipts')) { const r = await call('FIN_RECEIPTS', { from: '2000-01-01', ...P }); S.receipts = r.success ? r.items : []; body = receiptsView(); }
+    else if (h.startsWith('#/trial')) { const r = await call('FIN_TRIAL_BALANCE', { from: '2000-01-01', ...P }); S.trial = r.success ? r : {}; body = trialView(); }
+    else if (h.startsWith('#/ledger/')) { const r = await call('FIN_LEDGER', { account: h.split('/')[2], from: '2000-01-01', ...P }); S.ledger = r.success ? r : {}; body = ledgerView(); }
+    else { const r = await call('FIN_ENTRIES', { from: '2000-01-01', ...(S.entF || {}) }); S.entries = r.success ? r.items : []; body = entriesView(); }
+  }
   else if (h.startsWith('#/board') || h.startsWith('#/meetings') || h.startsWith('#/meeting/') || h.startsWith('#/decisions')) {
     title = 'المجلس';
     if (!S.gov) { app.innerHTML = shell(title, '<div class="spin"></div>'); await loadGov(); }
@@ -649,6 +792,53 @@ function bindPage() {
   if (df) df.onsubmit = async e => { e.preventDefault(); S.decF = formData(df);
     const r = await busy(df.querySelector('button'), () => call('GOV_LIST_DECISIONS', S.decF));
     S.decisions = r.success ? r.items : []; render(); };
+
+  // ── المالية ──
+  app.querySelectorAll('[data-chq]').forEach(li => li.onclick = () => { location.hash = '#/cheque/' + li.dataset.chq; });
+  app.querySelectorAll('[data-ledger]').forEach(li => li.onclick = () => { location.hash = '#/ledger/' + li.dataset.ledger; });
+  app.querySelectorAll('[data-entry]').forEach(li => li.onclick = async ev => { ev.stopPropagation();
+    const r = await call('FIN_ENTRY', { id: li.dataset.entry }); if (!r.success || !r.entry) return toast(r.message || 'غير موجود', true);
+    openModal(entryModal(r.entry), () => {
+      $('#modal [data-close]').onclick = closeModal;
+      const rv = $('#modal [data-act=revEntry]');
+      if (rv) rv.onclick = async () => { const reason = prompt('سبب القيد العكسي (إجباري):'); if (!reason) return;
+        const x = await busy(rv, () => call('FIN_REVERSE', { id: r.entry.id, reason }));
+        if (!x.success) return toast(x.message, true); closeModal(); toast('اتعمل قيد عكسي ✓'); render(); };
+    }); });
+  const pf = $('#pf');
+  if (pf) pf.onsubmit = e => { e.preventDefault(); S.finP = formData(pf); render(); };
+  const cf = $('#cf');
+  if (cf) cf.onsubmit = e => { e.preventDefault(); S.chqF = formData(cf); render(); };
+  const ef = $('#ef');
+  if (ef) ef.onsubmit = e => { e.preventDefault(); S.entF = formData(ef); render(); };
+  const finForm = (html, id, build, action, msg, after) => openModal(html, () => {
+    $('#modal [data-close]').onclick = closeModal;
+    $(id).onsubmit = async e => { e.preventDefault();
+      const r = await busy(e.target.querySelector('[type=submit]'), () => call(action, build(e.target)));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      closeModal(); toast(msg); after ? after(r) : render(); };
+  });
+  on('chqNew', async () => {
+    if (!S.accounts) { const r = await call('FIN_ACCOUNTS'); S.accounts = r.success ? r.items : []; }
+    if (!S.decOpts) { const r = await call('GOV_LIST_DECISIONS'); S.decOpts = r.success ? r.items.filter(d => ['صرف', 'دعم نشاط', 'منحة', 'إعفاء'].includes(d.category)) : []; }
+    finForm(chequeForm(), '#chf', f => formData(f), 'FIN_ISSUE_CHEQUE', 'اتصرف الشيك واترحّل القيد ✓', r => { location.hash = '#/cheque/' + r.id; });
+    const sync = () => { $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; }; sync(); $('#chPurpose').onchange = sync;
+  });
+  on('rcptNew', () => finForm(receiptForm(), '#rcf', f => formData(f), 'FIN_RECEIPT', 'اتسجّل واترحّل القيد ✓',
+    r => { toast('رقم الإيصال: ' + r.receipt_no); location.hash = '#/receipts'; render(); }));
+  on('settleNew', () => {
+    const c = S.cheque;
+    finForm(settleForm(c), '#stf', f => ({ cheque_id: c.id, date: f.date.value, subscriptions: f.subscriptions.value, returned: f.returned.value,
+      return_mode: f.return_mode.value, lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
+        amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim() })).filter(l => +l.amount > 0) }),
+      'FIN_SETTLE', 'اتسوّت العهدة ✓', () => render());
+    const calc = () => { const f = $('#stf'); const spent = [...f.querySelectorAll('[name=amt]')].reduce((a, i) => a + (+i.value || 0), 0);
+      const left = +c.amount + (+f.subscriptions.value || 0) - spent - (+f.returned.value || 0);
+      $('#stCalc').innerHTML = `المصروف ${money(spent)} · المتبقي ${money(left)}${Math.abs(left) > 0.005 ? (left > 0 ? ' — رد أو ورّد أو رحّل' : ' — عجز يلزمه قرار') : ' ✓'}`; };
+    $('#stf').addEventListener('input', calc); calc();
+    $('#modal [data-act=slAdd]').onclick = () => { const box = $('#sls'), t = document.createElement('div'); t.innerHTML = box.firstElementChild.outerHTML;
+      t.firstElementChild.querySelectorAll('input').forEach(i => (i.value = '')); box.appendChild(t.firstElementChild); };
+  });
 
   const pw = $('#pw');
   if (pw) pw.onsubmit = async e => { e.preventDefault();
