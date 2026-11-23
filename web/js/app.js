@@ -101,11 +101,11 @@ function shell(title, body) {
   const gov = can('governance.view') || can('governance.manage');
   const nav = isStaff()
     ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')],
+       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')], ['#/news', '📰', 'الأخبار', can('news.manage')],
        ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
        ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
     : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
-       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/reports', '📊', 'التقارير', can('reports.view')], ['#/account', '⚙️', 'حسابي', true]];
+       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/reports', '📊', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')], ['#/account', '⚙️', 'حسابي', true]];
   return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
       <a href="#/notifications" class="bell" title="الإشعارات">🔔${S.ntfCount ? `<span class="badge">${S.ntfCount > 9 ? '9+' : S.ntfCount}</span>` : ''}</a>
       <button data-act="logout">خروج</button></div>
@@ -134,6 +134,8 @@ function homeView() {
       <div class="prog"><div style="width:${c.percent}%"></div></div>
       <div class="muted">ناقص: ${c.missing.map(esc).join('، ')}</div></a>` : ''}
     ${installCard()}
+    ${(S.homeNews || []).length ? `<div class="card"><h2>📰 أخبار النقابة<span class="sp"></span><a href="#/news" class="pill" style="text-decoration:none">الكل</a></h2>
+      ${S.homeNews.map(n => newsItem(n, false)).join('')}</div>` : ''}
     <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/mybenefits">
       <span style="font-size:30px">🎁</span><div style="flex:1"><b>استفاداتي من النقابة</b><div class="muted">المنح والبدلات والدعم والتوفير — كل اللي استفدت بيه</div></div><span class="pill ok">عرض</span></a>
     <div class="tiles">${tiles.map(t => t.soon
@@ -1034,6 +1036,29 @@ function installCard() {
   return '';
 }
 
+// ───────── الأخبار ─────────
+const NEWS_ICON = { 'خبر': '📰', 'قرار': '📜', 'موعد': '📅', 'تهنئة': '🎉', 'تعزية': '🕊️' };
+function newsItem(n, full) {
+  return `<div class="kv" style="display:block${n.active === false ? ';opacity:.5' : ''}"><div class="row"><b style="flex:1">${NEWS_ICON[n.category] || '📰'} ${esc(n.title)}${n.pinned ? ' 📌' : ''}</b>
+      <small class="muted">${dt(String(n.published_at).slice(0, 10))}</small></div>
+    ${n.body ? `<div style="white-space:pre-line;margin-top:4px">${esc(full ? n.body : n.body.slice(0, 160) + (n.body.length > 160 ? '…' : ''))}</div>` : ''}
+    ${full && S.newsManage ? `<div class="row" style="margin-top:6px"><button class="btn sm sec" data-act="newsEdit" data-id="${n.id}">تعديل</button>
+      <button class="btn sm ${n.active === false ? '' : 'bad'}" data-act="newsHide" data-id="${n.id}" data-show="${n.active === false ? 1 : 0}">${n.active === false ? 'إظهار' : 'إخفاء'}</button>
+      ${n.active === false ? '<span class="pill">مخفي</span>' : ''}${n.expires_at ? `<span class="pill">حتى ${dt(n.expires_at)}</span>` : ''}</div>` : ''}</div>`;
+}
+function newsView() {
+  return `${S.newsManage ? '<div class="card"><button class="btn" data-act="newsNew">+ خبر / إعلان جديد</button></div>' : ''}
+    <div class="card">${(S.news || []).filter(n => S.newsManage || n.active).map(n => newsItem(n, true)).join('') || '<div class="empty">لا أخبار</div>'}</div>`;
+}
+const newsForm = n => { n = n || {}; return `<h3>${n.id ? 'تعديل' : 'خبر جديد'}</h3><form id="nwf">
+  <div class="grid2"><label class="f"><span>النوع</span><select class="input" name="category">${options(['خبر', 'قرار', 'موعد', 'تهنئة', 'تعزية'], n.category || 'خبر', false)}</select></label>
+    <label class="f"><span>يختفي بعد (اختياري)</span><input class="input" type="date" name="expires_at" value="${esc(n.expires_at || '')}"></label></div>
+  <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(n.title)}" required></label>
+  <label class="f"><span>التفاصيل</span><textarea class="input" name="body" rows="5">${esc(n.body)}</textarea></label>
+  <label class="row"><input type="checkbox" name="pinned" ${n.pinned ? 'checked' : ''}> تثبيت في الأعلى</label>
+  ${n.id ? '' : '<div class="muted">النشر بيبعت إشعار لكل الأعضاء.</div>'}
+  <div id="ferr"></div><div class="acts"><button class="btn" type="submit">${n.id ? 'حفظ' : 'نشر'}</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`; };
+
 // ───────── الإشعارات ─────────
 const NTF_ICON = { 'رحلة': '🚌', 'مصيف': '🏖️', 'منحة': '🎁', 'جهاز': '📱', 'عمرة': '🕋', 'بيانات': '🪪', 'إعلان': '📣' };
 async function refreshNtf() {
@@ -1065,7 +1090,15 @@ async function render() {
   const app = $('#app'), h = location.hash || '#/login';
   if (!S.token || !S.me || h === '#/login') { app.innerHTML = loginView(); return bindLogin(); }
   let title = 'منصة النقابة', body = '';
-  if (h.startsWith('#/home')) { title = 'أنشطتي'; body = S.me.profile ? homeView() : '<div class="empty">الحساب مش مربوط بملف عضو</div>'; }
+  if (h.startsWith('#/home')) {
+    title = 'أنشطتي';
+    if (!S.newsAt || Date.now() - S.newsAt > 60000) { const r = await call('NEWS_LIST', { limit: 3 }); S.homeNews = r.success ? r.items : []; S.newsAt = Date.now(); }
+    body = S.me.profile ? homeView() : '<div class="empty">الحساب مش مربوط بملف عضو</div>';
+  }
+  else if (h.startsWith('#/news')) {
+    title = 'أخبار النقابة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('NEWS_LIST', { all: true, limit: 50 }); S.news = r.success ? r.items : []; S.newsManage = r.canManage; body = newsView();
+  }
   else if (h.startsWith('#/profile')) { title = 'ملفي'; body = profileBody(S.me.profile, false); }
   else if (h.startsWith('#/family')) { title = 'أسرتي'; body = familyView(S.me.profile, false); }
   else if (h.startsWith('#/account')) { title = 'حسابي'; body = accountView(); }
@@ -1509,6 +1542,17 @@ function bindPage() {
   on('repPrint', () => window.print());
 
   on('install', async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); });
+  // ── الأخبار ──
+  const newsOpen = n => openModal(newsForm(n), () => {
+    $('#modal [data-close]').onclick = closeModal;
+    $('#nwf').onsubmit = async e => { e.preventDefault();
+      const r = await busy(e.target.querySelector('[type=submit]'), () => call('NEWS_SAVE', { news: { ...formData(e.target), id: n && n.id } }));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      closeModal(); S.newsAt = 0; toast(n ? 'اتحفظ ✓' : 'اتنشر ✓ ووصل إشعار للأعضاء'); render(); }; });
+  on('newsNew', () => newsOpen(null));
+  on('newsEdit', b => newsOpen(S.news.find(x => x.id === b.dataset.id)));
+  on('newsHide', b => busy(b, () => call('NEWS_HIDE', { id: b.dataset.id, show: b.dataset.show === '1' })).then(r => { if (!r.success) return toast(r.message, true); S.newsAt = 0; render(); }));
+
   // ── المزايا ──
   const byf = $('#byf');
   if (byf) byf.onsubmit = e => { e.preventDefault(); S.benYear = formData(byf).year; render(); };
