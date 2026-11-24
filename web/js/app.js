@@ -104,14 +104,14 @@ function navModel() {
     ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
-    ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/archive', '🗂️', 'الأرشيف الإلكتروني', can('finance.view') || can('audit.view') || can('governance.view')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/account', '⚙️', 'حسابي', true]]],
+    ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/archive', '🗂️', 'الأرشيف الإلكتروني', can('finance.view') || can('audit.view') || can('governance.view')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/help', '❓', 'المساعدة', true], ['#/account', '⚙️', 'حسابي', true]]],
   ];
   return [
     ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['خدماتي', [['#/trips', '🚌', 'الرحلات والفعاليات', true], ['#/mytrips', '🎫', 'حجوزاتي', true], ['#/summer', '🏖️', 'المصايف', true], ['#/grants', '🎁', 'المنح', true], ['#/devices', '📱', 'الأجهزة', true], ['#/umrah', '🕋', 'العمرة والحج', true]]],
     ['ملفي', [['#/card', '💳', 'بطاقة العضوية', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
     ['الإدارة', [['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', fin], ['#/reports', '📈', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
-    ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
+    ['النظام', [['#/help', '❓', 'المساعدة', true], ['#/account', '⚙️', 'حسابي', true]]],
   ];
 }
 function shell(title, body) {
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/help', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -452,6 +452,43 @@ function archiveView() {
     ], S.arc, { title: '📚 كل المستندات', file: 'archive', attr: d => `data-docopen="${d.id}"`, empty: 'لا مستندات' })}`;
 }
 
+
+// ───────── مركز المساعدة ─────────
+const HELP = [
+  // للعضو
+  { who: 'm', i: '🏠', t: 'أول ما تدخل', l: '#/home', s: ['ادخل برقمك الوظيفي وآخر 4 أرقام من قوميك أو موبايلك المسجّل.', 'صفحة «أنشطتي» فيها ملخصك: استفاداتك، حجوزاتك، طلبات المنح، وأسرتك.', 'لو ملفك ناقص هتظهر لك نسبة الاكتمال — كمّله من «ملفي».'] },
+  { who: 'm', i: '🪪', t: 'ملفي وتعديل بياناتي', l: '#/profile', s: ['البيانات الشخصية (موبايل، عنوان…) تعدّلها بنفسك من «تعديل».', 'البيانات الوظيفية والنقابية تتعدّل بـ«طلب تعديل» يراجعه مسئول البيانات.', 'تقدر تطبع طلب التعديل من نفس الصفحة وتتابعه من «طلباتي».'] },
+  { who: 'm', i: '👨‍👩‍👧', t: 'أسرتي', l: '#/family', s: ['سجّل زوجتك وأولادك مرة واحدة — هيظهروا لك في الرحلات والمصايف والكتب.', 'تاريخ الميلاد والمرحلة الدراسية مهمين لأسعار الأطفال وكتب المدارس.'] },
+  { who: 'm', i: '🎁', t: 'التقديم على منحة', l: '#/grants', s: ['اختار نوع المنحة (زواج، وفاة، مولود…) واكتب تاريخ الواقعة واسم المستفيد.', 'من «📎 المستندات» في الطلب ارفع صور المستندات من موبايلك (قسيمة، شهادة…).', 'تابع الطلب من «طلباتي»: هتشوف وصل لأنهي مرحلة ومستني مين.', 'تقدر تطبع الطلب من «🖨️ طباعة الطلب».'] },
+  { who: 'm', i: '🚌', t: 'حجز رحلة أو فعالية', l: '#/trips', s: ['افتح النشاط، اختار مين جاي معاك من أسرتك، واحجز.', 'ادفع قبل انتهاء المهلة وإلا الحجز يسقط ويروح للمنتظرين.', 'بعد التأكيد اطبع «إيصال الحجز» من صفحة النشاط.', 'الإلغاء متاح من نفس الصفحة بنسبة الاسترداد الظاهرة.'] },
+  { who: 'm', i: '💳', t: 'بطاقة العضوية', l: '#/card', s: ['بطاقتك الرقمية فيها رمز QR — أي حد يصوّره يتأكد إنها سليمة وإنك مستحق الدعم النهارده.', 'تقدر تطبعها أو تحفظها PDF بمقاس الكارت.'] },
+  { who: 'm', i: '📋', t: 'طلباتي ومتابعتها', l: '#/myrequests', s: ['كل طلب قدّمته بخط مراحل: اللي خلص ✓ والمرحلة الحالية ومستني مين.'] },
+  // للإدارة
+  { who: 's', i: '📊', t: 'لوحة القيادة وصندوق الاعتمادات', l: '#/dash', s: ['لوحة القيادة: مؤشرات الأعضاء والبنك والعُهد والفائض والمزايا، ومهامك.', '«صندوق الاعتمادات» فيه كل طلب مستني إجراء من صلاحيتك أنت — افتحه واضغط «اتخاذ إجراء».', 'البحث عن أي عضو من الشريط العلوي على الكمبيوتر.'] },
+  { who: 's', p: 'profile.view', i: '👥', t: 'الأعضاء والكشوف', l: '#/memberlists', s: ['«الأعضاء»: بحث بالاسم أو الرقم الوظيفي أو الموبايل ← ملف العضو 360 بتبويباته.', '«كشوف الأعضاء»: فلتر بالتنظيم والحالة والجهة والبيانات الناقصة ثم «⬇️ Excel».', 'زر «⚠️ معاش بلا تاريخ معاش» يطلّع الكشف اللي محتاج استكمال.'] },
+  { who: 's', p: 'treasury.cheque.issue', i: '🧾', t: 'صرف شيك وسند الصرف', l: '#/finance', s: ['من «المالية» ← «+ صرف شيك»: المستفيد والمبلغ والغرض والقرار.', 'لو الغرض «عهدة» أو «دعم نشاط» هيظهر في «التسويات» لحد ما يتسوّى.', 'من شاشة الشيك: «🖨️ سند الصرف» للتوقيعات، و«📎 المستندات» لرفع القرار والفواتير.'] },
+  { who: 's', p: 'treasury.cheque.issue', i: '📗', t: 'دفاتر الشيكات', l: '#/chqbooks', s: ['سجّل كل دفتر جديد بأول وآخر رقم — بعدها أي شيك برقم خارج الدفتر يترفض.', 'الورقة اللي اتقطعت أو اتلخبطت سجّلها «تالفة» بالسبب.', 'المنظومة بتنبهك للأرقام المتخطّاة وبتقولك الرقم التالي.'] },
+  { who: 's', p: 'finance.view', i: '🏦', t: 'مطابقة كشف البنك', l: '#/bank', s: ['اكتب تاريخ الكشف ورصيده واضغط «احسب المطابقة».', 'علّم الشيكات اللي ظهرت في الكشف كـ«منصرفة» والإيداعات اللي ظهرت كـ«مودعة».', 'الباقي في جدول الشيكات = شيكات مع المستفيدين لسه ما صرفوهاش (المتقادم +6 شهور بالأحمر).', 'لو فيه فرق باقي غالباً مصاريف/فوائد بنكية — سجّلها من «المقبوضات».', 'لما الفرق يبقى صفر: «حفظ» ثم «اعتماد المطابقة».'] },
+  { who: 's', p: 'treasury.cheque.issue', i: '✗', t: 'إلغاء شيك لم يُصرف', l: '#/cheques', s: ['افتح الشيك ← «✗ إلغاء الشيك» واكتب السبب.', 'بيتعمل قيد عكسي تلقائياً، ولو كان منحة بترجع «معتمد» لصرف شيك جديد.', 'الشيك المنصرف من البنك أو المسوّى مايتلغيش.'] },
+  { who: 's', p: 'finance.view', i: '🧮', t: 'التسويات والعُهد المفتوحة', l: '#/settlements', s: ['كل عهدة/سلفة/رحلة/إفطار لسه ما اتسوّتش، بعمرها (المتأخر +30 و+90 يوم ملوّن).', 'افتح الشيك ← «تسوية العهدة»: المصروف الفعلي والاشتراكات والمتبقي (رد/توريد/ترحيل).', 'اطبع «كشف العُهد المفتوحة» للمجلس.'] },
+  { who: 's', p: 'treasury.receipt', i: '📥', t: 'المقبوضات وسند القبض', l: '#/receipts', s: ['«+ إيداع / تحصيل»: تحويل النقابة العامة، اشتراكات، رد عهدة، رسوم بنكية…', 'من الجدول «🖨️ سند قبض» لكل إيصال.'] },
+  { who: 's', p: 'finance.view', i: '📑', t: 'القوائم المالية والموازنة', l: '#/statements', s: ['«القوائم المالية»: الإيرادات والمصروفات والمركز المالي لأي فترة، مع الطباعة.', '«الموازنة»: اكتب المقدّر لكل بند واحفظ، وتابع الانحراف ونسبة التنفيذ.'] },
+  { who: 's', p: 'grants.review', i: '🎁', t: 'مراجعة المنح', l: '#/grantsadmin', s: ['راجع المستندات (ومرفقاتها في «📎 المستندات») وعلّم المستلم.', 'المستوفى يعتمده المعتمِد، والمعتمد تصرفه الخزينة بشيك.'] },
+  { who: 's', p: 'governance.view', i: '🏛️', t: 'المجلس والاجتماعات', l: '#/meetings', s: ['سجّل الاجتماع والحضور والقرارات، وارفع صورة المحضر في «📎 محضر الاجتماع».'] },
+  { who: 's', p: 'users.manage', i: '🔐', t: 'المستخدمون والصلاحيات', l: '#/users', s: ['«+ مستخدم جديد»: اسم إنجليزي وكلمة مؤقتة (يغيّرها أول دخول) والأدوار.', 'شوف «مصفوفة الصلاحيات» لتعرف كل دور يقدر يعمل إيه وحدوده المالية.', 'لإيقاف موظف: افتح حسابه وشيل علامة «الحساب نشط».'] },
+  { who: 's', p: 'audit.view', i: '🛡️', t: 'سجل التدقيق والأرشيف', l: '#/audit', s: ['كل تعديل في المنظومة متسجّل: مين وإمتى وإيه اللي اتغيّر (قبل/بعد).', '«الأرشيف الإلكتروني»: كل المستندات المرفوعة بالبحث والفلترة.'] },
+];
+function helpView() {
+  const q = (S.helpQ || '').trim(), who = isStaff() ? 's' : 'm';
+  const items = HELP.filter(h => (h.who === who || (who === 's' && h.who === 'm' && S.helpAll)) && (!h.p || can(h.p)))
+    .filter(h => !q || (h.t + h.s.join(' ')).includes(q));
+  return `<div class="card"><h2>❓ مركز المساعدة</h2><div class="muted">شرح مختصر لكل شاشة حسب صلاحياتك. اضغط على العنوان عشان تروح للشاشة.</div>
+      <div class="row" style="margin-top:10px"><input class="input" id="helpq" value="${esc(q)}" placeholder="🔎 ابحث: شيك، منحة، مطابقة، حجز…" style="flex:1">
+      ${isStaff() ? `<label class="row" style="gap:6px"><input type="checkbox" id="helpall" ${S.helpAll ? 'checked' : ''}> عرض شرح العضو كمان</label>` : ''}</div></div>
+    <div class="dgrid">${items.map(h => `<div class="card help"><h2><a href="${h.l}">${h.i} ${esc(h.t)}</a></h2><ol>${h.s.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>`).join('') || '<div class="card empty">مفيش نتائج</div>'}</div>
+    <div class="card muted">محتاج مساعدة أكتر؟ كلّم مسئول المنظومة في النقابة.</div>`;
+}
+
 // ───────── ملخص العضو ─────────
 function memberStrip() {
   const s = S.mySum; if (!s) return '';
@@ -661,7 +698,8 @@ function accountView() {
         <label class="f"><span>كلمة المرور الجديدة (8 أحرف على الأقل)</span><input class="input" type="password" name="newPassword" minlength="8" required></label>
         <div id="ferr"></div><button class="btn" type="submit">تغيير كلمة المرور</button></form>`
       : '<p class="muted">بتدخل برقمك الوظيفي وآخر 4 أرقام من قوميك أو موبايلك المسجّل. الجلسة بتفضل محفوظة على موبايلك.</p>'}
-      <button class="btn bad block" style="margin-top:14px" data-act="logout">تسجيل الخروج</button></div>`;
+      <a class="btn sec block" href="#/help" style="margin-top:14px;display:block;text-align:center;text-decoration:none">❓ مركز المساعدة</a>
+      <button class="btn bad block" style="margin-top:10px" data-act="logout">تسجيل الخروج</button></div>`;
 }
 
 // ───────── الإدارة ─────────
@@ -1768,6 +1806,7 @@ async function render() {
     title = 'كشوف الأعضاء'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('REP_MEMBERS', S.mlF || {}); if (!r.success) return toast(r.message, true); S.mlist = r.report; body = memberListsView();
   }
+  else if (h.startsWith('#/help')) { title = 'المساعدة'; body = helpView(); }
   else if (h.startsWith('#/archive')) {
     title = 'الأرشيف الإلكتروني'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('DOC_SEARCH', S.arcF || {}); if (!r.success) return toast(r.message, true); S.arc = r.items; body = archiveView();
@@ -2011,6 +2050,8 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
   app.querySelectorAll('[data-act=myCrPrint]').forEach(b => b.onclick = () => { const pr = S.me.profile; printDoc(changeReqHTML((pr.requests || []).filter(r => r.status === 'معلّق'), pr.person)); });
   loadDocBoxes();
+  const hq = $('#helpq'); if (hq) hq.oninput = () => { S.helpQ = hq.value; const pos = hq.selectionStart; render().then(() => { const n = $('#helpq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); };
+  const ha = $('#helpall'); if (ha) ha.onchange = () => { S.helpAll = ha.checked; render(); };
   app.querySelectorAll('[data-grtdocs]').forEach(b => b.onclick = () => { const box = app.querySelector(`[data-grtdocbox="${b.dataset.grtdocs}"]`);
     if (box.innerHTML) { box.innerHTML = ''; return; } box.innerHTML = docsBox('grant', b.dataset.grtdocs, '📎 مستندات الطلب (صور أو PDF)').replace('class="card docbox"', 'class="docbox inl"'); loadDocBoxes(); });
   const arcf = $('#arcf'); if (arcf) arcf.onsubmit = e => { e.preventDefault(); S.arcF = Object.fromEntries(Object.entries(formData(arcf)).filter(([, v]) => v)); render(); };
