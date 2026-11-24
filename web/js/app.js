@@ -451,7 +451,8 @@ function profileBody(pr, admin, part) {
     ${kv('الوظيفة', p.job_title)}${kv('الدرجة', p.grade)}${kv('الرقم القومي', p.national_id)}
     ${kv('تاريخ التعيين', p.hire_date)}${kv('الرقم التأميني', p.insurance_no)}
     ${p.monthly_dues != null ? kv('الاستقطاع الشهري', p.monthly_dues + ' ج') : ''}
-    ${reqPending.length ? `<div class="alert warn" style="margin-top:10px">طلبات تعديل تحت المراجعة: ${reqPending.map(r => esc(FIELD_LBL[r.field] || r.field) + ' ← ' + esc(r.new_value)).join(' · ')}</div>` : ''}
+    ${reqPending.length ? `<div class="alert warn" style="margin-top:10px">طلبات تعديل تحت المراجعة: ${reqPending.map(r => esc(FIELD_LBL[r.field] || r.field) + ' ← ' + esc(r.new_value)).join(' · ')}
+      <button class="btn sm sec" data-act="myCrPrint" style="margin-inline-start:8px">🖨️ طباعة الطلب</button></div>` : ''}
   </div>`; P.personal = `
   <div class="card"><h2>📇 ${admin ? "البيانات الشخصية" : "بياناتي الشخصية"}<span class="sp"></span>
       ${(!admin || can('profile.edit')) ? '<button class="btn sm sec" data-act="editSelf">تعديل</button>' : ''}</h2>
@@ -680,7 +681,7 @@ function requestsView() {
       <div>${esc(FIELD_LBL[r.field] || r.field)}: <span class="muted">${esc(r.old_value || '—')}</span> ← <b>${esc(r.new_value)}</b></div>
       ${r.reason ? `<div class="muted">السبب: ${esc(r.reason)}</div>` : ''}
       <div class="row" style="margin-top:8px"><button class="btn sm" data-act="approve" data-id="${r.id}">اعتماد</button>
-        <button class="btn sm bad" data-act="reject" data-id="${r.id}">رفض</button></div></div>`).join('')
+        <button class="btn sm bad" data-act="reject" data-id="${r.id}">رفض</button><button class="btn sm sec" data-crprint="${r.id}">🖨️ طباعة</button></div></div>`).join('')
       : '<div class="empty">مفيش طلبات معلّقة 👌</div>'}</div>`;
 }
 function listsView() {
@@ -858,7 +859,8 @@ function myBookingCard(b, a) {
     ${b.people.map(p => kvh(`${esc(p.full_name)} <small class="muted">(${esc(p.relation)}${p.seat_no ? ' · كرسي ' + p.seat_no : ''})</small>`, money(p.price))).join('')}
     ${kvh('<b>الإجمالي</b>', `<b>${money(b.total)}</b>`)}${+b.subsidy ? kvh('دعم النقابة', money(b.subsidy)) : ''}${kvh('المدفوع', money(b.paid))}
     ${['مؤكد', 'بانتظار السداد', 'قائمة انتظار'].includes(b.status) ? `<div class="muted" style="margin-top:6px">لو ألغيت دلوقتي: تسترد ${b.refundPctNow}% من المدفوع.</div>
-      <button class="btn bad block" style="margin-top:8px" data-act="myCancel" data-id="${b.id}">إلغاء الحجز</button>` : ''}</div>`;
+      <button class="btn bad block" style="margin-top:8px" data-act="myCancel" data-id="${b.id}">إلغاء الحجز</button>` : ''}
+    <button class="btn sec block" style="margin-top:8px" data-act="bkPrint">🖨️ طباعة إيصال الحجز</button></div>`;
 }
 function myTripsView() {
   return `<a href="#/trips" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأنشطة</a>` +
@@ -1439,6 +1441,24 @@ function grantRequestHTML(g) {
     ${g.reject_reason ? `<tr><th>سبب الرفض</th><td colspan="3">${esc(g.reject_reason)}</td></tr>` : ''}</table>
     <p style="font-size:13px;margin-top:10px">أقر أنا الموقّع أدناه بصحة البيانات والمستندات المقدمة، وأتحمل المسئولية عن أي بيانات غير صحيحة.</p>` + docFoot(['مقدّم الطلب', 'مراجع المستندات', 'المعتمِد', 'أمين الصندوق']);
 }
+
+function bookingHTML(b, a, p) {
+  return docHead('إيصال حجز — ' + esc(a.title), 'رقم الحجز', b.booking_no) + `<table class="vt">
+    <tr><th>العضو</th><td><b>${esc(p.full_name || '')}</b></td><th>الرقم الوظيفي</th><td>${esc(p.job_id || '')}</td></tr>
+    <tr><th>النشاط</th><td>${esc(a.title)}</td><th>التاريخ</th><td>${dt(a.start_date)}${a.end_date && a.end_date !== a.start_date ? ' ← ' + dt(a.end_date) : ''}</td></tr>
+    <tr><th>المكان</th><td>${esc(a.location || '—')}</td><th>حالة الحجز</th><td><b>${esc(b.status)}</b></td></tr></table>
+    <table class="vt" style="margin-top:8px"><tr><th>#</th><th>الاسم</th><th>الصلة</th><th>الكرسي</th><th>القيمة</th></tr>
+    ${b.people.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.full_name)}</td><td>${esc(x.relation)}</td><td>${x.seat_no || '—'}</td><td>${money(x.price)}</td></tr>`).join('')}
+    <tr><th colspan="4">الإجمالي</th><th>${money(b.total)}</th></tr>${+b.subsidy ? `<tr><td colspan="4">دعم النقابة</td><td>${money(b.subsidy)}</td></tr>` : ''}
+    <tr><td colspan="4">المدفوع</td><td>${money(b.paid)}</td></tr><tr><th colspan="4">المتبقي</th><th>${money(+b.total - +b.paid)}</th></tr></table>` + docFoot(['العضو', 'مسئول النشاط', 'أمين الصندوق']);
+}
+function changeReqHTML(items, person) {
+  return docHead('طلب تعديل بيانات', 'التاريخ', new Date().toISOString().slice(0, 10)) + `<table class="vt">
+    <tr><th>الاسم</th><td><b>${esc(person.full_name || '')}</b></td><th>الرقم الوظيفي</th><td>${esc(person.job_id || '')}</td></tr></table>
+    <table class="vt" style="margin-top:8px"><tr><th>البيان</th><th>القيمة الحالية</th><th>القيمة المطلوبة</th><th>السبب</th><th>الحالة</th></tr>
+    ${items.map(r => `<tr><td>${esc(FIELD_LBL[r.field] || r.field)}</td><td>${esc(r.old_value || '—')}</td><td><b>${esc(r.new_value)}</b></td><td>${esc(r.reason || '')}</td><td>${esc(r.status || 'معلّق')}</td></tr>`).join('')}</table>
+    <p style="font-size:13px;margin-top:10px">أقر بصحة البيانات المطلوب تعديلها، ومرفق ما يثبتها.</p>` + docFoot(['مقدّم الطلب', 'مسئول البيانات', 'المعتمِد']);
+}
 function settlementsView() {
   const items = S.openAdv || [], today = new Date(), age = c => Math.floor((today - new Date(c.issue_date)) / 864e5);
   const tot = items.reduce((a, c) => a + +c.amount, 0), over30 = items.filter(c => age(c) > 30), over90 = items.filter(c => age(c) > 90);
@@ -1915,6 +1935,9 @@ function bindPage(gridOnly) {
     printDoc(docHead('كشف العُهد والسلف المفتوحة', 'في تاريخ', new Date().toISOString().slice(0, 10)) + `<table class="vt"><tr><th>التاريخ</th><th>الشيك</th><th>صاحب العهدة</th><th>البيان</th><th>المبلغ</th></tr>
       ${it.map(c => `<tr><td>${dt(c.issue_date)}</td><td>${esc(c.cheque_no || '')}</td><td>${esc(c.payee_name)}</td><td>${esc(c.notes || c.purpose)}</td><td>${money(c.amount)}</td></tr>`).join('')}
       <tr><th colspan="4">الإجمالي</th><th>${money(it.reduce((a, c) => a + +c.amount, 0))}</th></tr></table>` + docFoot(['أمين الصندوق', 'المراجع', 'رئيس مجلس الإدارة'])); });
+  app.querySelectorAll('[data-act=bkPrint]').forEach(b => b.onclick = () => { const a = S.trip, mb = a && a.myBooking; if (mb) printDoc(bookingHTML(mb, a, (S.me.profile || {}).person || {})); });
+  app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
+  app.querySelectorAll('[data-act=myCrPrint]').forEach(b => b.onclick = () => { const pr = S.me.profile; printDoc(changeReqHTML((pr.requests || []).filter(r => r.status === 'معلّق'), pr.person)); });
   app.querySelectorAll('[data-act=voucher]').forEach(b => b.onclick = () => printDoc(voucherHTML(S.cheque).replace(/^<div class="voucher">([\s\S]*)<\/div>$/, '$1')));
   app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
