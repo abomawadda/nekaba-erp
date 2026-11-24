@@ -104,7 +104,7 @@ function navModel() {
     ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
-    ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/account', '⚙️', 'حسابي', true]]],
+    ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/archive', '🗂️', 'الأرشيف الإلكتروني', can('finance.view') || can('audit.view') || can('governance.view')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/account', '⚙️', 'حسابي', true]]],
   ];
   return [
     ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -387,6 +387,71 @@ function verifyView(r) {
       ${c.board_role ? kv('الصفة', c.board_role) : ''}${kv('تاريخ الإصدار', String(c.issued_at).slice(0, 10))}${kv('وقت التحقق', String(c.checked_at).slice(0, 16).replace('T', ' '))}`}
     <a class="btn sec block" href="#/login" style="display:block;text-align:center;text-decoration:none;margin-top:14px">دخول المنصة</a></div></div>`;
 }
+
+// ───────── الأرشيف الإلكتروني (مرفقات أي سجل) ─────────
+const DOC_TYPES = ['قرار', 'فاتورة', 'إيصال', 'محضر', 'مستند منحة', 'بطاقة/هوية', 'عقد', 'خطاب', 'أخرى'];
+const docsBox = (type, id, title = '📎 المستندات المرفقة') => `<div class="card docbox" data-docbox="${type}:${esc(id)}"><h2>${title}</h2><div class="dbody"><div class="spin"></div></div></div>`;
+const fileToB64 = blob => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(blob); });
+async function shrinkImage(file) {
+  const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = URL.createObjectURL(file); });
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(img.src);
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82));
+}
+async function openDoc(id) {
+  const r = await call('DOC_GET', { id }); if (!r.success) return toast(r.message, true);
+  const bin = Uint8Array.from(atob(r.data), ch => ch.charCodeAt(0)), url = URL.createObjectURL(new Blob([bin], { type: r.mime }));
+  openModal(`<h3>${esc(r.title)}</h3>${r.mime === 'application/pdf' ? `<iframe src="${url}" class="docview"></iframe>` : `<img src="${url}" class="docimg" alt="">`}
+    <div class="acts"><a class="btn" href="${url}" download="${esc(r.title)}${r.mime === 'application/pdf' ? '.pdf' : '.jpg'}" style="text-decoration:none;text-align:center">⬇️ تنزيل</a><button class="btn sec" data-close>إغلاق</button></div>`,
+    m => m.querySelector('[data-close]').onclick = () => { URL.revokeObjectURL(url); closeModal(); });
+}
+async function loadDocBoxes() {
+  for (const box of document.querySelectorAll('[data-docbox]')) {
+    const [type, id] = box.dataset.docbox.split(/:(.*)/s), body = box.querySelector('.dbody');
+    const r = await call('DOC_LIST', { entityType: type, entityId: id });
+    if (!r.success) { box.remove(); continue; }
+    body.innerHTML = `${r.items.map(d => `<div class="docrow"><span class="dicon">${d.mime === 'application/pdf' ? '📄' : '🖼️'}</span>
+        <div style="flex:1;min-width:0"><b>${esc(d.title)}</b><div class="muted" style="font-size:12px">${esc(d.doc_type)} · ${Math.ceil(d.size / 1024)} ك.ب · ${esc(d.by || '')} · ${dt(String(d.at).slice(0, 10))}</div></div>
+        <button class="btn sm sec" data-docopen="${d.id}">عرض</button>${r.canWrite ? `<button class="btn sm bad" data-docdel="${d.id}">حذف</button>` : ''}</div>`).join('') || '<div class="muted">لا مستندات مرفقة بعد.</div>'}
+      ${r.canWrite ? `<div class="row docup"><select class="input" data-doctype style="flex:1;min-width:110px">${DOC_TYPES.map(t => `<option>${t}</option>`).join('')}</select>
+        <input class="input" data-doctitle placeholder="وصف المستند (اختياري)" style="flex:2;min-width:140px">
+        <label class="btn sm">📷 رفع صورة/PDF<input type="file" accept="image/*,application/pdf" data-docfile hidden></label></div>` : ''}`;
+    body.querySelectorAll('[data-docopen]').forEach(b => b.onclick = () => openDoc(b.dataset.docopen));
+    body.querySelectorAll('[data-docdel]').forEach(b => b.onclick = async () => { const reason = prompt('سبب حذف المستند:'); if (!reason) return;
+      const x = await call('DOC_DELETE', { id: b.dataset.docdel, reason }); if (!x.success) return toast(x.message, true); toast('اتحذف ✓'); loadDocBoxes(); });
+    const fi = body.querySelector('[data-docfile]');
+    if (fi) fi.onchange = async () => { const f = fi.files[0]; if (!f) return;
+      try {
+        let blob = f, mime = f.type;
+        if (mime.startsWith('image/')) { blob = await shrinkImage(f); mime = 'image/jpeg'; }
+        else if (mime !== 'application/pdf') return toast('صورة أو PDF فقط', true);
+        if (blob.size > 3145728) return toast('الملف أكبر من 3 ميجا', true);
+        toast('جاري الرفع…');
+        const x = await call('DOC_UPLOAD', { entityType: type, entityId: id, mime, data: await fileToB64(blob),
+          docType: body.querySelector('[data-doctype]').value, title: body.querySelector('[data-doctitle]').value.trim() || f.name.replace(/\.[^.]+$/, '') });
+        if (!x.success) return toast(x.message, true); toast('اترفع ✓'); loadDocBoxes();
+      } catch (_) { toast('تعذّر قراءة الملف', true); } };
+  }
+}
+const ENT_DOC = { cheque: ['🧾 شيك', id => '#/cheque/' + id], receipt: ['📥 مقبوضات', () => '#/receipts'], entry: ['📒 قيد', () => '#/entries'], grant: ['🎁 منحة', () => '#/grantsadmin'],
+  meeting: ['🗓️ اجتماع', id => '#/meeting/' + id], decision: ['⚖️ قرار', () => '#/decisions'], person: ['👤 عضو', id => '#/person/' + id], activity: ['🚌 نشاط', id => '#/actadmin/' + id], general: ['🗂️ عام', () => '#/archive'] };
+function archiveView() {
+  const f = S.arcF || {};
+  return `<div class="card"><form id="arcf" class="row"><input class="input" name="q" value="${esc(f.q || '')}" placeholder="بحث في وصف المستند" style="flex:2;min-width:150px">
+      <select class="input" name="entityType" style="flex:1;min-width:120px"><option value="">كل السجلات</option>${Object.entries(ENT_DOC).map(([k, [t]]) => `<option value="${k}" ${f.entityType === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <select class="input" name="docType" style="flex:1;min-width:120px"><option value="">كل الأنواع</option>${DOC_TYPES.map(t => `<option ${f.docType === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <button class="btn">بحث</button></form></div>
+    ${docsBox('general', 'archive', '🗂️ مستندات عامة (لوائح، خطابات، عقود…)')}
+    ${grid('arc', [
+      { t: 'التاريخ', v: d => dt(String(d.at).slice(0, 10)), raw: d => d.at },
+      { t: 'المستند', v: d => `${d.mime === 'application/pdf' ? '📄' : '🖼️'} <b>${esc(d.title)}</b>`, raw: d => d.title },
+      { t: 'النوع', v: d => esc(d.doc_type), raw: d => d.doc_type },
+      { t: 'مرفق بـ', v: d => `<a href="${(ENT_DOC[d.entity_type] || ['', () => '#'])[1](d.entity_id)}">${(ENT_DOC[d.entity_type] || [d.entity_type])[0]}</a>`, raw: d => (ENT_DOC[d.entity_type] || [d.entity_type])[0] },
+      { t: 'رفعه', v: d => esc(d.by || ''), raw: d => d.by || '' },
+      { t: 'الحجم', v: d => Math.ceil(d.size / 1024) + ' ك.ب', raw: d => d.size, num: true },
+    ], S.arc, { title: '📚 كل المستندات', file: 'archive', attr: d => `data-docopen="${d.id}"`, empty: 'لا مستندات' })}`;
+}
+
 // ───────── ملخص العضو ─────────
 function memberStrip() {
   const s = S.mySum; if (!s) return '';
@@ -617,9 +682,9 @@ function personView() {
   const pr = S.person; if (!pr) return '<div class="empty">...</div>';
   const p = pr.person, c = pr.completeness, b = S.personBen, fam = pr.family || [], board = (pr.board || []).find(x => !x.to_date);
   const tab = S.ptab || 'data';
-  const tabs = [['data', '🏢 البيانات'], ['family', `👨‍👩‍👧 الأسرة (${fam.length})`], ['ben', '🏅 المزايا', !!b], ['career', '🕓 المسيرة'], ['board', '🏛️ المجلس', (pr.board || []).length > 0], ['card', '💳 البطاقة']].filter(t => t[2] !== false);
+  const tabs = [['data', '🏢 البيانات'], ['family', `👨‍👩‍👧 الأسرة (${fam.length})`], ['ben', '🏅 المزايا', !!b], ['career', '🕓 المسيرة'], ['board', '🏛️ المجلس', (pr.board || []).length > 0], ['card', '💳 البطاقة'], ['docs', '📎 المستندات']].filter(t => t[2] !== false);
   const kpi = (i, v, l, t) => `<a class="kpi" ${t ? `data-ptab="${t}"` : ''}><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
-  const body = tab === 'card' ? cardView(pr, true) : tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة') : tab === 'career' ? profileBody(pr, true, 'career')
+  const body = tab === 'docs' ? docsBox('person', p.id, '📎 مستندات العضو (بطاقة، مؤهل، قرارات…)') : tab === 'card' ? cardView(pr, true) : tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة') : tab === 'career' ? profileBody(pr, true, 'career')
     : tab === 'board' ? profileBody(pr, true, 'board') : `<div class="dgrid">${profileBody(pr, true, 'job')}${profileBody(pr, true, 'personal')}</div>`;
   return `<a href="#/admin" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأعضاء</a>
     <div class="card p360"><div class="pav">${esc((p.full_name || '؟').trim()[0])}</div>
@@ -746,7 +811,8 @@ function meetingView() {
         <span class="pill ${d.status === 'معتمد' ? 'ok' : 'bad'}">${esc(d.status)}</span>
         ${d.votes_for != null ? `<span class="muted">موافق ${d.votes_for} · معترض ${d.votes_against ?? 0} · ممتنع ${d.votes_abstain ?? 0}</span>` : ''}</div></div>`).join('') || '<div class="empty">لا قرارات</div>'}</div>
   <div class="card"><h2>🧾 الحضور</h2>${m.attendance.map(a => `<div class="kv"><span>${esc(a.full_name)} <small class="muted">${esc(a.role || '')}</small></span>
-      <span class="pill ${a.status === 'حاضر' ? 'ok' : a.status === 'غائب' ? 'bad' : 'warn'}">${esc(a.status)}</span></div>`).join('') || '<div class="empty">الحضور غير مسجّل</div>'}</div>`;
+      <span class="pill ${a.status === 'حاضر' ? 'ok' : a.status === 'غائب' ? 'bad' : 'warn'}">${esc(a.status)}</span></div>`).join('') || '<div class="empty">الحضور غير مسجّل</div>'}</div>
+  ${docsBox('meeting', m.id, '📎 محضر الاجتماع ومستنداته')}`;
 }
 function decisionsView() {
   const items = S.decisions || [], f = S.decF || {};
@@ -1059,7 +1125,8 @@ function grantCard(g, admin) {
       ${admin && g.status === 'مستوفى' && can('grants.approve') ? `<button class="btn sm" data-act="grtApprove" data-id="${g.id}" data-amt="${g.amount || ''}">اعتماد</button>` : ''}
       ${admin && !['مصروف', 'مرفوض', 'ملغى'].includes(g.status) && can('grants.approve') ? `<button class="btn sm bad" data-act="grtReject" data-id="${g.id}">رفض</button>` : ''}
       ${admin && g.status === 'معتمد' && can('treasury.cheque.issue') ? `<button class="btn sm gold" data-act="grtPay" data-id="${g.id}">صرف شيك</button>` : ''}
-      <button class="btn sm sec" data-grtprint="${g.id}">🖨️ طباعة الطلب</button></div></div>`;
+      <button class="btn sm sec" data-grtprint="${g.id}">🖨️ طباعة الطلب</button><button class="btn sm sec" data-grtdocs="${g.id}">📎 المستندات</button></div>
+    <div data-grtdocbox="${g.id}"></div></div>`;
 }
 function grantsView() {
   const types = S.grtTypes || [], my = S.grtMy || [], fam = (S.me.profile && S.me.profile.family) || [];
@@ -1303,7 +1370,8 @@ function chequeView() {
     ${+st.subscriptions ? kvh('اشتراكات المشاركين', money(st.subscriptions)) : ''}${kvh('المصروف', money(st.spent))}
     ${+st.returned ? kvh(esc(st.return_mode), money(st.returned)) : ''}
     ${(st.lines || []).map(l => `<div class="kv"><span>${esc(l.category)}${l.notes ? ' <small class="muted">' + esc(l.notes) + '</small>' : ''}</span><span>${money(l.amount)}</span></div>`).join('')}
-    ${st.entry_id ? `<button class="btn sm sec" data-entry="${st.entry_id}" style="margin-top:8px">عرض قيد التسوية</button>` : ''}</div>` : ''}`;
+    ${st.entry_id ? `<button class="btn sm sec" data-entry="${st.entry_id}" style="margin-top:8px">عرض قيد التسوية</button>` : ''}</div>` : ''}
+  ${docsBox('cheque', c.id, '📎 مستندات الشيك والتسوية (قرار، فواتير، إيصالات)')}`;
 }
 function receiptsView() {
   return finTabs('#/receipts') + `${can('treasury.receipt') ? '<div class="card"><button class="btn" data-act="rcptNew">+ إيداع / تحصيل / رسوم</button></div>' : ''}
@@ -1700,6 +1768,10 @@ async function render() {
     title = 'كشوف الأعضاء'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('REP_MEMBERS', S.mlF || {}); if (!r.success) return toast(r.message, true); S.mlist = r.report; body = memberListsView();
   }
+  else if (h.startsWith('#/archive')) {
+    title = 'الأرشيف الإلكتروني'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('DOC_SEARCH', S.arcF || {}); if (!r.success) return toast(r.message, true); S.arc = r.items; body = archiveView();
+  }
   else if (h.startsWith('#/inbox')) {
     title = 'صندوق الاعتمادات'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('NTF_INBOX'); if (!r.success) return toast(r.message, true); S.inbox = r.items; body = inboxView();
@@ -1938,6 +2010,11 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-act=bkPrint]').forEach(b => b.onclick = () => { const a = S.trip, mb = a && a.myBooking; if (mb) printDoc(bookingHTML(mb, a, (S.me.profile || {}).person || {})); });
   app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
   app.querySelectorAll('[data-act=myCrPrint]').forEach(b => b.onclick = () => { const pr = S.me.profile; printDoc(changeReqHTML((pr.requests || []).filter(r => r.status === 'معلّق'), pr.person)); });
+  loadDocBoxes();
+  app.querySelectorAll('[data-grtdocs]').forEach(b => b.onclick = () => { const box = app.querySelector(`[data-grtdocbox="${b.dataset.grtdocs}"]`);
+    if (box.innerHTML) { box.innerHTML = ''; return; } box.innerHTML = docsBox('grant', b.dataset.grtdocs, '📎 مستندات الطلب (صور أو PDF)').replace('class="card docbox"', 'class="docbox inl"'); loadDocBoxes(); });
+  const arcf = $('#arcf'); if (arcf) arcf.onsubmit = e => { e.preventDefault(); S.arcF = Object.fromEntries(Object.entries(formData(arcf)).filter(([, v]) => v)); render(); };
+  app.querySelectorAll('tr[data-docopen]').forEach(tr => tr.onclick = ev => { if (!ev.target.closest('a')) openDoc(tr.dataset.docopen); });
   app.querySelectorAll('[data-act=voucher]').forEach(b => b.onclick = () => printDoc(voucherHTML(S.cheque).replace(/^<div class="voucher">([\s\S]*)<\/div>$/, '$1')));
   app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
