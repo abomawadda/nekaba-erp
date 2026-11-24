@@ -248,3 +248,20 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
   body[data-print-fs] .side,body[data-print-fs] .top,body[data-print-fs] .tabs,body[data-print-fs] .wrap>.card:first-of-type{display:none!important}
   body[data-print-fs] .fs{display:block}body[data-print-fs] .fs>.card{break-after:page}
 }
+
+/* ───────── الموازنة ───────── */
+.bt{width:100%;border-collapse:collapse;font-size:14px}
+.bt th{text-align:start;font-size:12px;color:var(--mute);padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.bt td{padding:6px 8px;border-bottom:1px solid var(--line)}
+.bt .n{text-align:end;white-space:nowrap}.bt td.neg{color:var(--bad);font-weight:700}
+.bt .bg td{background:#f3f7fb;font-weight:700}
+.bt tfoot td{font-weight:800;border-top:2px solid var(--ink)}
+.bt .bi{max-width:130px;padding:5px 8px;text-align:end}
+.pb{display:inline-block;vertical-align:middle;width:80px;height:8px;background:#eef1f4;border-radius:99px;overflow:hidden;margin-inline-end:6px}
+.pb i{display:block;height:100%}.pb.ok i{background:var(--ok)}.pb.bad i{background:var(--bad)}
+@media(max-width:1023px){
+  .bt thead{display:none}.bt tr{display:block;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;padding:4px 8px}
+  .bt td{display:flex;justify-content:space-between;align-items:center;border:0;padding:3px 0}
+  .bt td[data-l]::before{content:attr(data-l);color:var(--mute);font-size:12px}
+  .bt .bg td:not(:first-child),.bt tfoot td:nth-child(n+4){display:none}
+}
