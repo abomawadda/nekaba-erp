@@ -331,6 +331,7 @@ function memberListsView() {
     <div class="chips" style="margin-top:10px">${presets.map(([k, t]) => `<button class="btn sm sec" data-mlp="${k}">${t}</button>`).join('')}</div></div>
     <div class="kpis"><div class="kpi"><i>👥</i><div><b>${numAr(r.total)}</b><small>عضو في الكشف</small></div></div>
       ${Object.entries(r.byState || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `<div class="kpi"><i>🪪</i><div><b>${numAr(v)}</b><small>${esc(k)}</small></div></div>`).join('')}</div>
+    ${fixBox(r, f)}
     ${grid('mlist', [
       { t: 'الرقم الوظيفي', v: x => esc(x.job_id || ''), raw: x => x.job_id || '' },
       { t: 'الاسم', v: x => `<b>${esc(x.full_name)}</b>`, raw: x => x.full_name },
@@ -489,6 +490,20 @@ function helpView() {
     <div class="card muted">محتاج مساعدة أكتر؟ كلّم مسئول المنظومة في النقابة.</div>`;
 }
 
+
+// ───────── استكمال البيانات بالجملة ─────────
+function fixBox(r, f) {
+  const mode = f.missing === 'retirement_date' && can('profile.movement') && can('profile.edit') ? 'ret' : f.missing === 'phone' && can('profile.edit') ? 'phone' : null;
+  if (!mode || !(r.items || []).length) return '';
+  const rows = r.items.slice(0, 200);
+  return `<div class="card fixbox"><h2>✍️ استكمال ${mode === 'ret' ? 'تواريخ المعاش' : 'أرقام الموبايل'} (${numAr(rows.length)})</h2>
+    <div class="muted">${mode === 'ret' ? 'اكتب تاريخ المعاش لكل عضو (من كشف شئون العاملين) — المنظومة هتسجّله «نشط» من تعيينه لحد تاريخ المعاش، و«معاش» بعده، فمعاملاته القديمة تتقبل صح. اللي مش عارف تاريخه سيبه فاضي.' : 'اكتب الموبايل للي عندك رقمه وسيب الباقي فاضي.'}</div>
+    <div class="gtw" style="margin-top:8px"><table class="bt"><thead><tr><th>الاسم</th><th>الرقم الوظيفي</th><th>${mode === 'ret' ? 'تاريخ التعيين' : 'جهة العمل'}</th><th>${mode === 'ret' ? 'تاريخ المعاش' : 'الموبايل'}</th></tr></thead><tbody>
+    ${rows.map(x => `<tr><td data-l="الاسم"><b>${esc(x.full_name)}</b></td><td data-l="الرقم">${esc(x.job_id || '')}</td><td data-l="${mode === 'ret' ? 'التعيين' : 'الجهة'}">${mode === 'ret' ? dt(x.hire_date) || '<span class="muted">—</span>' : esc(x.workplace || '—')}</td>
+      <td data-l="${mode === 'ret' ? 'المعاش' : 'الموبايل'}"><input class="input fixin" data-fix="${x.id}" ${mode === 'ret' ? `type="date" min="${esc(x.hire_date || '')}" max="${new Date().toISOString().slice(0, 10)}"` : 'inputmode="tel" dir="ltr" placeholder="01xxxxxxxxx"'}></td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="margin-top:10px"><input class="input" id="fixReason" placeholder="مصدر البيانات (مثلاً: كشف شئون العاملين نوفمبر 2026)" style="flex:1;min-width:200px">
+      <button class="btn gold" data-act="fixSave" data-mode="${mode}">💾 حفظ المكتوب</button></div><div id="fixres"></div></div>`;
+}
 // ───────── ملخص العضو ─────────
 function memberStrip() {
   const s = S.mySum; if (!s) return '';
@@ -2050,6 +2065,24 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
   app.querySelectorAll('[data-act=myCrPrint]').forEach(b => b.onclick = () => { const pr = S.me.profile; printDoc(changeReqHTML((pr.requests || []).filter(r => r.status === 'معلّق'), pr.person)); });
   loadDocBoxes();
+  app.querySelectorAll('[data-act=fixSave]').forEach(b => b.onclick = async () => {
+    const items = [...app.querySelectorAll('[data-fix]')].filter(i => i.value.trim()).map(i => ({ personId: i.dataset.fix, v: i.value.trim() }));
+    const reason = $('#fixReason').value.trim(); if (!items.length) return toast('مفيش حاجة مكتوبة', true); if (!reason) return toast('اكتب مصدر البيانات', true);
+    if (!confirm(`حفظ ${items.length} سجل؟ كل تعديل هيتسجّل في سجل التدقيق.`)) return;
+    let ok = 0, bad = [];
+    await busy(b, async () => {
+      if (b.dataset.mode === 'ret') {
+        const r = await call('SYS_BULK_RETIRE', { reason, items: items.map(x => ({ personId: x.personId, date: x.v })) });
+        if (!r.success) return toast(r.message, true); ok = r.fixed; bad = r.skipped || [];
+      } else for (const x of items) {
+        if (!/^01\d{9}$/.test(x.v.replace(/\s/g, ''))) { bad.push({ personId: x.personId, why: 'رقم غير صحيح' }); continue; }
+        const r = await call('SAVE_PERSON', { id: x.personId, fields: { phone: x.v.replace(/\s/g, '') }, reason }); if (r.success) ok++; else bad.push({ personId: x.personId, why: r.message });
+      }
+    });
+    const nm = id => ((S.mlist.items || []).find(x => x.id === id) || {}).full_name || id;
+    toast(`اتحفظ ${ok} ✓`); const res = $('#fixres');
+    if (bad.length) { res.innerHTML = `<div class="alert warn" style="margin-top:8px">ما اتحفظش (${bad.length}):<br>${bad.map(x => `${esc(nm(x.personId))} — ${esc(x.why)}`).join('<br>')}</div>`; }
+    else render(); });
   const hq = $('#helpq'); if (hq) hq.oninput = () => { S.helpQ = hq.value; const pos = hq.selectionStart; render().then(() => { const n = $('#helpq'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }); };
   const ha = $('#helpall'); if (ha) ha.onchange = () => { S.helpAll = ha.checked; render(); };
   app.querySelectorAll('[data-grtdocs]').forEach(b => b.onclick = () => { const box = app.querySelector(`[data-grtdocbox="${b.dataset.grtdocs}"]`);

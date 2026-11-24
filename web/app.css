@@ -323,3 +323,4 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .docbox.inl{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:12px}.docbox.inl h2{font-size:15px}
 .docview{width:100%;height:70vh;border:1px solid var(--line);border-radius:10px}.docimg{max-width:100%;border-radius:10px;display:block;margin:auto}
 .help h2 a{color:var(--brand);text-decoration:none}.help ol{margin:0;padding-inline-start:20px;font-size:14px}.help li{margin-bottom:4px}
+.fixbox .fixin{max-width:180px;padding:6px 8px}
