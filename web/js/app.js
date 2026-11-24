@@ -216,17 +216,17 @@ function homeView() {
 
 // ───────── ملفي ─────────
 const kv = (k, v) => `<div class="kv"><span>${esc(k)}</span><span>${v == null || v === '' ? '<span class="muted">—</span>' : esc(v)}</span></div>`;
-function profileBody(pr, admin) {
+function profileBody(pr, admin, part) {
   const p = pr.person, c = pr.completeness, em = p.emergency || {};
   const reqPending = (pr.requests || []).filter(r => r.status === 'معلّق');
-  return `
+  const P = {}; P.head = `
   <div class="card"><h2>${esc(p.full_name)}<span class="sp"></span>
       <span class="pill ${pr.eligibleToday ? 'ok' : 'warn'}">${pr.eligibleToday ? 'مستحق الدعم' : 'غير مستحق الدعم'}</span></h2>
     <div class="muted">الرقم الوظيفي ${esc(p.job_id || '—')}</div>
     <div class="prog"><div style="width:${c.percent}%"></div></div>
     <div class="row"><b>الملف مكتمل ${c.percent}%</b></div>
     ${c.missing.length ? `<div class="chips" style="margin-top:6px">${c.missing.map(m => `<span class="chip">${esc(m)}</span>`).join('')}</div>` : ''}
-  </div>
+  </div>`; P.job = `
   <div class="card"><h2>🏢 البيانات الوظيفية والنقابية<span class="sp"></span>
       ${admin ? (can('profile.movement') ? '<button class="btn sm" data-act="movement">+ حركة</button>' : '')
               : '<button class="btn sm sec" data-act="request">طلب تعديل</button>'}
@@ -236,18 +236,19 @@ function profileBody(pr, admin) {
     ${kv('تاريخ التعيين', p.hire_date)}${kv('الرقم التأميني', p.insurance_no)}
     ${p.monthly_dues != null ? kv('الاستقطاع الشهري', p.monthly_dues + ' ج') : ''}
     ${reqPending.length ? `<div class="alert warn" style="margin-top:10px">طلبات تعديل تحت المراجعة: ${reqPending.map(r => esc(FIELD_LBL[r.field] || r.field) + ' ← ' + esc(r.new_value)).join(' · ')}</div>` : ''}
-  </div>
-  <div class="card"><h2>📇 بياناتي الشخصية<span class="sp"></span>
+  </div>`; P.personal = `
+  <div class="card"><h2>📇 ${admin ? "البيانات الشخصية" : "بياناتي الشخصية"}<span class="sp"></span>
       ${(!admin || can('profile.edit')) ? '<button class="btn sm sec" data-act="editSelf">تعديل</button>' : ''}</h2>
     ${kv('الموبايل', p.phone)}${kv('موبايل 2', p.phone2)}${kv('البريد', p.email)}${kv('العنوان', p.address)}
     ${kv('المؤهل', p.qualification)}${kv('التخصص', p.specialization)}${kv('الحالة الاجتماعية', p.marital_status)}
     ${kv('النوع', p.gender)}${kv('تاريخ الميلاد', p.birth_date)}${kv('فصيلة الدم', p.blood_type)}
     ${kv('للطوارئ', em.name ? `${em.name} (${em.relation || ''}) ${em.phone || ''}` : '')}
-  </div>
+  </div>`; P.board = `
   ${(pr.board || []).length ? `<div class="card"><h2>🏛️ ${admin ? 'عضوية المجلس' : 'عضويتي في المجلس'}</h2>
     <div class="tl">${pr.board.map(b => `<div class="it"><b>${esc(b.role)}</b>
-      <div class="muted">${esc(b.term)} · من ${dt(b.from_date)}${b.to_date ? ' إلى ' + dt(b.to_date) : ' — حتى الآن'} · ${esc(b.join_method)}</div></div>`).join('')}</div></div>` : ''}
-  <div class="card"><h2>🕓 مسيرتي</h2>${movementsHTML(pr)}</div>`;
+      <div class="muted">${esc(b.term)} · من ${dt(b.from_date)}${b.to_date ? ' إلى ' + dt(b.to_date) : ' — حتى الآن'} · ${esc(b.join_method)}</div></div>`).join('')}</div></div>` : ''}`;
+  P.career = `<div class="card"><h2>🕓 ${admin ? 'المسيرة الوظيفية' : 'مسيرتي'}</h2>${movementsHTML(pr)}</div>`;
+  return part ? P[part] : P.head + P.job + P.personal + P.board + P.career;
 }
 function movementsHTML(pr) {
   const m = pr.movements || [];
@@ -397,8 +398,25 @@ function adminView() {
 }
 function personView() {
   const pr = S.person; if (!pr) return '<div class="empty">...</div>';
-  return `<a href="#/admin" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ رجوع</a>
-    ${profileBody(pr, true)}${familyView(pr, true)}`;
+  const p = pr.person, c = pr.completeness, b = S.personBen, fam = pr.family || [], board = (pr.board || []).find(x => !x.to_date);
+  const tab = S.ptab || 'data';
+  const tabs = [['data', '🏢 البيانات'], ['family', `👨‍👩‍👧 الأسرة (${fam.length})`], ['ben', '🏅 المزايا', !!b], ['career', '🕓 المسيرة'], ['board', '🏛️ المجلس', (pr.board || []).length > 0]].filter(t => t[2] !== false);
+  const kpi = (i, v, l, t) => `<a class="kpi" ${t ? `data-ptab="${t}"` : ''}><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
+  const body = tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة') : tab === 'career' ? profileBody(pr, true, 'career')
+    : tab === 'board' ? profileBody(pr, true, 'board') : `<div class="dgrid">${profileBody(pr, true, 'job')}${profileBody(pr, true, 'personal')}</div>`;
+  return `<a href="#/admin" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأعضاء</a>
+    <div class="card p360"><div class="pav">${esc((p.full_name || '؟').trim()[0])}</div>
+      <div class="pinfo"><h1>${esc(p.full_name)}</h1>
+        <div class="muted">${esc(p.job_title || '—')} · ${esc(p.workplace || '—')} · رقم وظيفي ${esc(p.job_id || '—')}</div>
+        <div class="row" style="margin-top:6px"><span class="pill ${pr.eligibleToday ? 'ok' : 'warn'}">${pr.eligibleToday ? 'مستحق الدعم' : 'غير مستحق الدعم'}</span>
+          ${p.union_org ? `<span class="pill">${esc(p.union_org)}</span>` : ''}${p.member_state ? `<span class="pill ${p.member_state === 'نشط' ? 'ok' : 'warn'}">${esc(p.member_state)}</span>` : ''}
+          ${board ? `<span class="pill ok">🏛️ ${esc(board.role)}</span>` : ''}</div></div>
+      <div class="pacts">${can('profile.movement') ? '<button class="btn sm" data-act="movement">+ حركة</button>' : ''}${can('profile.edit') ? '<button class="btn sm sec" data-act="editAdmin">تعديل</button>' : ''}</div></div>
+    <div class="kpis">${b ? kpi('🏅', money(b.total), 'إجمالي ما استفاد به', 'ben') : ''}${kpi('👨‍👩‍👧', numAr(fam.length), 'أفراد الأسرة', 'family')}
+      ${kpi('📋', c.percent + '%', 'اكتمال الملف' + (c.missing.length ? ' — ناقص ' + c.missing.length : ''), 'data')}${kpi('🕓', numAr((pr.movements || []).length), 'حركة مسجّلة', 'career')}</div>
+    ${c.missing.length ? `<div class="alert warn">بيانات ناقصة: ${c.missing.map(esc).join('، ')}</div>` : ''}
+    <div class="tabs ptabs">${tabs.map(([k, t]) => `<button data-ptab="${k}" class="${tab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+    ${body}`;
 }
 function movementForm(pr) {
   const p = pr.person;
@@ -1266,10 +1284,10 @@ async function render() {
     if (!S.person || S.person.person.id !== id) {
       app.innerHTML = shell(title, '<div class="spin"></div>');
       const r = await call('GET_PERSON', { id }); if (!r.success) return toast(r.message, true);
-      S.person = r.profile; S.personBen = null;
+      S.person = r.profile; S.personBen = null; S.ptab = 'data';
       if (can('benefits.view')) { const b = await call('BEN_PERSON', { personId: id }); S.personBen = b.success ? b.benefits : null; }
     }
-    body = personView() + (S.personBen ? benefitsBody(S.personBen, '🎁 ما استفاد به من النقابة') : '');
+    body = personView();
   }
   else if (h.startsWith('#/requests')) {
     title = 'طلبات التعديل'; app.innerHTML = shell(title, '<div class="spin"></div>');
@@ -1395,6 +1413,7 @@ async function render() {
 function bindPage(gridOnly) {
   const app = $('#app');
   if (!gridOnly) bindGrids();
+  app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
   const admin = location.hash.startsWith('#/person/');
   const pr = admin ? S.person : S.me.profile;
