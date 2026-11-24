@@ -1,8 +1,9 @@
 // فحص شامل للقراءة فقط: يفتح كل شاشات الإدارة بحساب مراجع مؤقت (دور AUDITOR) ويتأكد من غياب أخطاء الواجهة والخادم.
-// التشغيل: أنشئ zz_smoke بدور AUDITOR، ثم: cd web && python3 -m http.server 8787 & ثم node test/ui-smoke.test.mjs <مجلد اللقطات> — واحذف الحساب بعدها.
+// التشغيل: أنشئ zz_smoke بدور AUDITOR، ثم: cd web && python3 -m http.server 8787 & ثم SMOKE_PASS=... node test/ui-smoke.test.mjs <مجلد اللقطات> — واحذف الحساب بعدها.
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
-const OUT = process.argv[2] || '.'; const USER = process.env.SMOKE_USER || USER, PASS = process.env.SMOKE_PASS || PASS;
+const OUT = process.argv[2] || '.'; const USER = process.env.SMOKE_USER || 'zz_smoke', PASS = process.env.SMOKE_PASS;
+if (!PASS) { console.log('حدد SMOKE_PASS لكلمة مرور الحساب المؤقت'); process.exit(2); }
 const b = await chromium.launch(process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: '127.0.0.1,localhost' } } : {});
 const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ar-EG' });
 const p = await ctx.newPage(); const errs = [], apiErr = [];
