@@ -161,7 +161,7 @@ function dashView() {
     </div>
     <div class="dgrid">
       <div class="card"><h2>📌 صندوق المهام<span class="sp"></span><a class="pill" href="#/inbox" style="text-decoration:none">الكل</a></h2>
-        ${tasks.map(t => `<a class="task" href="${esc(t.link)}"><span>${esc(t.title)}</span><span class="pill warn">${numAr(t.count)}</span><em>←</em></a>`).join('') || '<div class="empty">✅ لا مهام معلّقة — كل شيء تمام</div>'}</div>
+        ${tasks.map(t => `<a class="task ${t.level || ''}" href="${esc(t.link)}"><span>${esc(t.title)}</span><span class="pill ${t.level === 'bad' ? 'bad' : 'warn'}">${t.level && +t.count === 1 && /لم تُعمل/.test(t.title) ? '!' : numAr(t.count)}</span><em>←</em></a>`).join('') || '<div class="empty">✅ لا مهام معلّقة — كل شيء تمام</div>'}</div>
       <div class="card"><h2>⚡ إجراءات سريعة</h2><div class="qa">${qa.map(([k, i, t]) => k.startsWith('#') ? `<a href="${k}"><i>${i}</i>${t}</a>` : `<button data-act="${k}"><i>${i}</i>${t}</button>`).join('')}</div></div>
       ${r.finance ? `<div class="card"><h2>💰 الأداء المالي ${r.year || y}<span class="sp"></span><a class="pill" href="#/finance" style="text-decoration:none">المالية</a></h2>
         ${bars({ 'الإيرادات': +rf.revenue || 0, 'المصروفات': +rf.expense || 0 }, true)}
@@ -1875,7 +1875,7 @@ async function refreshNtf() {
 function notificationsView() {
   const r = S.ntf || {}, ago = d => { const m = Math.round((Date.now() - new Date(d)) / 60000);
     return m < 60 ? `من ${Math.max(m, 1)} دقيقة` : m < 1440 ? `من ${Math.round(m / 60)} ساعة` : dt(String(d).slice(0, 10)); };
-  return `${(r.tasks || []).length ? `<div class="card"><h2>📌 مهام مستنياك</h2>${r.tasks.map(t => `<a class="kv" href="${esc(t.link)}" style="text-decoration:none;color:inherit"><span>${esc(t.title)}</span><span class="pill warn">${t.count}</span></a>`).join('')}</div>` : ''}
+  return `${(r.tasks || []).length ? `<div class="card"><h2>📌 مهام مستنياك</h2>${r.tasks.map(t => `<a class="kv task ${t.level || ''}" href="${esc(t.link)}" style="text-decoration:none;color:inherit"><span>${esc(t.title)}</span><span class="pill ${t.level === 'bad' ? 'bad' : 'warn'}">${t.count}</span></a>`).join('')}</div>` : ''}
     <div class="card list">${(r.items || []).map(n => `<a class="li" href="${esc(n.link || '#/home')}" style="text-decoration:none;color:inherit${n.unread ? ';background:#f3f8fc' : ''}">
       <div class="av" style="width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#eaf2f8;flex:none">${NTF_ICON[n.kind] || '🔔'}</div>
       <div class="nm"><b>${esc(n.title)}${n.unread ? ' <span class="pill ok" style="font-size:10px">جديد</span>' : ''}</b><span class="muted">${esc(n.body || '')} · ${ago(n.at)}</span></div></a>`).join('')

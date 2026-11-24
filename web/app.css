@@ -339,3 +339,4 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 @media(max-width:700px){.ann2,.annual .fs{grid-template-columns:1fr}.annual{padding:12px}}
 @media print{body[data-print-annual] .side,body[data-print-annual] .top,body[data-print-annual] .noprint,body[data-print-annual] .nav{display:none!important}
   body[data-print-annual] .annual{box-shadow:none;padding:0}body[data-print-annual] .annual h3{break-after:avoid}body[data-print-annual] .annual .vt tr{break-inside:avoid}body[data-print-annual] .ann-cover{break-after:page;padding-top:30vh;border:0}}
+.task.warn{background:var(--warnbg)}.task.bad{background:var(--badbg);color:var(--bad);font-weight:700}
