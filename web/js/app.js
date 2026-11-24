@@ -101,7 +101,7 @@ function navModel() {
     ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/memberlists', '📋', 'كشوف الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
-    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
+    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
     ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/account', '⚙️', 'حسابي', true]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/memberlists', '#/card', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -1242,7 +1242,7 @@ const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { 
 const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
 const RCPT_KINDS = ['تحويل النقابة العامة', 'اشتراكات', 'رد عهدة', 'إيرادات أخرى', 'رسوم بنكية'];
 const finTabs = act => `<div class="tabs" style="margin-bottom:12px;overflow-x:auto">${[['#/finance', 'الملخص'], ['#/cheques', 'الشيكات'],
-  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/statements', 'القوائم المالية'], ['#/budget', 'الموازنة'], ['#/entries', 'القيود']]
+  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/bank', 'البنك والمطابقة'], ['#/chqbooks', 'دفاتر الشيكات'], ['#/statements', 'القوائم المالية'], ['#/budget', 'الموازنة'], ['#/entries', 'القيود']]
   .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}" style="white-space:nowrap">${t}</button>`).join('')}</div>`;
 const periodForm = f => `<form id="pf" class="row" style="margin-bottom:10px"><input class="input" style="flex:1" type="date" name="from" value="${esc(f.from || '')}">
   <input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}"><button class="btn sm">عرض</button></form>`;
@@ -1276,8 +1276,9 @@ function chequesView() {
     { t: 'القرار', v: c => esc(c.decision_no || '—'), raw: c => c.decision_no || '' },
     { t: 'المبلغ', v: c => money(c.amount), raw: c => +c.amount, num: true },
     { t: 'الحالة', v: c => stPill(c.status), raw: c => c.status },
+    { t: 'الصرف من البنك', v: c => c.status === 'ملغى' ? '<span class="pill bad">ملغى</span>' : c.cleared_date ? `<span class="pill ok">منصرف ${dt(c.cleared_date)}</span>` : '<span class="pill warn">لم يُصرف</span>', raw: c => c.status === 'ملغى' ? 'ملغى' : c.cleared_date ? 'منصرف' : 'لم يُصرف' },
   ], S.cheques, { title: '🧾 الشيكات', file: 'cheques', attr: c => `data-chq="${c.id}"`, empty: 'لا شيكات',
-    foot: `<tr><td colspan="5"><b>الإجمالي</b></td><td class="n"><b>${money((S.cheques || []).reduce((x, c) => x + +c.amount, 0))}</b></td><td></td></tr>` })}`;
+    foot: `<tr><td colspan="5"><b>الإجمالي (بدون الملغى)</b></td><td class="n"><b>${money((S.cheques || []).filter(c => c.status !== 'ملغى').reduce((x, c) => x + +c.amount, 0))}</b></td><td></td><td></td></tr>` })}`;
 }
 function chequeView() {
   const c = S.cheque; if (!c) return '';
@@ -1287,7 +1288,12 @@ function chequeView() {
     ${kvh('المستفيد', esc(c.payee_name))}${kvh('التاريخ', dt(c.issue_date))}${kvh('المبلغ', money(c.amount))}${kvh('الغرض', esc(c.purpose))}
     ${kvh('القرار', c.decision ? esc(c.decision.decision_no + ' — ' + c.decision.text) : '<span class="muted">غير مربوط</span>')}
     ${c.notes ? kvh('البيان', esc(c.notes)) : ''}
+    ${kvh('الصرف من البنك', c.status === 'ملغى' ? `<span class="pill bad">ملغى</span> ${esc(c.void_reason || '')}` : c.cleared_date ? `<span class="pill ok">منصرف ${dt(c.cleared_date)}</span>` : '<span class="pill warn">لم يُصرف بعد</span>')}
     ${c.entry_id ? `<button class="btn sm sec" data-entry="${c.entry_id}" style="margin-top:8px">عرض القيد</button>` : ''}
+    ${c.void_entry_id ? `<button class="btn sm sec" data-entry="${c.void_entry_id}" style="margin-top:8px">قيد الإلغاء</button>` : ''}
+    <button class="btn sm sec" data-act="voucher" style="margin-top:8px">🖨️ سند الصرف</button>
+    ${can('treasury.cheque.issue') && c.status !== 'ملغى' ? `<button class="btn sm ${c.cleared_date ? 'sec' : ''}" data-act="chqClear" style="margin-top:8px">${c.cleared_date ? 'إلغاء تأكيد الصرف' : '✓ تأكيد الصرف من البنك'}</button>` : ''}
+    ${can('treasury.cheque.issue') && c.status === 'صادر' && !c.cleared_date && !st ? '<button class="btn sm bad" data-act="chqVoid" style="margin-top:8px">✗ إلغاء الشيك</button>' : ''}
     ${c.requires_settlement && c.status === 'صادر' && can('treasury.settlement') ? '<button class="btn sm gold" data-act="settleNew" style="margin-top:8px">تسوية العهدة</button>' : ''}</div>
   ${st ? `<div class="card"><h2>🧮 التسوية (${dt(st.settle_date)})</h2>
     ${kvh('العهدة', money(st.advance))}${+st.prev_balance ? kvh('رصيد مرحّل سابق', money(st.prev_balance)) : ''}
@@ -1337,6 +1343,70 @@ function budgetView() {
       ${kpi('📊', money(rv.bt - ex.bt), 'الفائض المقدّر')}${kpi(rv.at - ex.at >= 0 ? '📈' : '📉', money(rv.at - ex.at), 'الفائض الفعلي', rv.at - ex.at >= 0 ? 'ok' : 'bad')}</div>
     <div id="buderr"></div>${rv.html}${ex.html}`;
 }
+
+// ───────── البنك: المطابقة ودفاتر الشيكات ─────────
+function bankView() {
+  const r = S.recon || {}, f = S.bankF || {}, ed = can('treasury.cheque.issue'), diff = r.difference == null ? null : +r.difference, today = new Date().toISOString().slice(0, 10);
+  const rows = (items, kind) => items.map(x => `<tr><td>${ed ? `<input type="checkbox" data-clr="${kind}" value="${x.id}">` : ''}</td>
+      <td>${dt(kind === 'cheque' ? x.issue_date : x.receipt_date)}</td><td>${esc(kind === 'cheque' ? (x.cheque_no || '—') : x.receipt_no)}</td>
+      <td>${esc(kind === 'cheque' ? x.payee_name : (x.kind + (x.party ? ' — ' + x.party : '')))}${x.stale ? ' <span class="pill bad">متقادم +6 شهور</span>' : ''}</td><td class="n">${money(x.amount)}</td>
+      ${kind === 'cheque' ? `<td>${ed ? `<button class="btn sm sec" data-chqgo="${x.id}">فتح</button>` : ''}</td>` : '<td></td>'}</tr>`).join('');
+  return finTabs('#/bank') + `<div class="card"><form id="bankf" class="row">
+      <label style="flex:1;min-width:140px"><span class="muted" style="font-size:12px">تاريخ كشف البنك</span><input class="input" type="date" name="date" value="${esc(f.date || r.date || today)}"></label>
+      <label style="flex:1;min-width:140px"><span class="muted" style="font-size:12px">الرصيد في كشف البنك</span><input class="input" type="number" step="0.01" name="stmtBalance" value="${esc(f.stmtBalance ?? '')}" placeholder="مثال: 14000"></label>
+      <button class="btn" style="align-self:flex-end">احسب المطابقة</button></form></div>
+    <div class="card recon"><h2>🏦 مذكرة تسوية البنك — ${dt(r.date)}</h2>
+      ${kvh('الرصيد في الدفاتر (حساب 1102)', money(r.book_balance))}
+      ${kvh(`(+) شيكات صادرة لم تُصرف بعد <small class="muted">(${numAr((r.cheques || []).length)})</small>`, money(r.outstanding_cheques))}
+      ${kvh(`(−) إيداعات لم تظهر في البنك بعد <small class="muted">(${numAr((r.deposits || []).length)})</small>`, money(r.deposits_in_transit))}
+      ${kvh('<b>= الرصيد المتوقع في كشف البنك</b>', `<b>${money(r.adjusted)}</b>`)}
+      ${r.stmt_balance != null ? kvh('الرصيد الفعلي في كشف البنك', money(r.stmt_balance)) : ''}
+      ${diff == null ? '<div class="alert warn" style="margin-top:10px">اكتب رصيد كشف البنك واحسب المطابقة.</div>'
+        : `<div class="alert ${Math.abs(diff) < 0.01 ? 'ok' : 'bad'}" style="margin-top:10px;font-size:16px">${Math.abs(diff) < 0.01 ? '✓ مطابق — لا يوجد فرق' : `فرق غير مفسَّر: <b>${money(diff)}</b><br><small>علِّم الشيكات اللي ظهرت في كشف البنك كـ«منصرفة»، والإيداعات اللي ظهرت كـ«مودعة». الفرق الباقي غالباً مصاريف أو فوايد بنكية في الكشف ماتسجّلتش — سجّلها من «المقبوضات» (رسوم بنكية / إيرادات أخرى).</small>`}</div>`}
+      ${ed && diff != null ? `<div class="row" style="margin-top:10px"><button class="btn sec" data-act="reconSave">💾 حفظ المطابقة</button>${Math.abs(diff) < 0.01 ? '<button class="btn gold" data-act="reconApprove">✓ اعتماد المطابقة</button>' : ''}</div>` : ''}</div>
+    <div class="card"><h2>🧾 شيكات صادرة لم تُصرف من البنك<span class="sp"></span>${ed ? '<input class="input" type="date" id="clrDate" style="max-width:160px" value="' + esc(f.date || today) + '"><button class="btn sm" data-act="clrSel" data-kind="cheque">✓ المحدد ظهر في الكشف</button>' : ''}</h2>
+      <div class="muted" style="margin-bottom:6px">حدّد الشيكات اللي ظهرت في كشف البنك (اتصرفت) واضغط التأكيد. اللي يفضل هنا هو الشيكات اللي مع المستفيدين ولسه ما صرفوهاش.</div>
+      <div class="gtw"><table class="bt"><thead><tr><th>${ed ? '<input type="checkbox" data-all="cheque">' : ''}</th><th>التاريخ</th><th>رقم الشيك</th><th>المستفيد</th><th class="n">المبلغ</th><th></th></tr></thead>
+      <tbody>${rows(r.cheques || [], 'cheque') || '<tr><td colspan="6"><div class="empty">لا شيكات معلّقة 👌</div></td></tr>'}</tbody></table></div></div>
+    <div class="card"><h2>📥 إيداعات لم تظهر في البنك<span class="sp"></span>${ed ? '<button class="btn sm" data-act="clrSel" data-kind="receipt">✓ المحدد ظهر في الكشف</button>' : ''}</h2>
+      <div class="gtw"><table class="bt"><thead><tr><th>${ed ? '<input type="checkbox" data-all="receipt">' : ''}</th><th>التاريخ</th><th>الإيصال</th><th>البيان</th><th class="n">المبلغ</th><th></th></tr></thead>
+      <tbody>${rows(r.deposits || [], 'receipt') || '<tr><td colspan="6"><div class="empty">لا إيداعات معلّقة</div></td></tr>'}</tbody></table></div></div>
+    ${ed ? `<div class="card"><h2>⚡ تأكيد جماعي للفترات القديمة</h2><div class="muted">لو متأكد إن كل الشيكات والإيداعات لحد تاريخ معيّن اتصرفت وظهرت في البنك، أكّدها مرة واحدة (بتاريخ إصدار كل شيك). تقدر تلغي تأكيد أي شيك بعدها من شاشته.</div>
+      <div class="row" style="margin-top:8px"><input class="input" type="date" id="uptoDate" style="max-width:180px"><button class="btn sec" data-act="clrUpto">تأكيد كل ما قبل هذا التاريخ</button></div></div>` : ''}
+    <div class="card"><h2>📚 المطابقات السابقة</h2>${(r.history || []).map(x => kvh(`${dt(x.stmt_date)} <span class="pill ${x.status === 'معتمدة' ? 'ok' : ''}">${esc(x.status)}</span> <small class="muted">${esc(x.created_by || '')}${x.approved_by ? ' · اعتمد ' + esc(x.approved_by) : ''}</small>`,
+      `${money(x.stmt_balance)} <small class="muted">فرق ${money(x.difference)}</small>`)).join('') || '<div class="empty">لا مطابقات محفوظة</div>'}</div>`;
+}
+function booksView() {
+  const items = S.books || [], ed = can('treasury.cheque.issue');
+  return finTabs('#/chqbooks') + `${ed ? `<div class="card"><h2>➕ تسجيل دفتر شيكات</h2><form id="cbf" class="row">
+      <input class="input" name="bookNo" placeholder="رقم الدفتر (اختياري)" style="flex:1;min-width:120px">
+      <input class="input" name="firstNo" placeholder="أول رقم شيك" required inputmode="numeric" dir="ltr" style="flex:2;min-width:150px">
+      <input class="input" name="lastNo" placeholder="آخر رقم شيك" required inputmode="numeric" dir="ltr" style="flex:2;min-width:150px">
+      <input class="input" type="date" name="receivedDate" style="flex:1;min-width:130px"><button class="btn">تسجيل</button></form>
+      <div class="muted" style="margin-top:6px">بعد تسجيل أول دفتر، أي شيك جديد لازم رقمه يكون جوه دفتر نشط ومايكونش ورقة تالفة.</div><div id="cberr"></div></div>` : ''}
+    ${items.map(b => `<div class="card"><h2>📗 دفتر ${esc(b.book_no || '')} <span class="dt" style="font-size:13px">${esc(b.first_no)} ← ${esc(b.last_no)}</span><span class="sp"></span><span class="pill ${b.status === 'نشط' ? 'ok' : ''}">${esc(b.status)}</span></h2>
+      <div class="kpis" style="margin-bottom:8px">${[['📄', b.size, 'ورقة'], ['✅', b.issued - b.voided, 'شيك صحيح'], ['✗', b.voided, 'شيك ملغى'], ['🗑️', b.spoiled, 'ورقة تالفة/ملغاة'], ['⏳', b.outstanding, 'لم يُصرف (' + Number(b.outstanding_amount).toLocaleString('ar-EG') + ' ج)'], ['📦', b.remaining, 'متبقي']]
+        .map(([i, v, l]) => `<div class="kpi"><i>${i}</i><div><b>${numAr(v)}</b><small>${l}</small></div></div>`).join('')}</div>
+      ${kvh('الرقم التالي المتاح', b.next_no ? `<b class="dt">${esc(b.next_no)}</b>` : '<span class="muted">الدفتر خلص</span>')}${kvh('تاريخ الاستلام', dt(b.received_date))}
+      ${(b.gaps || []).length ? `<div class="alert warn" style="margin-top:8px">⚠️ أرقام متخطّاة (لا شيك ولا مسجّلة تالفة): ${b.gaps.map(g => `<span class="dt">${esc(g)}</span>`).join('، ')} — سجّلها تالفة لو اتقطعت.</div>` : ''}
+      ${(b.spoiled_list || []).length ? `<details style="margin-top:6px"><summary class="muted">الأوراق التالفة/الملغاة (${b.spoiled_list.length})</summary>${b.spoiled_list.map(x => kvh(`<span class="dt">${esc(x.cheque_no)}</span> — ${esc(x.reason)}`, dt(x.date))).join('')}</details>` : ''}
+      ${ed ? `<div class="row" style="margin-top:8px"><input class="input" placeholder="رقم ورقة تالفة/ملغاة" data-spno="${b.id}" dir="ltr" style="flex:1;min-width:150px"><input class="input" placeholder="السبب" data-spr="${b.id}" style="flex:2;min-width:150px">
+        <button class="btn sm bad" data-spoil="${b.id}">تسجيل كورقة تالفة</button>${b.status === 'نشط' ? `<button class="btn sm sec" data-bookclose="${b.id}">إقفال الدفتر</button>` : ''}</div>` : ''}</div>`).join('')
+      || '<div class="card empty">لا دفاتر مسجّلة بعد — سجّل الدفتر الحالي بأول وآخر رقم.</div>'}`;
+}
+function voucherHTML(c) {
+  const today = new Date().toISOString().slice(0, 10);
+  return `<div class="voucher"><div class="vh"><img src="img/logo-union.png" alt=""><div><b>${esc(C.ORG_NAME)}</b><h2>سند صرف بشيك</h2></div><div class="vno">رقم الشيك<br><b class="dt">${esc(c.cheque_no || '—')}</b></div></div>
+    <table class="vt"><tr><th>التاريخ</th><td>${dt(c.issue_date)}</td><th>المبلغ</th><td><b>${money(c.amount)} جنيه</b></td></tr>
+      <tr><th>يُصرف للسيد/ة</th><td colspan="3"><b>${esc(c.payee_name)}</b></td></tr>
+      <tr><th>الغرض</th><td>${esc(c.purpose)}</td><th>البنك</th><td>الحساب الجاري (1102)</td></tr>
+      <tr><th>وذلك قيمة</th><td colspan="3">${esc(c.notes || '—')}</td></tr>
+      <tr><th>بموجب قرار</th><td colspan="3">${c.decision ? esc(c.decision.decision_no + ' — ' + c.decision.text) : '—'}</td></tr>
+      ${c.status === 'ملغى' ? `<tr><th>الحالة</th><td colspan="3"><b style="color:var(--bad)">ملغى — ${esc(c.void_reason || '')}</b></td></tr>` : ''}</table>
+    <div class="vs"><div>أمين الصندوق<br><br>........................</div><div>المراجع<br><br>........................</div><div>رئيس مجلس الإدارة<br><br>........................</div><div>توقيع المستلم<br><br>........................</div></div>
+    <div class="muted" style="font-size:11px;margin-top:8px">طُبع من منصة النقابة في ${today}</div></div>`;
+}
+
 // ───────── القوائم المالية (عرض وتجميع لأرصدة ميزان المراجعة المحسوبة على الخادم) ─────────
 function statementsView() {
   const t = S.trial || {}, items = t.items || [], names = Object.fromEntries((S.accts || []).map(a => [a.code, a.name]));
@@ -1677,13 +1747,19 @@ async function render() {
     const r = await call('BEN_REPORT', { year: S.benYear || '' }); if (!r.success) return toast(r.message, true);
     S.benRep = r; body = benefitsReportView();
   }
-  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
+  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
     title = 'المالية'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const P = S.finP || {};
     if (h.startsWith('#/finance')) { const r = await call('FIN_SUMMARY', P); if (!r.success) return toast(r.message, true); S.fin = r; body = finSummaryView(); }
     else if (h.startsWith('#/cheques')) { const r = await call('FIN_CHEQUES', { from: '2000-01-01', ...(S.chqF || {}) }); S.cheques = r.success ? r.items : []; body = chequesView(); }
     else if (h.startsWith('#/cheque/')) { const r = await call('FIN_CHEQUE', { id: h.split('/')[2] }); if (!r.success) return toast(r.message, true); S.cheque = r.cheque; body = chequeView(); }
     else if (h.startsWith('#/receipts')) { const r = await call('FIN_RECEIPTS', { from: '2000-01-01', ...P }); S.receipts = r.success ? r.items : []; body = receiptsView(); }
+    else if (h.startsWith('#/bank')) {
+      const f = S.bankF || {}; const r = await call('BANK_RECON', f); if (!r.success) return toast(r.message, true); S.recon = r.recon; body = bankView();
+    }
+    else if (h.startsWith('#/chqbooks')) {
+      const r = await call('BANK_BOOKS'); if (!r.success) return toast(r.message, true); S.books = r.items; body = booksView();
+    }
     else if (h.startsWith('#/budget')) {
       const r = await call('REP_BUDGET', { year: S.budYear || String(new Date().getFullYear()) }); if (!r.success) return toast(r.message, true);
       S.bud = r.report; S.budEdit = r.canEdit; body = budgetView();
@@ -1746,6 +1822,35 @@ function bindPage(gridOnly) {
     nid: { missing: 'national_id' }, gen: { union_org: 'النقابة العامة', member_state: 'نشط' } })[b.dataset.mlp]; render(); });
   if ($('#mqr')) drawCardQR(location.hash.startsWith('#/person/') ? S.person.person.id : null);
   app.querySelectorAll('[data-act=cardReissue]').forEach(b => b.onclick = () => { if (confirm('إعادة إصدار البطاقة؟ البطاقة القديمة (ورمزها) هتتلغي فوراً.')) drawCardQR(S.person.person.id, true).then(() => toast('اتصدرت بطاقة جديدة ✓')); });
+  const bankf = $('#bankf'); if (bankf) bankf.onsubmit = e => { e.preventDefault(); S.bankF = Object.fromEntries(Object.entries(formData(bankf)).filter(([, v]) => v !== '')); render(); };
+  app.querySelectorAll('[data-all]').forEach(c => c.onchange = () => app.querySelectorAll(`[data-clr=${c.dataset.all}]`).forEach(x => x.checked = c.checked));
+  app.querySelectorAll('[data-chqgo]').forEach(b => b.onclick = () => { location.hash = '#/cheque/' + b.dataset.chqgo; });
+  app.querySelectorAll('[data-act=clrSel]').forEach(b => b.onclick = async () => { const kind = b.dataset.kind, ids = [...app.querySelectorAll(`[data-clr=${kind}]:checked`)].map(x => x.value);
+    if (!ids.length) return toast('حدّد من الجدول الأول', true);
+    const r = await busy(b, () => call('BANK_CLEAR', { kind, ids, date: ($('#clrDate') || {}).value || (S.bankF || {}).date || new Date().toISOString().slice(0, 10) }));
+    if (!r.success) return toast(r.message, true); toast(`اتأكد ${r.updated} ✓`); render(); });
+  app.querySelectorAll('[data-act=clrUpto]').forEach(b => b.onclick = async () => { const d = $('#uptoDate').value; if (!d) return toast('حدد التاريخ', true);
+    if (!confirm(`تأكيد صرف كل الشيكات والإيداعات حتى ${d}؟`)) return;
+    const r = await busy(b, () => call('BANK_CLEAR_UPTO', { upto: d })); if (!r.success) return toast(r.message, true); toast(`اتأكد ${r.updated} شيك ✓`); render(); });
+  app.querySelectorAll('[data-act=reconSave],[data-act=reconApprove]').forEach(b => b.onclick = async () => { const f = S.bankF || {};
+    const r = await busy(b, () => call('BANK_RECON_SAVE', { date: f.date || S.recon.date, stmtBalance: f.stmtBalance, approve: b.dataset.act === 'reconApprove' }));
+    if (!r.success) return toast(r.message, true); toast(b.dataset.act === 'reconApprove' ? 'اتعتمدت المطابقة ✓' : 'اتحفظت ✓'); render(); });
+  const cbf = $('#cbf'); if (cbf) cbf.onsubmit = async e => { e.preventDefault(); const r = await busy(cbf.querySelector('button'), () => call('BANK_BOOK_SAVE', formData(cbf)));
+    if (!r.success) { $('#cberr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; } toast('اتسجّل الدفتر ✓'); render(); };
+  app.querySelectorAll('[data-spoil]').forEach(b => b.onclick = async () => { const id = b.dataset.spoil;
+    const r = await busy(b, () => call('BANK_SPOIL', { bookId: id, chequeNo: app.querySelector(`[data-spno="${id}"]`).value.trim(), reason: app.querySelector(`[data-spr="${id}"]`).value.trim() }));
+    if (!r.success) return toast(r.message, true); toast('اتسجّلت ✓'); render(); });
+  app.querySelectorAll('[data-bookclose]').forEach(b => b.onclick = async () => { const bk = S.books.find(x => x.id === b.dataset.bookclose); if (!confirm('إقفال الدفتر؟')) return;
+    const r = await call('BANK_BOOK_SAVE', { id: bk.id, bookNo: bk.book_no, firstNo: bk.first_no, lastNo: bk.last_no, status: 'منتهي', notes: bk.notes }); if (!r.success) return toast(r.message, true); render(); });
+  app.querySelectorAll('[data-act=chqClear]').forEach(b => b.onclick = async () => { const c = S.cheque;
+    const d = c.cleared_date ? '' : prompt('تاريخ ظهور الشيك في كشف البنك (yyyy-mm-dd):', new Date().toISOString().slice(0, 10)); if (d === null) return;
+    const r = await call('BANK_CLEAR', { kind: 'cheque', ids: [c.id], date: d }); if (!r.success || !r.updated) return toast(r.message || 'التاريخ قبل تاريخ الإصدار', true);
+    toast('اتحدّث ✓'); render(); });
+  app.querySelectorAll('[data-act=chqVoid]').forEach(b => b.onclick = async () => { const reason = prompt('سبب إلغاء الشيك (مثلاً: المستفيد لم يصرفه / خطأ في البيانات):'); if (!reason) return;
+    if (!confirm('هيتعمل قيد عكسي للشيك، ولو كان منحة هترجع «معتمد» للصرف من جديد. متأكد؟')) return;
+    const r = await busy(b, () => call('BANK_VOID', { id: S.cheque.id, reason })); if (!r.success) return toast(r.message, true); toast('اتلغى الشيك بقيد عكسي ✓'); render(); });
+  app.querySelectorAll('[data-act=voucher]').forEach(b => b.onclick = () => openModal(voucherHTML(S.cheque) + '<div class="acts noprint"><button class="btn" data-vprint>🖨️ طباعة</button><button class="btn sec" data-close>إغلاق</button></div>', m => {
+    m.querySelector('[data-close]').onclick = closeModal; m.querySelector('[data-vprint]').onclick = () => { document.body.dataset.printVoucher = 1; window.print(); delete document.body.dataset.printVoucher; }; }));
   app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });

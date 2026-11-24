@@ -303,3 +303,15 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .mqr{position:absolute;inset-inline-end:16px;bottom:44px;background:#fff;padding:5px;border-radius:8px;line-height:0;z-index:1}
 .mqr:empty{display:none}.mqr svg{width:84px;height:84px;display:block}
 .mcg{padding-inline-end:100px}
+
+/* ───────── البنك وسند الصرف ───────── */
+.recon .kv span:last-child{font-size:16px}
+.bt input[type=checkbox]{width:18px;height:18px}
+.voucher{border:2px solid var(--ink);border-radius:8px;padding:14px;background:#fff;color:#000}
+.vh{display:flex;gap:10px;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:10px}.vh img{width:52px}
+.vh>div:nth-child(2){flex:1}.vh h2{margin:2px 0 0;font-size:18px}.vno{text-align:center;border:1px solid var(--ink);border-radius:6px;padding:4px 10px;font-size:12px}
+.vt{width:100%;border-collapse:collapse;font-size:14px}.vt th,.vt td{border:1px solid #999;padding:7px 8px;text-align:start}.vt th{background:#f3f3f3;width:18%;white-space:nowrap}
+.vs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:22px;text-align:center;font-size:13px}
+@media(max-width:560px){.vs{grid-template-columns:1fr 1fr}}
+@media print{body[data-print-voucher] #app,body[data-print-voucher] .noprint{display:none!important}
+  body[data-print-voucher] .modal{position:static;background:none;display:block}body[data-print-voucher] .modal .sheet{max-width:none;max-height:none;box-shadow:none;padding:0}}
