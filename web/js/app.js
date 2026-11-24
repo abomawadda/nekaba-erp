@@ -104,7 +104,7 @@ function navModel() {
     ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
-    ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
+    ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/account', '⚙️', 'حسابي', true]]],
   ];
   return [
     ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/myrequests', '#/statements', '#/budget', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -207,6 +207,80 @@ function myReqView() {
     ${open.length ? `<h3 class="sec-h">قيد التنفيذ (${numAr(open.length)})</h3>${open.map(x => wfCard(x, false)).join('')}` : ''}
     ${items.length > open.length ? `<h3 class="sec-h">المنتهية</h3>${items.filter(x => !open.includes(x)).map(x => wfCard(x, false)).join('')}` : ''}
     ${items.length ? '' : '<div class="card empty">لسه ما قدّمتش أي طلب</div>'}`;
+}
+
+
+// ───────── إدارة النظام: المستخدمون والصلاحيات، سجل التدقيق ─────────
+const roleName = c => ((S.sys && S.sys.roles) || []).find(r => r.code === c)?.name || c;
+function usersView() {
+  const d = S.sys || {}, users = d.users || [], roles = d.roles || [], perms = d.perms || [];
+  return `<div class="card row"><button class="btn" data-act="userNew">+ مستخدم جديد</button><span class="muted" style="flex:1">${numAr(users.filter(u => u.active).length)} مستخدم نشط من ${numAr(users.length)}</span></div>
+    ${grid('users', [
+      { t: 'اسم المستخدم', v: u => `<b>${esc(u.username)}</b>${u.must_change ? ' <span class="pill warn">كلمة مؤقتة</span>' : ''}`, raw: u => u.username },
+      { t: 'العضو المرتبط', v: u => esc(u.person || '—'), raw: u => u.person || '' },
+      { t: 'الأدوار', v: u => (u.roles || []).map(r => `<span class="pill ${r === 'SYS_ADMIN' ? 'bad' : 'ok'}">${esc(roleName(r))}</span>`).join(' ') || '<span class="muted">بلا دور</span>', raw: u => (u.roles || []).map(roleName).join('، ') },
+      { t: 'الحالة', v: u => u.active ? '<span class="pill ok">نشط</span>' : '<span class="pill bad">موقوف</span>', raw: u => u.active ? 'نشط' : 'موقوف' },
+      { t: 'آخر دخول', v: u => u.last_login ? dt(String(u.last_login).slice(0, 16).replace('T', ' ')) : '<span class="muted">لم يدخل</span>', raw: u => u.last_login || '' },
+    ], users, { title: '🔐 المستخدمون', file: 'users', attr: u => `data-user="${esc(u.username)}"`, empty: 'لا مستخدمين' })}
+    <div class="card"><h2>🧩 مصفوفة الصلاحيات</h2><div class="muted" style="margin-bottom:8px">ما يملكه كل دور (المدير له كل الصلاحيات ضمناً). ⬤ = مسموح، والرقم = حد مالي.</div>
+      <div class="gtw"><table class="pm"><thead><tr><th>الصلاحية</th>${roles.map(r => `<th>${esc(r.name)}</th>`).join('')}</tr></thead><tbody>
+      ${perms.map(pm => `<tr><td><span class="muted">${esc(pm.module)}</span> ${esc(pm.name)}</td>${roles.map(r => { const x = r.kind === 'admin' ? { max: null } : (r.perms || []).find(y => y.code === pm.code);
+        return `<td class="c">${x ? (x.max != null ? `<span class="pill warn">${numAr(x.max)}</span>` : '<b class="dot">⬤</b>') : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+}
+function userForm(u) {
+  const roles = (S.sys || {}).roles || [], isNew = !u;
+  u = u || { roles: [], active: true };
+  return `<h3>${isNew ? 'مستخدم جديد' : 'تعديل ' + esc(u.username)}</h3><form id="uf">
+    <label class="f"><span>اسم المستخدم (إنجليزي صغير)</span><input class="input" name="username" value="${esc(u.username || '')}" ${isNew ? '' : 'readonly'} required pattern="[a-z0-9_.]{3,30}" dir="ltr"></label>
+    <label class="f"><span>${isNew ? 'كلمة مرور مؤقتة (8+ أحرف) — يُلزم بتغييرها' : 'كلمة مرور جديدة (اتركها فارغة لعدم التغيير)'}</span><input class="input" name="password" type="text" ${isNew ? 'required' : ''} minlength="8" dir="ltr" autocomplete="off"></label>
+    <label class="f"><span>ربط بعضو (اختياري) — ابحث بالاسم أو الرقم الوظيفي</span><div class="row"><input class="input" id="upq" style="flex:1" placeholder="${esc(u.person || 'بحث…')}"><button class="btn sm sec" type="button" id="ups">بحث</button></div>
+      <select class="input" name="personId" id="upsel" style="margin-top:6px"><option value="${esc(u.person_id || '')}">${esc(u.person || '— بدون ربط —')}</option>${u.person_id ? '<option value="">— إلغاء الربط —</option>' : ''}</select></label>
+    <div class="f"><span class="muted" style="font-size:13px">الأدوار</span><div class="rolebox">${roles.map(r => `<label><input type="checkbox" name="role" value="${esc(r.code)}" ${(u.roles || []).includes(r.code) ? 'checked' : ''}> ${esc(r.name)} <small class="muted">(${(r.kind === 'admin' ? 'كل الصلاحيات' : numAr((r.perms || []).length) + ' صلاحية')})</small></label>`).join('')}</div></div>
+    <label class="f"><input type="checkbox" name="active" ${u.active ? 'checked' : ''}> الحساب نشط</label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+function bindUserForm(u) {
+  $('#modal [data-close]').onclick = closeModal;
+  $('#ups').onclick = async () => { const q = $('#upq').value.trim(); if (!q) return;
+    const r = await call('SEARCH_PERSONS', { q }); if (!r.success) return toast(r.message, true);
+    $('#upsel').innerHTML = '<option value="">— بدون ربط —</option>' + r.items.slice(0, 30).map(x => `<option value="${x.id}">${esc(x.full_name)} — ${esc(x.job_id || '')}</option>`).join(''); };
+  $('#uf').onsubmit = async e => { e.preventDefault(); const f = e.target;
+    const d = { username: f.username.value.trim().toLowerCase(), active: f.active.checked, roles: [...f.querySelectorAll('[name=role]:checked')].map(i => i.value) };
+    if (f.password.value) d.password = f.password.value;
+    if (f.personId.value !== (u && u.person_id || '')) d.personId = f.personId.value || null;
+    const r = await busy(f.querySelector('[type=submit]'), () => call('SYS_USER_SAVE', d));
+    if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+    closeModal(); toast('اتحفظ ✓' + (d.password ? ' — بلّغ المستخدم بكلمة المرور المؤقتة' : '')); render(); };
+}
+const ENT_LBL = { 'core.persons': 'الأشخاص', 'core.person_movements': 'الحركات', 'core.family_members': 'الأسرة', 'core.change_requests': 'طلبات التعديل', 'core.users': 'المستخدمون',
+  'core.user_roles': 'أدوار المستخدمين', 'finance.entries': 'القيود', 'finance.budgets': 'الموازنة', 'treasury.cheques': 'الشيكات', 'treasury.receipts': 'المقبوضات', 'benefits.ledger': 'سجل المزايا',
+  'governance.decisions': 'القرارات', 'governance.meetings': 'الاجتماعات', 'governance.attendance': 'الحضور', 'governance.candidates': 'المرشحون' };
+const ACT_LBL = { INSERT: ['إضافة', 'ok'], UPDATE: ['تعديل', 'warn'], DELETE: ['حذف', 'bad'] };
+function auditView() {
+  const d = S.audit || {}, f = S.audF || {};
+  return `<div class="card"><form id="auf" class="row">
+      <select class="input" style="flex:1;min-width:140px" name="entity"><option value="">كل الجداول</option>${(d.entities || []).map(e => `<option value="${esc(e)}" ${f.entity === e ? 'selected' : ''}>${esc(ENT_LBL[e] || e)}</option>`).join('')}</select>
+      <select class="input" style="flex:1;min-width:100px" name="action"><option value="">كل العمليات</option>${Object.entries(ACT_LBL).map(([k, [t]]) => `<option value="${k}" ${f.action === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <input class="input" style="flex:1;min-width:100px" name="actor" value="${esc(f.actor || '')}" placeholder="المستخدم">
+      <input class="input" style="flex:1" type="date" name="from" value="${esc(f.from || '')}"><input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}">
+      <button class="btn">عرض</button></form><div class="muted" style="margin-top:6px">سجل غير قابل للتعديل أو الحذف. الافتراضي آخر 30 يوماً، حتى 200 سجل.</div></div>
+    ${grid('audit', [
+      { t: 'الوقت', v: x => dt(String(x.at).slice(0, 19).replace('T', ' ')), raw: x => x.at },
+      { t: 'المستخدم', v: x => `<b>${esc(x.actor || 'SYSTEM')}</b>`, raw: x => x.actor || '' },
+      { t: 'العملية', v: x => { const a = ACT_LBL[x.action] || [x.action, '']; return `<span class="pill ${a[1]}">${esc(a[0])}</span>`; }, raw: x => (ACT_LBL[x.action] || [x.action])[0] },
+      { t: 'الجدول', v: x => esc(ENT_LBL[x.entity] || x.entity), raw: x => ENT_LBL[x.entity] || x.entity },
+      { t: 'الحقول المتغيّرة', v: x => x.action === 'UPDATE' ? esc((x.changed || []).map(k => FIELD_LBL[k] || k).join('، ')) : '<span class="muted">السجل كاملاً</span>', raw: x => (x.changed || []).join(' ') },
+      { t: 'السبب', v: x => esc(x.reason || ''), raw: x => x.reason || '' },
+    ], d.items, { title: '🛡️ سجل التدقيق', file: 'audit-log', attr: x => `data-aud="${x.id}"`, empty: 'لا سجلات في الفترة' })}`;
+}
+function auditModal(x) {
+  const b = x.before || {}, a = x.after || {}, keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(k => x.action !== 'UPDATE' || JSON.stringify(b[k]) !== JSON.stringify(a[k]));
+  const fv = v => v == null ? '<span class="muted">—</span>' : esc(typeof v === 'object' ? JSON.stringify(v) : v);
+  return `<h3>${esc((ACT_LBL[x.action] || [x.action])[0])} — ${esc(ENT_LBL[x.entity] || x.entity)}</h3>
+    <div class="muted">${dt(String(x.at).slice(0, 19).replace('T', ' '))} · بواسطة <b>${esc(x.actor || 'SYSTEM')}</b> · سجل #${x.id}${x.reason ? ' · السبب: ' + esc(x.reason) : ''}</div>
+    <div class="gtw" style="margin-top:10px"><table class="pm"><thead><tr><th>الحقل</th>${x.action !== 'INSERT' ? '<th>قبل</th>' : ''}${x.action !== 'DELETE' ? '<th>بعد</th>' : ''}</tr></thead><tbody>
+    ${keys.filter(k => !/password|hash|salt/.test(k)).map(k => `<tr><td><b>${esc(FIELD_LBL[k] || k)}</b></td>${x.action !== 'INSERT' ? `<td class="old">${fv(b[k])}</td>` : ''}${x.action !== 'DELETE' ? `<td class="new">${fv(a[k])}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+    <div class="acts"><button class="btn sec" type="button" data-close>إغلاق</button></div>`;
 }
 
 // ───────── ملخص العضو ─────────
@@ -1353,6 +1427,14 @@ async function render() {
       can('finance.view') ? call('FIN_SUMMARY', {}) : null, refreshNtf()]);
     S.dash = { rep: rep && rep.success ? rep.report : null, fin: fin && fin.success ? fin : null }; body = dashView();
   }
+  else if (h.startsWith('#/users')) {
+    title = 'المستخدمون والصلاحيات'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('SYS_USERS'); if (!r.success) return toast(r.message, true); S.sys = r; body = usersView();
+  }
+  else if (h.startsWith('#/audit')) {
+    title = 'سجل التدقيق'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('SYS_AUDIT', S.audF || {}); if (!r.success) return toast(r.message, true); S.audit = r; body = auditView();
+  }
   else if (h.startsWith('#/inbox')) {
     title = 'صندوق الاعتمادات'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('NTF_INBOX'); if (!r.success) return toast(r.message, true); S.inbox = r.items; body = inboxView();
@@ -1532,6 +1614,11 @@ function bindPage(gridOnly) {
     if (!r.success) { $('#buderr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
     S.bud = r.report; toast(`اتحفظ ${r.saved} بند ✓`); render(); });
   app.querySelectorAll('[data-act=stPrint]').forEach(b => b.onclick = () => { document.body.dataset.printFs = 1; window.print(); delete document.body.dataset.printFs; });
+  app.querySelectorAll('[data-act=userNew]').forEach(b => b.onclick = () => openModal(userForm(null), () => bindUserForm(null)));
+  app.querySelectorAll('[data-user]').forEach(tr => tr.onclick = () => { const u = S.sys.users.find(x => x.username === tr.dataset.user); openModal(userForm(u), () => bindUserForm(u)); });
+  const auf = $('#auf'); if (auf) auf.onsubmit = e => { e.preventDefault(); S.audF = Object.fromEntries(Object.entries(formData(auf)).filter(([, v]) => v)); render(); };
+  app.querySelectorAll('[data-aud]').forEach(tr => tr.onclick = async () => { const r = await call('SYS_AUDIT_GET', { id: +tr.dataset.aud });
+    if (!r.success || !r.item) return toast(r.message || 'غير موجود', true); openModal(auditModal(r.item), m => m.querySelector('[data-close]').onclick = closeModal); });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
@@ -1913,7 +2000,7 @@ function bindPage(gridOnly) {
     toast('اتغيرت كلمة المرور ✓'); S.me.mustChange = false; location.hash = '#/admin'; };
 }
 
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', () => { if (!$('#modal').hidden) closeModal(); render(); });
 boot();
 window.__erp = { S, call };   // للاختبار الآلي
 })();
