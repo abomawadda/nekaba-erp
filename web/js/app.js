@@ -99,7 +99,7 @@ function navModel() {
   const fin = can('finance.view');
   if (isStaff()) return [
     ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
-    ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
+    ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/memberlists', '📋', 'كشوف الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
     ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/memberlists', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -316,6 +316,35 @@ function calendarView() {
         return `<div class="cd ${k.slice(0, 7) !== monthKey ? 'out' : ''} ${k === today ? 'today' : ''}"><span class="dn">${d.getDate()}</span>
           ${es.slice(0, 3).map(e => `<a class="ev ${e.kind}" href="${e.link}" title="${esc(e.title)}">${e.icon} ${esc(e.title)}</a>`).join('')}${es.length > 3 ? `<small class="muted">+${es.length - 3}</small>` : ''}</div>`; }).join('')}</div></div>
     <div class="card"><h2>🗓️ القادم</h2>${upcoming.map(e => `<a class="kv" href="${e.link}" style="text-decoration:none;color:inherit"><span>${e.icon} ${esc(e.title)}</span><span>${dt(e.date)}</span></a>`).join('') || '<div class="empty">لا مواعيد قادمة</div>'}</div>`;
+}
+
+
+// ───────── كشوف الأعضاء ─────────
+function memberListsView() {
+  const r = S.mlist || {}, f = S.mlF || {}, fc = r.facets || {};
+  const sel = (k, lbl) => `<select class="input" name="${k}" style="flex:1;min-width:130px"><option value="">${lbl}: الكل</option>${Object.entries(fc[k] || {}).sort((a, b) => b[1] - a[1])
+    .filter(([v]) => v !== '—').map(([v, n]) => `<option value="${esc(v)}" ${f[k] === v ? 'selected' : ''}>${esc(v)} (${numAr(n)})</option>`).join('')}</select>`;
+  const presets = [['', 'كل الأعضاء'], ['pens', '⚠️ معاش بلا تاريخ معاش'], ['phone', '📵 بلا موبايل'], ['nid', '🪪 بلا رقم قومي'], ['gen', '✅ النقابة العامة النشطين']];
+  return `<div class="card"><form id="mlf" class="row">${sel('union_org', 'التنظيم')}${sel('member_state', 'الحالة')}${sel('workplace', 'جهة العمل')}${sel('job_title', 'الوظيفة')}${sel('grade', 'الدرجة')}
+      <select class="input" name="missing" style="flex:1;min-width:130px"><option value="">كل البيانات</option>${[['phone', 'بلا موبايل'], ['national_id', 'بلا رقم قومي'], ['hire_date', 'بلا تاريخ تعيين'], ['retirement_date', 'معاش بلا تاريخ معاش']].map(([v, t]) => `<option value="${v}" ${f.missing === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <button class="btn">تطبيق</button></form>
+    <div class="chips" style="margin-top:10px">${presets.map(([k, t]) => `<button class="btn sm sec" data-mlp="${k}">${t}</button>`).join('')}</div></div>
+    <div class="kpis"><div class="kpi"><i>👥</i><div><b>${numAr(r.total)}</b><small>عضو في الكشف</small></div></div>
+      ${Object.entries(r.byState || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `<div class="kpi"><i>🪪</i><div><b>${numAr(v)}</b><small>${esc(k)}</small></div></div>`).join('')}</div>
+    ${grid('mlist', [
+      { t: 'الرقم الوظيفي', v: x => esc(x.job_id || ''), raw: x => x.job_id || '' },
+      { t: 'الاسم', v: x => `<b>${esc(x.full_name)}</b>`, raw: x => x.full_name },
+      { t: 'الموبايل', v: x => x.phone ? `<span class="dt">${esc(x.phone)}</span>` : '<span class="pill warn">—</span>', raw: x => x.phone || '' },
+      { t: 'جهة العمل', v: x => esc(x.workplace || '—'), raw: x => x.workplace || '' },
+      { t: 'الوظيفة', v: x => esc(x.job_title || '—'), raw: x => x.job_title || '' },
+      { t: 'الدرجة', v: x => esc(x.grade || '—'), raw: x => x.grade || '' },
+      { t: 'التنظيم', v: x => `<span class="pill ${x.union_org === 'النقابة العامة' ? 'ok' : 'warn'}">${esc(x.union_org || '؟')}</span>`, raw: x => x.union_org || '' },
+      { t: 'الحالة', v: x => esc(x.member_state || '—'), raw: x => x.member_state || '' },
+      { t: 'التعيين', v: x => dt(x.hire_date), raw: x => x.hire_date || '' },
+      { t: 'المعاش', v: x => dt(x.retirement_date), raw: x => x.retirement_date || '' },
+      { t: 'الأسرة', v: x => numAr(x.family), raw: x => +x.family, num: true },
+    ], r.items, { title: '📋 الكشف', file: 'members-list', attr: x => `data-person="${x.id}"`, empty: 'لا أعضاء مطابقين' })}
+    <div class="card"><h2>🏢 التوزيع حسب جهة العمل</h2>${bars(r.byWorkplace)}</div>`;
 }
 
 // ───────── ملخص العضو ─────────
@@ -1477,6 +1506,10 @@ async function render() {
     S.acts = a.success ? a.items : []; S.seasons = sm.success ? sm.items : []; S.meetings = mt && mt.success ? mt.items : (gov ? S.meetings : []);
     body = calendarView();
   }
+  else if (h.startsWith('#/memberlists')) {
+    title = 'كشوف الأعضاء'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('REP_MEMBERS', S.mlF || {}); if (!r.success) return toast(r.message, true); S.mlist = r.report; body = memberListsView();
+  }
   else if (h.startsWith('#/inbox')) {
     title = 'صندوق الاعتمادات'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('NTF_INBOX'); if (!r.success) return toast(r.message, true); S.inbox = r.items; body = inboxView();
@@ -1663,6 +1696,9 @@ function bindPage(gridOnly) {
     if (!r.success || !r.item) return toast(r.message || 'غير موجود', true); openModal(auditModal(r.item), m => m.querySelector('[data-close]').onclick = closeModal); });
   app.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { const k = +b.dataset.cal, n = new Date(), m = S.calM || new Date(n.getFullYear(), n.getMonth(), 1);
     S.calM = k ? new Date(m.getFullYear(), m.getMonth() + k, 1) : new Date(n.getFullYear(), n.getMonth(), 1); render(); });
+  const mlf = $('#mlf'); if (mlf) mlf.onsubmit = e => { e.preventDefault(); S.mlF = Object.fromEntries(Object.entries(formData(mlf)).filter(([, v]) => v)); render(); };
+  app.querySelectorAll('[data-mlp]').forEach(b => b.onclick = () => { S.mlF = ({ '': {}, pens: { member_state: 'معاش', missing: 'retirement_date' }, phone: { missing: 'phone' },
+    nid: { missing: 'national_id' }, gen: { union_org: 'النقابة العامة', member_state: 'نشط' } })[b.dataset.mlp]; render(); });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
