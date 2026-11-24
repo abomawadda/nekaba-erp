@@ -300,3 +300,6 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .mcf{margin-top:auto;display:flex;justify-content:space-between;align-items:center;font-size:11px}.mst{background:rgba(255,255,255,.18);border-radius:99px;padding:2px 10px;font-weight:700}
 @media print{body[data-print-card] .side,body[data-print-card] .top,body[data-print-card] .nav,body[data-print-card] .noprint,body[data-print-card] .p360,body[data-print-card] .kpis,body[data-print-card] .ptabs,body[data-print-card] .alert,body[data-print-card] .wrap>a{display:none!important}
   body[data-print-card] .mcard{width:85.6mm;max-width:none;box-shadow:none}}
+.mqr{position:absolute;inset-inline-end:16px;bottom:44px;background:#fff;padding:5px;border-radius:8px;line-height:0;z-index:1}
+.mqr:empty{display:none}.mqr svg{width:84px;height:84px;display:block}
+.mcg{padding-inline-end:100px}

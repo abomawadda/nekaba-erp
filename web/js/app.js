@@ -356,14 +356,37 @@ function memberCard(pr) {
       <div class="mnm">${esc(p.full_name)}</div><div class="mjob">${esc(p.job_title || '')}${p.workplace ? ' — ' + esc(p.workplace) : ''}</div></div></div>
     <div class="mcg"><div><small>الرقم الوظيفي</small><b class="dt">${esc(p.job_id || '—')}</b></div><div><small>التنظيم</small><b>${esc(p.union_org || '—')}</b></div>
       <div><small>الحالة</small><b>${esc(p.member_state || '—')}</b></div><div><small>${b ? 'الصفة' : 'الدرجة'}</small><b>${esc(b ? b.role : (p.grade || '—'))}</b></div></div>
+    <div class="mqr" id="mqr"></div>
     <div class="mcf"><span class="mst">${elig ? '✓ مستحق دعم النقابة' : 'غير مستحق الدعم حالياً'}</span><small>سارية في <span class="dt">${today}</span></small></div></div>`;
 }
 function cardView(pr, admin) {
   return `<div class="cardwrap">${memberCard(pr)}</div>
-    <div class="card row noprint" style="justify-content:center"><button class="btn" data-act="cardPrint">🖨️ طباعة / حفظ PDF</button>${admin ? '' : '<a class="btn sec" href="#/profile" style="text-decoration:none">ملفي</a>'}</div>
-    <div class="muted noprint" style="text-align:center">البطاقة تُظهر بياناتك وحالة استحقاقك كما في سجل النقابة اليوم. لو فيه خطأ قدّم «طلب تعديل» من ملفي.</div>`;
+    <div class="card row noprint" style="justify-content:center"><button class="btn" data-act="cardPrint">🖨️ طباعة / حفظ PDF</button>${admin && can('profile.edit') ? '<button class="btn bad" data-act="cardReissue">↻ إعادة إصدار (يلغي القديمة)</button>' : ''}${admin ? '' : '<a class="btn sec" href="#/profile" style="text-decoration:none">ملفي</a>'}</div>
+    <div class="muted noprint" style="text-align:center">رمز QR يفتح صفحة تحقق تؤكد صحة البطاقة وحالة العضو لحظة المسح. البطاقة تُظهر بياناتك وحالة استحقاقك كما في سجل النقابة اليوم. لو فيه خطأ قدّم «طلب تعديل» من ملفي.</div>`;
 }
 
+
+let qrLib;
+function loadQR() { return qrLib || (qrLib = new Promise((ok, no) => { const sc = document.createElement('script');
+  sc.src = 'js/qrcode.js'; sc.onload = () => ok(window.qrcode); sc.onerror = no; document.head.appendChild(sc); })); }
+async function drawCardQR(personId, reissue) {
+  const box = $('#mqr'); if (!box) return;
+  const r = await call('SYS_CARD', { ...(personId ? { personId } : {}), ...(reissue ? { reissue: true } : {}) });
+  if (!r.success) { box.innerHTML = ''; return toast(r.message, true); }
+  try { const Q = await loadQR(); box.innerHTML = '';
+    const q = Q(0, 'M'); q.addData(location.origin + '/#/verify/' + r.token); q.make(); box.innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+  } catch (_) { box.innerHTML = ''; }
+}
+function verifyView(r) {
+  const c = r && r.card;
+  return `<div class="login"><div class="box" style="max-width:440px">
+    <div class="hd"><img src="img/logo-union.png" alt=""><h1>التحقق من بطاقة العضوية</h1><div class="muted">${esc(C.ORG_NAME)}</div></div>
+    ${!r ? '<div class="spin"></div>' : !c ? `<div class="alert bad" style="text-align:center;font-size:16px">✗ ${esc(r.message || 'البطاقة غير صحيحة')}</div>`
+    : `<div class="alert ${c.eligible ? 'ok' : 'warn'}" style="text-align:center;font-size:16px"><b>✓ بطاقة صحيحة</b><br>${c.eligible ? 'العضو مستحق دعم النقابة اليوم' : 'العضو غير مستحق للدعم حالياً'}</div>
+      ${kv('الاسم', c.full_name)}${kv('الرقم الوظيفي', c.job_id)}${kv('التنظيم', c.union_org)}${kv('الحالة', c.member_state)}${kv('جهة العمل', c.workplace)}
+      ${c.board_role ? kv('الصفة', c.board_role) : ''}${kv('تاريخ الإصدار', String(c.issued_at).slice(0, 10))}${kv('وقت التحقق', String(c.checked_at).slice(0, 16).replace('T', ' '))}`}
+    <a class="btn sec block" href="#/login" style="display:block;text-align:center;text-decoration:none;margin-top:14px">دخول المنصة</a></div></div>`;
+}
 // ───────── ملخص العضو ─────────
 function memberStrip() {
   const s = S.mySum; if (!s) return '';
@@ -1490,6 +1513,7 @@ function notificationsView() {
 }
 
 async function boot() {
+  if (location.hash.startsWith('#/verify/')) return render();
   if (!S.token) { location.hash = '#/login'; return render(); }
   const r = await call('GET_ME');
   if (!r.success) return;
@@ -1501,6 +1525,7 @@ async function boot() {
 }
 async function render() {
   const app = $('#app'), h = location.hash || '#/login';
+  if (h.startsWith('#/verify/')) { app.innerHTML = verifyView(null); const r = await call('VERIFY_CARD', { token: h.split('/')[2] }); app.innerHTML = verifyView(r); return; }
   if (!S.token || !S.me || h === '#/login') { app.innerHTML = loginView(); return bindLogin(); }
   let title = 'منصة النقابة', body = '';
   if (h.startsWith('#/dash')) {
@@ -1719,6 +1744,8 @@ function bindPage(gridOnly) {
   const mlf = $('#mlf'); if (mlf) mlf.onsubmit = e => { e.preventDefault(); S.mlF = Object.fromEntries(Object.entries(formData(mlf)).filter(([, v]) => v)); render(); };
   app.querySelectorAll('[data-mlp]').forEach(b => b.onclick = () => { S.mlF = ({ '': {}, pens: { member_state: 'معاش', missing: 'retirement_date' }, phone: { missing: 'phone' },
     nid: { missing: 'national_id' }, gen: { union_org: 'النقابة العامة', member_state: 'نشط' } })[b.dataset.mlp]; render(); });
+  if ($('#mqr')) drawCardQR(location.hash.startsWith('#/person/') ? S.person.person.id : null);
+  app.querySelectorAll('[data-act=cardReissue]').forEach(b => b.onclick = () => { if (confirm('إعادة إصدار البطاقة؟ البطاقة القديمة (ورمزها) هتتلغي فوراً.')) drawCardQR(S.person.person.id, true).then(() => toast('اتصدرت بطاقة جديدة ✓')); });
   app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
