@@ -109,7 +109,7 @@ function navModel() {
   return [
     ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['خدماتي', [['#/trips', '🚌', 'الرحلات والفعاليات', true], ['#/mytrips', '🎫', 'حجوزاتي', true], ['#/summer', '🏖️', 'المصايف', true], ['#/grants', '🎁', 'المنح', true], ['#/devices', '📱', 'الأجهزة', true], ['#/umrah', '🕋', 'العمرة والحج', true]]],
-    ['ملفي', [['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
+    ['ملفي', [['#/card', '💳', 'بطاقة العضوية', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
     ['الإدارة', [['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', fin], ['#/reports', '📈', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
     ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
   ];
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/memberlists', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/memberlists', '#/card', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -347,6 +347,23 @@ function memberListsView() {
     <div class="card"><h2>🏢 التوزيع حسب جهة العمل</h2>${bars(r.byWorkplace)}</div>`;
 }
 
+
+// ───────── بطاقة العضوية الرقمية ─────────
+function memberCard(pr) {
+  const p = pr.person, b = (pr.board || []).find(x => !x.to_date), elig = pr.eligibleToday, today = new Date().toISOString().slice(0, 10);
+  return `<div class="mcard ${elig ? '' : 'ne'}"><div class="mch"><img src="img/logo-union.png" alt=""><div><b>${esc(C.ORG_NAME)}</b><small>بطاقة عضوية</small></div></div>
+    <div class="mcb"><div class="mav">${esc((p.full_name || '؟').trim()[0])}</div><div style="min-width:0">
+      <div class="mnm">${esc(p.full_name)}</div><div class="mjob">${esc(p.job_title || '')}${p.workplace ? ' — ' + esc(p.workplace) : ''}</div></div></div>
+    <div class="mcg"><div><small>الرقم الوظيفي</small><b class="dt">${esc(p.job_id || '—')}</b></div><div><small>التنظيم</small><b>${esc(p.union_org || '—')}</b></div>
+      <div><small>الحالة</small><b>${esc(p.member_state || '—')}</b></div><div><small>${b ? 'الصفة' : 'الدرجة'}</small><b>${esc(b ? b.role : (p.grade || '—'))}</b></div></div>
+    <div class="mcf"><span class="mst">${elig ? '✓ مستحق دعم النقابة' : 'غير مستحق الدعم حالياً'}</span><small>سارية في <span class="dt">${today}</span></small></div></div>`;
+}
+function cardView(pr, admin) {
+  return `<div class="cardwrap">${memberCard(pr)}</div>
+    <div class="card row noprint" style="justify-content:center"><button class="btn" data-act="cardPrint">🖨️ طباعة / حفظ PDF</button>${admin ? '' : '<a class="btn sec" href="#/profile" style="text-decoration:none">ملفي</a>'}</div>
+    <div class="muted noprint" style="text-align:center">البطاقة تُظهر بياناتك وحالة استحقاقك كما في سجل النقابة اليوم. لو فيه خطأ قدّم «طلب تعديل» من ملفي.</div>`;
+}
+
 // ───────── ملخص العضو ─────────
 function memberStrip() {
   const s = S.mySum; if (!s) return '';
@@ -379,6 +396,8 @@ function homeView() {
     ${installCard()}
     ${(S.homeNews || []).length ? `<div class="card"><h2>📰 أخبار النقابة<span class="sp"></span><a href="#/news" class="pill" style="text-decoration:none">الكل</a></h2>
       ${S.homeNews.map(n => newsItem(n, false)).join('')}</div>` : ''}
+    <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/card">
+      <span style="font-size:30px">💳</span><div style="flex:1"><b>بطاقة العضوية</b><div class="muted">بطاقتك الرقمية — اعرضها أو اطبعها</div></div><span class="pill ok">عرض</span></a>
     <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/myrequests">
       <span style="font-size:30px">📋</span><div style="flex:1"><b>طلباتي ومتابعتها</b><div class="muted">تابع كل طلب: وصل لفين ومستني مين</div></div><span class="pill warn">تابع</span></a>
     <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/mybenefits">
@@ -574,9 +593,9 @@ function personView() {
   const pr = S.person; if (!pr) return '<div class="empty">...</div>';
   const p = pr.person, c = pr.completeness, b = S.personBen, fam = pr.family || [], board = (pr.board || []).find(x => !x.to_date);
   const tab = S.ptab || 'data';
-  const tabs = [['data', '🏢 البيانات'], ['family', `👨‍👩‍👧 الأسرة (${fam.length})`], ['ben', '🏅 المزايا', !!b], ['career', '🕓 المسيرة'], ['board', '🏛️ المجلس', (pr.board || []).length > 0]].filter(t => t[2] !== false);
+  const tabs = [['data', '🏢 البيانات'], ['family', `👨‍👩‍👧 الأسرة (${fam.length})`], ['ben', '🏅 المزايا', !!b], ['career', '🕓 المسيرة'], ['board', '🏛️ المجلس', (pr.board || []).length > 0], ['card', '💳 البطاقة']].filter(t => t[2] !== false);
   const kpi = (i, v, l, t) => `<a class="kpi" ${t ? `data-ptab="${t}"` : ''}><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
-  const body = tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة') : tab === 'career' ? profileBody(pr, true, 'career')
+  const body = tab === 'card' ? cardView(pr, true) : tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة') : tab === 'career' ? profileBody(pr, true, 'career')
     : tab === 'board' ? profileBody(pr, true, 'board') : `<div class="dgrid">${profileBody(pr, true, 'job')}${profileBody(pr, true, 'personal')}</div>`;
   return `<a href="#/admin" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأعضاء</a>
     <div class="card p360"><div class="pav">${esc((p.full_name || '؟').trim()[0])}</div>
@@ -1533,6 +1552,7 @@ async function render() {
     title = 'أخبار النقابة'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('NEWS_LIST', { all: true, limit: 50 }); S.news = r.success ? r.items : []; S.newsManage = r.canManage; body = newsView();
   }
+  else if (h.startsWith('#/card')) { title = 'بطاقة العضوية'; body = S.me.profile ? cardView(S.me.profile, false) : '<div class="empty">الحساب مش مربوط بملف عضو</div>'; }
   else if (h.startsWith('#/profile')) { title = 'ملفي'; body = profileBody(S.me.profile, false); }
   else if (h.startsWith('#/family')) { title = 'أسرتي'; body = familyView(S.me.profile, false); }
   else if (h.startsWith('#/account')) { title = 'حسابي'; body = accountView(); }
@@ -1699,6 +1719,7 @@ function bindPage(gridOnly) {
   const mlf = $('#mlf'); if (mlf) mlf.onsubmit = e => { e.preventDefault(); S.mlF = Object.fromEntries(Object.entries(formData(mlf)).filter(([, v]) => v)); render(); };
   app.querySelectorAll('[data-mlp]').forEach(b => b.onclick = () => { S.mlF = ({ '': {}, pens: { member_state: 'معاش', missing: 'retirement_date' }, phone: { missing: 'phone' },
     nid: { missing: 'national_id' }, gen: { union_org: 'النقابة العامة', member_state: 'نشط' } })[b.dataset.mlp]; render(); });
+  app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
