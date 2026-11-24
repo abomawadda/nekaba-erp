@@ -492,6 +492,24 @@ function helpView() {
 
 
 // ───────── استكمال البيانات بالجملة ─────────
+const parseAnyDate = v => { v = String(v || '').trim().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  let m = v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (/^\d{5}$/.test(v)) { const d = new Date(Date.UTC(1899, 11, 30) + +v * 864e5); return d.toISOString().slice(0, 10); } // رقم تسلسلي من Excel
+  return null; };
+function applyPaste(mode) {
+  const lines = $('#pasteBox').value.split(/\r?\n/).map(l => l.split(/\t|,|;/).map(x => x.trim())).filter(x => x[0]);
+  const byJob = {}; (S.mlist.items || []).forEach(x => { if (x.job_id) byJob[String(x.job_id).trim()] = x; });
+  let ok = 0; const miss = [], bad = [];
+  lines.forEach(([job, val]) => { job = String(job).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)); const x = byJob[job];
+    if (!x) { if (/\d/.test(job)) miss.push(job); return; }
+    const v = mode === 'ret' ? parseAnyDate(val) : String(val || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g, '').replace(/^1(\d{9})$/, '01$1');
+    if (!v || (mode === 'phone' && !/^01\d{9}$/.test(v))) { bad.push(job); return; }
+    const inp = document.querySelector(`[data-fix="${x.id}"]`); if (inp) { inp.value = v; inp.classList.add('filled'); ok++; } });
+  $('#pasteRes').innerHTML = `<div class="alert ${miss.length || bad.length ? 'warn' : 'ok'}" style="margin-top:6px">اتملى ${ok} صف — راجعهم (باللون الأخضر) واضغط «حفظ المكتوب».
+    ${miss.length ? `<br>أرقام وظيفية مش في الكشف (${miss.length}): ${miss.slice(0, 20).map(esc).join('، ')}` : ''}${bad.length ? `<br>قيمة غير مفهومة (${bad.length}): ${bad.slice(0, 20).map(esc).join('، ')}` : ''}</div>`;
+}
+
 function fixBox(r, f) {
   const mode = f.missing === 'retirement_date' && can('profile.movement') && can('profile.edit') ? 'ret' : f.missing === 'phone' && can('profile.edit') ? 'phone' : null;
   if (!mode || !(r.items || []).length) return '';
@@ -501,6 +519,9 @@ function fixBox(r, f) {
     <div class="gtw" style="margin-top:8px"><table class="bt"><thead><tr><th>الاسم</th><th>الرقم الوظيفي</th><th>${mode === 'ret' ? 'تاريخ التعيين' : 'جهة العمل'}</th><th>${mode === 'ret' ? 'تاريخ المعاش' : 'الموبايل'}</th></tr></thead><tbody>
     ${rows.map(x => `<tr><td data-l="الاسم"><b>${esc(x.full_name)}</b></td><td data-l="الرقم">${esc(x.job_id || '')}</td><td data-l="${mode === 'ret' ? 'التعيين' : 'الجهة'}">${mode === 'ret' ? dt(x.hire_date) || '<span class="muted">—</span>' : esc(x.workplace || '—')}</td>
       <td data-l="${mode === 'ret' ? 'المعاش' : 'الموبايل'}"><input class="input fixin" data-fix="${x.id}" ${mode === 'ret' ? `type="date" min="${esc(x.hire_date || '')}" max="${new Date().toISOString().slice(0, 10)}"` : 'inputmode="tel" dir="ltr" placeholder="01xxxxxxxxx"'}></td></tr>`).join('')}</tbody></table></div>
+    <details class="paste" style="margin-top:10px"><summary><b>📋 لصق من Excel</b> <span class="muted">— انسخ عمودين: الرقم الوظيفي ثم ${mode === 'ret' ? 'تاريخ المعاش' : 'الموبايل'}</span></summary>
+      <textarea class="input" id="pasteBox" rows="5" dir="ltr" placeholder="${mode === 'ret' ? '97117   30/06/2020' : '97117   01012345678'}"></textarea>
+      <button class="btn sm" data-act="pasteApply" data-mode="${mode}" style="margin-top:6px">مطابقة وتعبئة الجدول</button><div id="pasteRes"></div></details>
     <div class="row" style="margin-top:10px"><input class="input" id="fixReason" placeholder="مصدر البيانات (مثلاً: كشف شئون العاملين نوفمبر 2026)" style="flex:1;min-width:200px">
       <button class="btn gold" data-act="fixSave" data-mode="${mode}">💾 حفظ المكتوب</button></div><div id="fixres"></div></div>`;
 }
@@ -2065,6 +2086,7 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
   app.querySelectorAll('[data-act=myCrPrint]').forEach(b => b.onclick = () => { const pr = S.me.profile; printDoc(changeReqHTML((pr.requests || []).filter(r => r.status === 'معلّق'), pr.person)); });
   loadDocBoxes();
+  app.querySelectorAll('[data-act=pasteApply]').forEach(b => b.onclick = () => applyPaste(b.dataset.mode));
   app.querySelectorAll('[data-act=fixSave]').forEach(b => b.onclick = async () => {
     const items = [...app.querySelectorAll('[data-fix]')].filter(i => i.value.trim()).map(i => ({ personId: i.dataset.fix, v: i.value.trim() }));
     const reason = $('#fixReason').value.trim(); if (!items.length) return toast('مفيش حاجة مكتوبة', true); if (!reason) return toast('اكتب مصدر البيانات', true);
