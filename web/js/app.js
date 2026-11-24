@@ -89,28 +89,98 @@ function bindLogin() {
     const r = await busy(e.target.querySelector('button[type=submit]'), () => call(member ? 'LOGIN_MEMBER' : 'LOGIN_ADMIN', d));
     if (!r.success) { $('#lerr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
     saveSession(r.token, member ? 'member' : 'staff');
-    location.hash = member ? '#/home' : '#/admin'; await boot();
+    location.hash = member ? '#/home' : '#/dash'; await boot();
   };
 }
 
-// ───────── الهيكل ─────────
+// ───────── الهيكل (ERP: قائمة جانبية بالوحدات على الكمبيوتر، شريط سفلي على الموبايل) ─────────
+function navModel() {
+  const gov = can('governance.view') || can('governance.manage');
+  const fin = can('finance.view');
+  if (isStaff()) return [
+    ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/notifications', '🔔', 'المهام والإشعارات', true]]],
+    ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
+    ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
+    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin]]],
+    ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
+    ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
+    ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
+  ];
+  return [
+    ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
+    ['خدماتي', [['#/trips', '🚌', 'الرحلات والفعاليات', true], ['#/mytrips', '🎫', 'حجوزاتي', true], ['#/summer', '🏖️', 'المصايف', true], ['#/grants', '🎁', 'المنح', true], ['#/devices', '📱', 'الأجهزة', true], ['#/umrah', '🕋', 'العمرة والحج', true]]],
+    ['ملفي', [['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
+    ['الإدارة', [['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', fin], ['#/reports', '📈', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
+    ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
+  ];
+}
 function shell(title, body) {
   const me = S.me, p = me && me.profile && me.profile.person;
   const name = p ? p.full_name : (me && me.username) || '';
   const h = location.hash;
-  const gov = can('governance.view') || can('governance.manage');
-  const nav = isStaff()
-    ? [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')],
-       ['#/benefits', '🎁', 'المزايا', can('benefits.view')], ['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/reports', '📊', 'التقارير', can('reports.view') || can('finance.view')], ['#/news', '📰', 'الأخبار', can('news.manage')],
-       ['#/requests', '📝', 'الطلبات', can('profile.change.approve')],
-       ['#/lists', '🗂️', 'القوائم', can('lists.manage')], ['#/account', '⚙️', 'حسابي', true]]
-    : [['#/home', '🏠', 'أنشطتي', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true],
-       ['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', can('finance.view')], ['#/reports', '📊', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')], ['#/account', '⚙️', 'حسابي', true]];
-  return `<div class="top"><img src="img/logo-union.png" alt=""><div class="t"><b>${esc(title)}</b><small>${esc(name)}</small></div>
+  const groups = navModel().map(([g, items]) => [g, items.filter(n => n[3])]).filter(g => g[1].length);
+  const all = groups.flatMap(g => g[1]);
+  const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
+  const grp = cur && groups.find(g => g[1].includes(cur));
+  // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
+  const mob = all.filter(n => !['#/notifications', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+    && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
+  return `<div class="erp">
+    <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
+      ${groups.map(([g, items]) => `<div class="sg"><div class="sgt">${esc(g)}</div>${items.map(n => `<a href="${n[0]}" class="${n === cur ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}</div>`).join('')}
+      <div class="sfoot"><div class="who"><span class="av">${esc((name || '؟').trim()[0] || '؟')}</span><div><b>${esc(name)}</b><small>${isStaff() ? 'الإدارة' : 'عضو'}</small></div></div></div>
+    </aside>
+    <div class="main"><div class="top"><img src="img/logo-union.png" alt=""><div class="t"><small class="crumb">${grp ? esc(grp[0]) + ' ‹ ' : ''}</small><b>${esc(title)}</b><small class="nm">${esc(name)}</small></div>
+      ${isStaff() && can('profile.view') ? `<form class="gs" id="gs"><input name="q" placeholder="🔎 بحث عن عضو: اسم، رقم وظيفي، موبايل…" value="${esc(S.q || '')}"></form>` : ''}
       <a href="#/notifications" class="bell" title="الإشعارات">🔔${S.ntfCount ? `<span class="badge">${S.ntfCount > 9 ? '9+' : S.ntfCount}</span>` : ''}</a>
       <button data-act="logout">خروج</button></div>
-    <div class="wrap">${body}</div>
-    <nav class="nav">${nav.filter(n => n[3]).map(n => `<a href="${n[0]}" class="${h.startsWith(n[0]) ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}</nav>`;
+    <div class="wrap">${body}</div></div></div>
+    <nav class="nav">${mob.map(n => `<a href="${n[0]}" class="${h.startsWith(n[0]) ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}</nav>`;
+}
+
+// ───────── لوحة القيادة (الإدارة) ─────────
+const numAr = v => Number(v || 0).toLocaleString('ar-EG');
+const bars = (o, money_ = false) => { const e = Object.entries(o || {}).sort((x, y) => y[1] - x[1]); const mx = Math.max(1, ...e.map(x => +x[1]));
+  return e.map(([k, v]) => `<div class="bar"><span>${esc(k)}</span><div><i style="width:${Math.max(2, 100 * v / mx)}%"></i></div><b>${money_ ? money(v) : numAr(v)}</b></div>`).join('') || '<div class="empty">لا بيانات</div>'; };
+function dashView() {
+  const d = S.dash || {}, r = d.rep || {}, f = d.fin || {}, n = S.ntf || {}, m = r.members || {}, b = r.benefits || {}, rf = r.finance || {};
+  const tasks = n.tasks || [], y = new Date().getFullYear();
+  const kpi = (i, v, l, href, cls = '') => `<a class="kpi ${cls}" ${href ? `href="${href}"` : ''}><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
+  const qa = [['#/admin', '👤', 'بحث عن عضو', can('profile.view')], ['chqNew', '🧾', 'صرف شيك', can('treasury.cheque.issue')], ['rcptNew', '📥', 'إيداع / تحصيل', can('treasury.receipt')],
+    ['#/trips', '🚌', 'نشاط جديد', can('activities.manage')], ['#/grantsadmin', '🎁', 'مراجعة المنح', canGrtAdmin()], ['#/meetings', '🗓️', 'الاجتماعات', can('governance.view') || can('governance.manage')],
+    ['#/news', '📰', 'نشر خبر', can('news.manage')], ['#/reports', '📈', 'التقارير', can('reports.view') || can('finance.view')]].filter(x => x[3]);
+  const surplus = +rf.revenue - +rf.expense;
+  return `<div class="hello"><div><h1>أهلاً${S.me.username ? '، ' + esc(S.me.username) : ''} 👋</h1><div class="muted">ملخص المنظومة لسنة ${y} — ${dt(new Date().toISOString().slice(0, 10))}</div></div></div>
+    <div class="kpis">
+      ${r.members ? kpi('👥', numAr(m.total), 'عضو مسجّل', '#/admin') : ''}
+      ${f.bank !== undefined ? kpi('🏦', money(f.bank), 'رصيد البنك الدفتري', '#/ledger/1102') : ''}
+      ${f.custody !== undefined ? kpi('🧾', money(f.custody), `عُهد تحت التسوية (${numAr(f.unsettled)} شيك)`, '#/cheques', +f.custody ? 'warn' : '') : ''}
+      ${r.finance ? kpi(surplus >= 0 ? '📈' : '📉', money(surplus), `فائض / (عجز) ${r.year || y}`, '#/reports', surplus >= 0 ? 'ok' : 'bad') : ''}
+      ${r.benefits ? kpi('🏅', money(b.total), `مزايا ${r.year || y} لـ ${numAr(b.people)} مستفيد`, '#/benefits') : ''}
+      ${kpi('📌', numAr(tasks.reduce((a, t) => a + +t.count, 0)), 'مهام تنتظر إجراءك', '#/notifications', tasks.length ? 'warn' : 'ok')}
+    </div>
+    <div class="dgrid">
+      <div class="card"><h2>📌 صندوق المهام<span class="sp"></span><a class="pill" href="#/notifications" style="text-decoration:none">الكل</a></h2>
+        ${tasks.map(t => `<a class="task" href="${esc(t.link)}"><span>${esc(t.title)}</span><span class="pill warn">${numAr(t.count)}</span><em>←</em></a>`).join('') || '<div class="empty">✅ لا مهام معلّقة — كل شيء تمام</div>'}</div>
+      <div class="card"><h2>⚡ إجراءات سريعة</h2><div class="qa">${qa.map(([k, i, t]) => k.startsWith('#') ? `<a href="${k}"><i>${i}</i>${t}</a>` : `<button data-act="${k}"><i>${i}</i>${t}</button>`).join('')}</div></div>
+      ${r.finance ? `<div class="card"><h2>💰 الأداء المالي ${r.year || y}<span class="sp"></span><a class="pill" href="#/finance" style="text-decoration:none">المالية</a></h2>
+        ${bars({ 'الإيرادات': +rf.revenue || 0, 'المصروفات': +rf.expense || 0 }, true)}
+        <div style="margin-top:8px">${kvh('الخزينة الآن', money(rf.cash))}${kvh('عُهد تحت التسوية', money(rf.custody))}</div></div>` : ''}
+      ${(f.byGroup || []).length ? `<div class="card"><h2>📊 المصروفات حسب المجموعة</h2>${bars(Object.fromEntries(f.byGroup.map(g => [g.name, +g.amount])), true)}</div>` : ''}
+      ${r.members ? `<div class="card"><h2>👥 الأعضاء حسب التنظيم</h2>${bars(m.byOrg)}</div><div class="card"><h2>🪪 الأعضاء حسب الحالة</h2>${bars(m.byState)}</div>` : ''}
+      ${(b.byCategory || []).length ? `<div class="card"><h2>🏅 المزايا حسب البند</h2>${bars(Object.fromEntries(b.byCategory.map(c => [c.category, +c.total])), true)}</div>` : ''}
+      ${(f.openCustody || []).length ? `<div class="card"><h2>🧾 العُهد المفتوحة</h2>${f.openCustody.map(o => kvh(esc(o.party), money(o.balance))).join('')}</div>` : ''}
+      ${(r.activities || []).length ? `<div class="card"><h2>🚌 الأنشطة ${r.year || y}</h2>${r.activities.slice(0, 6).map(a => kvh(`${esc(a.title)} <small class="muted">${dt(a.date)}</small>`, numAr(a.people) + ' مشارك')).join('')}</div>` : ''}
+      ${(n.items || []).length ? `<div class="card"><h2>🕘 آخر الأحداث</h2>${n.items.slice(0, 6).map(x => `<a class="kv" href="${esc(x.link || '#/notifications')}" style="text-decoration:none;color:inherit"><span>${NTF_ICON[x.kind] || '🔔'} ${esc(x.title)}</span><span class="muted">${dt(String(x.at).slice(0, 10))}</span></a>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+// ───────── ملخص العضو ─────────
+function memberStrip() {
+  const s = S.mySum; if (!s) return '';
+  const it = (i, v, l, href) => `<a class="kpi" href="${href}"><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
+  return `<div class="kpis">${it('🏅', money(s.ben), 'إجمالي استفاداتك', '#/mybenefits')}${it('🎫', numAr(s.bk), 'حجوزات قائمة', '#/mytrips')}
+    ${it('🎁', numAr(s.grt), 'طلبات منح تحت الإجراء', '#/grants')}${it('👨‍👩‍👧', numAr(s.fam), 'أفراد الأسرة', '#/family')}</div>`;
 }
 
 // ───────── أنشطتي ─────────
@@ -129,6 +199,7 @@ function homeView() {
   return `<div class="card"><h2>أهلاً ${esc((p.full_name || '').split(' ')[0])} 👋</h2>
       <div class="row"><span class="pill ${elig ? 'ok' : 'warn'}">${elig ? 'عضو النقابة العامة — مستحق الدعم' : esc(p.union_org || 'التنظيم غير محدد')}</span>
       ${p.member_state ? `<span class="pill">${esc(p.member_state)}</span>` : ''}</div></div>
+    ${memberStrip()}
     ${c.percent < 100 ? `<a class="card" style="display:block;text-decoration:none;color:inherit" href="#/profile">
       <h2>ملفك مكتمل ${c.percent}%<span class="sp"></span><span class="pill warn">كمّله</span></h2>
       <div class="prog"><div style="width:${c.percent}%"></div></div>
@@ -1083,15 +1154,28 @@ async function boot() {
   S.me = r; await loadLists();
   refreshNtf(); if (!S.ntfTimer) S.ntfTimer = setInterval(() => { if (S.token && !document.hidden) refreshNtf(); }, 120000);
   if (isStaff() && r.mustChange) location.hash = '#/account';
-  else if (!location.hash || location.hash === '#/login') location.hash = isStaff() ? '#/admin' : '#/home';
+  else if (!location.hash || location.hash === '#/login') location.hash = isStaff() ? '#/dash' : '#/home';
   render();
 }
 async function render() {
   const app = $('#app'), h = location.hash || '#/login';
   if (!S.token || !S.me || h === '#/login') { app.innerHTML = loginView(); return bindLogin(); }
   let title = 'منصة النقابة', body = '';
-  if (h.startsWith('#/home')) {
+  if (h.startsWith('#/dash')) {
+    title = 'لوحة القيادة'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const want = can('reports.view') || can('finance.view');
+    const [rep, fin] = await Promise.all([want ? call('REP_OVERVIEW', { year: String(new Date().getFullYear()) }) : null,
+      can('finance.view') ? call('FIN_SUMMARY', {}) : null, refreshNtf()]);
+    S.dash = { rep: rep && rep.success ? rep.report : null, fin: fin && fin.success ? fin : null }; body = dashView();
+  }
+  else if (h.startsWith('#/home')) {
     title = 'أنشطتي';
+    if (S.me.profile && (!S.mySumAt || Date.now() - S.mySumAt > 60000)) {
+      const [bn, bk, gr] = await Promise.all([call('BEN_MY'), call('ACT_MY_BOOKINGS'), call('GRT_MY')]);
+      const open = st => !/ملغ|مرفوض|منته|مصروف|مقفل|معتذر/.test(st || '');
+      S.mySum = { ben: bn.success ? bn.benefits.total : 0, bk: bk.success ? bk.items.filter(x => open(x.status)).length : 0,
+        grt: gr.success ? gr.items.filter(x => open(x.status)).length : 0, fam: (S.me.profile.family || []).length }; S.mySumAt = Date.now();
+    }
     if (!S.newsAt || Date.now() - S.newsAt > 60000) { const r = await call('NEWS_LIST', { limit: 3 }); S.homeNews = r.success ? r.items : []; S.newsAt = Date.now(); }
     body = S.me.profile ? homeView() : '<div class="empty">الحساب مش مربوط بملف عضو</div>';
   }
@@ -1228,7 +1312,7 @@ async function render() {
       body = decisionsView();
     }
   }
-  else { location.hash = isStaff() ? '#/admin' : '#/home'; return; }
+  else { location.hash = isStaff() ? '#/dash' : '#/home'; return; }
   app.innerHTML = shell(title, body);
   bindPage();
 }
@@ -1269,6 +1353,10 @@ function bindPage() {
       closeModal(); toast('اتحفظ ✓'); S.person = r.profile; render(); };
   }));
 
+  const gs = $('#gs');
+  if (gs) gs.onsubmit = async e => { e.preventDefault(); S.q = formData(gs).q; if (!S.q) return;
+    const r = await call('SEARCH_PERSONS', { q: S.q }); S.results = r.success ? r.items : []; if (!r.success) toast(r.message, true);
+    if (location.hash.startsWith('#/admin')) render(); else location.hash = '#/admin'; };
   const qs = $('#qs');
   if (qs) qs.onsubmit = async e => { e.preventDefault(); S.q = formData(qs).q;
     const r = await busy(qs.querySelector('button'), () => call('SEARCH_PERSONS', { q: S.q }));
