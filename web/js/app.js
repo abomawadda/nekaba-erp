@@ -98,7 +98,7 @@ function navModel() {
   const gov = can('governance.view') || can('governance.manage');
   const fin = can('finance.view');
   if (isStaff()) return [
-    ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/notifications', '🔔', 'المهام والإشعارات', true]]],
+    ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
     ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin]]],
@@ -107,7 +107,7 @@ function navModel() {
     ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
   ];
   return [
-    ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
+    ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['خدماتي', [['#/trips', '🚌', 'الرحلات والفعاليات', true], ['#/mytrips', '🎫', 'حجوزاتي', true], ['#/summer', '🏖️', 'المصايف', true], ['#/grants', '🎁', 'المنح', true], ['#/devices', '📱', 'الأجهزة', true], ['#/umrah', '🕋', 'العمرة والحج', true]]],
     ['ملفي', [['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
     ['الإدارة', [['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', fin], ['#/reports', '📈', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/myrequests', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -160,7 +160,7 @@ function dashView() {
       ${kpi('📌', numAr(tasks.reduce((a, t) => a + +t.count, 0)), 'مهام تنتظر إجراءك', '#/notifications', tasks.length ? 'warn' : 'ok')}
     </div>
     <div class="dgrid">
-      <div class="card"><h2>📌 صندوق المهام<span class="sp"></span><a class="pill" href="#/notifications" style="text-decoration:none">الكل</a></h2>
+      <div class="card"><h2>📌 صندوق المهام<span class="sp"></span><a class="pill" href="#/inbox" style="text-decoration:none">الكل</a></h2>
         ${tasks.map(t => `<a class="task" href="${esc(t.link)}"><span>${esc(t.title)}</span><span class="pill warn">${numAr(t.count)}</span><em>←</em></a>`).join('') || '<div class="empty">✅ لا مهام معلّقة — كل شيء تمام</div>'}</div>
       <div class="card"><h2>⚡ إجراءات سريعة</h2><div class="qa">${qa.map(([k, i, t]) => k.startsWith('#') ? `<a href="${k}"><i>${i}</i>${t}</a>` : `<button data-act="${k}"><i>${i}</i>${t}</button>`).join('')}</div></div>
       ${r.finance ? `<div class="card"><h2>💰 الأداء المالي ${r.year || y}<span class="sp"></span><a class="pill" href="#/finance" style="text-decoration:none">المالية</a></h2>
@@ -173,6 +173,40 @@ function dashView() {
       ${(r.activities || []).length ? `<div class="card"><h2>🚌 الأنشطة ${r.year || y}</h2>${r.activities.slice(0, 6).map(a => kvh(`${esc(a.title)} <small class="muted">${dt(a.date)}</small>`, numAr(a.people) + ' مشارك')).join('')}</div>` : ''}
       ${(n.items || []).length ? `<div class="card"><h2>🕘 آخر الأحداث</h2>${n.items.slice(0, 6).map(x => `<a class="kv" href="${esc(x.link || '#/notifications')}" style="text-decoration:none;color:inherit"><span>${NTF_ICON[x.kind] || '🔔'} ${esc(x.title)}</span><span class="muted">${dt(String(x.at).slice(0, 10))}</span></a>`).join('')}</div>` : ''}
     </div>`;
+}
+
+
+// ───────── مسارات الاعتماد ─────────
+function stepper(it) {
+  const st = it.stages || [], i = +it.idx, closed = i < 0;
+  return `<div class="steps ${closed ? 'x' : ''}">${st.map((t, k) => `<div class="stp ${!closed && k < i ? 'done' : ''} ${!closed && k === i ? 'cur' : ''}"><span>${!closed && k < i ? '✓' : k + 1}</span><small>${esc(t)}</small></div>`).join('')}</div>`;
+}
+function wfCard(it, staff) {
+  const closed = +it.idx < 0, done = !closed && +it.idx >= (it.stages || []).length - 1;
+  return `<div class="card wf"><div class="row"><span class="wfi">${it.icon || '•'}</span>
+      <div style="flex:1;min-width:0"><b>${esc(String(it.title).replace(/^([a-z_0-9]+):/, (m, f) => (FIELD_LBL[f] || f) + ':'))}</b><div class="muted">${esc(it.module)}${it.ref ? ' · ' + esc(it.ref) : ''}${staff ? ' · ' + esc(it.person) : ''} · ${dt(String(it.at).slice(0, 10))}</div></div>
+      ${it.amount != null && +it.amount ? `<b>${money(it.amount)}</b>` : ''}
+      <span class="pill ${closed ? 'bad' : done ? 'ok' : 'warn'}">${esc(it.status)}</span></div>
+    ${stepper(it)}
+    <div class="row wfa">${!closed && !done && it.actor ? `<span class="muted">⏳ عند: <b style="display:inline">${esc(it.actor)}</b></span>` : ''}
+      ${it.note ? `<span class="muted">· ${esc(it.note)}</span>` : ''}<span class="sp" style="flex:1"></span>
+      ${staff ? `<a class="btn sm sec" href="#/person/${it.person_id}" style="text-decoration:none">ملف العضو</a><a class="btn sm" href="${esc(it.link)}" style="text-decoration:none">اتخاذ إجراء ←</a>`
+              : `<a class="btn sm sec" href="${esc(it.mylink)}" style="text-decoration:none">فتح</a>`}</div></div>`;
+}
+function inboxView() {
+  const items = S.inbox || [], f = S.inboxF || '', mods = [...new Set(items.map(x => x.module))];
+  const list = items.filter(x => !f || x.module === f);
+  return `<div class="kpis">${[['📥', items.length, 'طلب ينتظر إجراءك'], ...mods.map(m => [items.find(x => x.module === m).icon, items.filter(x => x.module === m).length, m])]
+      .map(([i, v, l]) => `<div class="kpi"><i>${i}</i><div><b>${numAr(v)}</b><small>${esc(l)}</small></div></div>`).join('')}</div>
+    ${mods.length > 1 ? `<div class="tabs ptabs"><button data-wff="" class="${!f ? 'on' : ''}">الكل</button>${mods.map(m => `<button data-wff="${esc(m)}" class="${f === m ? 'on' : ''}">${esc(m)}</button>`).join('')}</div>` : ''}
+    ${list.map(x => wfCard(x, true)).join('') || '<div class="card empty">✅ لا طلبات تنتظر إجراءك — كل شيء تمام</div>'}`;
+}
+function myReqView() {
+  const items = S.myReq || [], open = items.filter(x => +x.idx >= 0 && +x.idx < x.stages.length - 1);
+  return `<div class="card"><h2>📋 طلباتي ومتابعتها</h2><div class="muted">كل طلب قدّمته: وصل لفين ومستني مين.</div></div>
+    ${open.length ? `<h3 class="sec-h">قيد التنفيذ (${numAr(open.length)})</h3>${open.map(x => wfCard(x, false)).join('')}` : ''}
+    ${items.length > open.length ? `<h3 class="sec-h">المنتهية</h3>${items.filter(x => !open.includes(x)).map(x => wfCard(x, false)).join('')}` : ''}
+    ${items.length ? '' : '<div class="card empty">لسه ما قدّمتش أي طلب</div>'}`;
 }
 
 // ───────── ملخص العضو ─────────
@@ -207,6 +241,8 @@ function homeView() {
     ${installCard()}
     ${(S.homeNews || []).length ? `<div class="card"><h2>📰 أخبار النقابة<span class="sp"></span><a href="#/news" class="pill" style="text-decoration:none">الكل</a></h2>
       ${S.homeNews.map(n => newsItem(n, false)).join('')}</div>` : ''}
+    <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/myrequests">
+      <span style="font-size:30px">📋</span><div style="flex:1"><b>طلباتي ومتابعتها</b><div class="muted">تابع كل طلب: وصل لفين ومستني مين</div></div><span class="pill warn">تابع</span></a>
     <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/mybenefits">
       <span style="font-size:30px">🎁</span><div style="flex:1"><b>استفاداتي من النقابة</b><div class="muted">المنح والبدلات والدعم والتوفير — كل اللي استفدت بيه</div></div><span class="pill ok">عرض</span></a>
     <div class="tiles">${tiles.map(t => t.soon
@@ -1260,6 +1296,14 @@ async function render() {
       can('finance.view') ? call('FIN_SUMMARY', {}) : null, refreshNtf()]);
     S.dash = { rep: rep && rep.success ? rep.report : null, fin: fin && fin.success ? fin : null }; body = dashView();
   }
+  else if (h.startsWith('#/inbox')) {
+    title = 'صندوق الاعتمادات'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('NTF_INBOX'); if (!r.success) return toast(r.message, true); S.inbox = r.items; body = inboxView();
+  }
+  else if (h.startsWith('#/myrequests')) {
+    title = 'طلباتي'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('NTF_MINE'); if (!r.success) return toast(r.message, true); S.myReq = r.items; body = myReqView();
+  }
   else if (h.startsWith('#/home')) {
     title = 'أنشطتي';
     if (S.me.profile && (!S.mySumAt || Date.now() - S.mySumAt > 60000)) {
@@ -1413,6 +1457,7 @@ async function render() {
 function bindPage(gridOnly) {
   const app = $('#app');
   if (!gridOnly) bindGrids();
+  app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
   const admin = location.hash.startsWith('#/person/');
