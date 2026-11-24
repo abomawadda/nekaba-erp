@@ -273,3 +273,15 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .pm td.c{text-align:center}.pm .dot{color:var(--ok);font-size:12px}
 .pm td.old{background:var(--badbg);color:var(--bad);word-break:break-word}.pm td.new{background:var(--okbg);color:var(--ok);word-break:break-word}
 .rolebox{display:grid;gap:6px;margin-top:4px}.rolebox label{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+
+/* ───────── التقويم ───────── */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px}
+.cdh{text-align:center;font-size:12px;color:var(--mute);font-weight:700;padding:4px 0}
+.cd{min-height:64px;border:1px solid var(--line);border-radius:8px;padding:3px;display:flex;flex-direction:column;gap:2px;min-width:0;background:#fff}
+.cd.out{background:#f7f9fb;opacity:.55}.cd.today{border:2px solid var(--gold);background:var(--warnbg)}
+.cd .dn{font-size:12px;font-weight:700;color:var(--mute)}
+.ev{display:block;font-size:11px;border-radius:5px;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;color:var(--ink)}
+.ev.act{background:#e3eefa}.ev.sum{background:#e5f5f3}.ev.gov{background:#efe8f8}.ev.dead{background:var(--badbg);color:var(--bad)}
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.legend .ev{display:inline-block;font-size:12px;padding:2px 8px}
+@media(min-width:1024px){.cd{min-height:104px;padding:5px}.ev{font-size:12px}}
+@media(max-width:560px){.cd .ev{font-size:0;padding:0;height:6px;border-radius:3px}.cd{min-height:48px}}

@@ -98,7 +98,7 @@ function navModel() {
   const gov = can('governance.view') || can('governance.manage');
   const fin = can('finance.view');
   if (isStaff()) return [
-    ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
+    ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
     ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
@@ -107,7 +107,7 @@ function navModel() {
     ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/account', '⚙️', 'حسابي', true]]],
   ];
   return [
-    ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
+    ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['خدماتي', [['#/trips', '🚌', 'الرحلات والفعاليات', true], ['#/mytrips', '🎫', 'حجوزاتي', true], ['#/summer', '🏖️', 'المصايف', true], ['#/grants', '🎁', 'المنح', true], ['#/devices', '📱', 'الأجهزة', true], ['#/umrah', '🕋', 'العمرة والحج', true]]],
     ['ملفي', [['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
     ['الإدارة', [['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', fin], ['#/reports', '📈', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/calendar', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -281,6 +281,41 @@ function auditModal(x) {
     <div class="gtw" style="margin-top:10px"><table class="pm"><thead><tr><th>الحقل</th>${x.action !== 'INSERT' ? '<th>قبل</th>' : ''}${x.action !== 'DELETE' ? '<th>بعد</th>' : ''}</tr></thead><tbody>
     ${keys.filter(k => !/password|hash|salt/.test(k)).map(k => `<tr><td><b>${esc(FIELD_LBL[k] || k)}</b></td>${x.action !== 'INSERT' ? `<td class="old">${fv(b[k])}</td>` : ''}${x.action !== 'DELETE' ? `<td class="new">${fv(a[k])}</td>` : ''}</tr>`).join('')}</tbody></table></div>
     <div class="acts"><button class="btn sec" type="button" data-close>إغلاق</button></div>`;
+}
+
+
+// ───────── التقويم الموحّد ─────────
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function calEvents() {
+  const ev = [], add = (date, icon, title, kind, link) => { if (date) ev.push({ date: String(date).slice(0, 10), icon, title, kind, link }); };
+  (S.acts || []).forEach(a => {
+    const link = (isStaff() && can('activities.manage') ? '#/actadmin/' : '#/trip/') + a.id;
+    const st = new Date(a.start_date), en = new Date(a.end_date || a.start_date);
+    for (let d = new Date(st), i = 0; d <= en && i < 31; d.setDate(d.getDate() + 1), i++) add(iso(d), '🚌', a.title, 'act', link);
+    if (a.booking_close) add(a.booking_close, '⏰', 'آخر حجز: ' + a.title, 'dead', link);
+  });
+  (S.seasons || []).forEach(x => { const link = (isStaff() && can('summer.manage') ? '#/sumadmin/' : '#/season/') + x.id;
+    add(x.start, '🏖️', x.title, 'sum', link); if (x.apply_close) add(x.apply_close, '⏰', 'آخر تقديم: ' + x.title, 'dead', link); });
+  (S.meetings || []).forEach(m => add(m.meeting_date, '🏛️', m.title, 'gov', '#/meeting/' + m.id));
+  return ev;
+}
+function calendarView() {
+  const now = new Date(), m = S.calM || new Date(now.getFullYear(), now.getMonth(), 1), ev = calEvents();
+  const first = new Date(m.getFullYear(), m.getMonth(), 1), start = new Date(first); start.setDate(1 - ((first.getDay() + 1) % 7)); // الأسبوع يبدأ السبت
+  const today = iso(now), days = [];
+  for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(d); }
+  const by = {}; ev.forEach(e => (by[e.date] = by[e.date] || []).push(e));
+  const monthKey = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+  const upcoming = ev.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date)).filter((e, i, a) => a.findIndex(x => x.title === e.title && x.kind === e.kind) === i).slice(0, 8);
+  return `<div class="card"><div class="row"><button class="btn sm sec" data-cal="-1">→ السابق</button><h2 style="flex:1;justify-content:center;margin:0">${MONTHS[m.getMonth()]} ${m.getFullYear()}</h2>
+      <button class="btn sm sec" data-cal="0">اليوم</button><button class="btn sm sec" data-cal="1">التالي ←</button></div>
+    <div class="legend"><span class="ev act">🚌 نشاط</span><span class="ev sum">🏖️ مصيف</span>${isStaff() ? '<span class="ev gov">🏛️ اجتماع</span>' : ''}<span class="ev dead">⏰ موعد نهائي</span></div>
+    <div class="cal">${['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].map(d => `<div class="cdh">${d}</div>`).join('')}
+      ${days.map(d => { const k = iso(d), es = by[k] || [];
+        return `<div class="cd ${k.slice(0, 7) !== monthKey ? 'out' : ''} ${k === today ? 'today' : ''}"><span class="dn">${d.getDate()}</span>
+          ${es.slice(0, 3).map(e => `<a class="ev ${e.kind}" href="${e.link}" title="${esc(e.title)}">${e.icon} ${esc(e.title)}</a>`).join('')}${es.length > 3 ? `<small class="muted">+${es.length - 3}</small>` : ''}</div>`; }).join('')}</div></div>
+    <div class="card"><h2>🗓️ القادم</h2>${upcoming.map(e => `<a class="kv" href="${e.link}" style="text-decoration:none;color:inherit"><span>${e.icon} ${esc(e.title)}</span><span>${dt(e.date)}</span></a>`).join('') || '<div class="empty">لا مواعيد قادمة</div>'}</div>`;
 }
 
 // ───────── ملخص العضو ─────────
@@ -1435,6 +1470,13 @@ async function render() {
     title = 'سجل التدقيق'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('SYS_AUDIT', S.audF || {}); if (!r.success) return toast(r.message, true); S.audit = r; body = auditView();
   }
+  else if (h.startsWith('#/calendar')) {
+    title = 'التقويم'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const gov = isStaff() && (can('governance.view') || can('governance.manage'));
+    const [a, sm, mt] = await Promise.all([call('ACT_LIST', { all: true }), call('SUM_LIST'), gov ? call('GOV_LIST_MEETINGS') : null]);
+    S.acts = a.success ? a.items : []; S.seasons = sm.success ? sm.items : []; S.meetings = mt && mt.success ? mt.items : (gov ? S.meetings : []);
+    body = calendarView();
+  }
   else if (h.startsWith('#/inbox')) {
     title = 'صندوق الاعتمادات'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('NTF_INBOX'); if (!r.success) return toast(r.message, true); S.inbox = r.items; body = inboxView();
@@ -1619,6 +1661,8 @@ function bindPage(gridOnly) {
   const auf = $('#auf'); if (auf) auf.onsubmit = e => { e.preventDefault(); S.audF = Object.fromEntries(Object.entries(formData(auf)).filter(([, v]) => v)); render(); };
   app.querySelectorAll('[data-aud]').forEach(tr => tr.onclick = async () => { const r = await call('SYS_AUDIT_GET', { id: +tr.dataset.aud });
     if (!r.success || !r.item) return toast(r.message || 'غير موجود', true); openModal(auditModal(r.item), m => m.querySelector('[data-close]').onclick = closeModal); });
+  app.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { const k = +b.dataset.cal, n = new Date(), m = S.calM || new Date(n.getFullYear(), n.getMonth(), 1);
+    S.calM = k ? new Date(m.getFullYear(), m.getMonth() + k, 1) : new Date(n.getFullYear(), n.getMonth(), 1); render(); });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
