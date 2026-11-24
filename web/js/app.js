@@ -1553,8 +1553,8 @@ function settlementsView() {
 
 // ───────── القوائم المالية (عرض وتجميع لأرصدة ميزان المراجعة المحسوبة على الخادم) ─────────
 function statementsView() {
-  const t = S.trial || {}, items = t.items || [], names = Object.fromEntries((S.accts || []).map(a => [a.code, a.name]));
-  const grp = (type, val) => { const g = {}; items.filter(x => x.type === type).forEach(x => { const k = x.code.slice(0, 2), v = val(x);
+  const t = S.trial || {}, items = t.items || [], names = Object.fromEntries((S.accts || []).map(a => [a.code, a.name])), parents = Object.fromEntries((S.accts || []).map(a => [a.code, a.parent]));
+  const grp = (type, val) => { const g = {}; items.filter(x => x.type === type).forEach(x => { const k = parents[x.code] || x.code.slice(0, 2), v = val(x);
       if (Math.abs(v) < 0.005) return; (g[k] = g[k] || { name: names[k] || k, total: 0, rows: [] }).total += v; g[k].rows.push([x.code, x.name, v]); });
     return Object.entries(g).sort(); };
   const tot = gs => gs.reduce((a, [, g]) => a + g.total, 0);
