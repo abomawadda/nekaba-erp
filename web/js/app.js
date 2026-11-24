@@ -101,7 +101,7 @@ function navModel() {
     ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/memberlists', '📋', 'كشوف الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
-    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin]]],
+    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin], ['#/dues', '🧮', 'حصة الاشتراكات', fin], ['#/policy', '📜', 'اللائحة المالية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/annual', '📘', 'التقرير السنوي', (can('reports.view') || fin) && fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
     ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/archive', '🗂️', 'الأرشيف الإلكتروني', can('finance.view') || can('audit.view') || can('governance.view')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/help', '❓', 'المساعدة', true], ['#/account', '⚙️', 'حسابي', true]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/annual', '#/help', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/dues', '#/policy', '#/annual', '#/help', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -1421,9 +1421,9 @@ function bindGrids() {
 // ───────── المالية والخزينة ─────────
 const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
 const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
-const RCPT_KINDS = ['تحويل النقابة العامة', 'اشتراكات', 'رد عهدة', 'إيرادات أخرى', 'رسوم بنكية'];
+const RCPT_KINDS = ['حصة الاشتراكات', 'تحويل النقابة العامة', 'اشتراكات', 'رد عهدة', 'إيرادات أخرى', 'رسوم بنكية'];
 const finTabs = act => `<div class="tabs" style="margin-bottom:12px;overflow-x:auto">${[['#/finance', 'الملخص'], ['#/cheques', 'الشيكات'], ['#/settlements', 'التسويات'],
-  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/bank', 'البنك والمطابقة'], ['#/chqbooks', 'دفاتر الشيكات'], ['#/statements', 'القوائم المالية'], ['#/budget', 'الموازنة'], ['#/entries', 'القيود']]
+  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/bank', 'البنك والمطابقة'], ['#/chqbooks', 'دفاتر الشيكات'], ['#/statements', 'القوائم المالية'], ['#/budget', 'الموازنة'], ['#/dues', 'حصة الاشتراكات'], ['#/policy', 'اللائحة المالية'], ['#/entries', 'القيود']]
   .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}" style="white-space:nowrap">${t}</button>`).join('')}</div>`;
 const periodForm = f => `<form id="pf" class="row" style="margin-bottom:10px"><input class="input" style="flex:1" type="date" name="from" value="${esc(f.from || '')}">
   <input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}"><button class="btn sm">عرض</button></form>`;
@@ -1691,6 +1691,66 @@ function settlementsView() {
     <div class="card"><h2>👥 حسب صاحب العهدة</h2>${bars(byParty, true)}</div>`;
 }
 
+
+// ───────── حصة الاشتراكات (6/3/1) واللائحة المالية ─────────
+function duesView() {
+  const d = S.dues || {}, sp = d.split || { total: 10, local: 6, general: 3, federation: 1 }, ed = S.duesEdit;
+  const next = d.lastTo ? new Date(new Date(d.lastTo).getTime() + 864e5).toISOString().slice(0, 7) : '';
+  const kpi = (i, v, l, c = '') => `<div class="kpi ${c}"><i>${i}</i><div><b>${v}</b><small>${l}</small></div></div>`;
+  return finTabs('#/dues') + `<div class="card"><h2>🧮 اشتراك المرتب الشهري (${numAr(sp.total)} ج للعضو)</h2>
+      <div class="kpis" style="margin:0">${kpi('🏢', numAr(sp.local) + ' ج', 'نصيب اللجنة — إيراد اللجنة', 'ok')}${kpi('🏛️', numAr(sp.general) + ' ج', 'النقابة العامة — لا يُثبت عندنا')}${kpi('🇪🇬', numAr(sp.federation) + ' ج', 'اتحاد العمال — لا يُثبت عندنا')}</div>
+      <div class="muted" style="margin-top:8px">النقابة العامة تحصّل الاستقطاع من المرتبات وتحوّل نصيب اللجنة (${numAr(sp.local)} ج/عضو/شهر) لحساب اللجنة كل 3–4 شهور. اللجنة تُثبت <b>الاستحقاق</b> شهرياً (مدين: مستحق من النقابة العامة 1204 / دائن: إيراد 4102) ثم <b>الوارد</b> عند التحويل (مدين: البنك / دائن: 1204)، فيظهر ما لم يُحوَّل بعد كرصيد مستحق.</div></div>
+    <div class="kpis">${kpi('👥', numAr(d.membersNow), 'أعضاء النقابة العامة النشطون الآن')}${kpi('📈', money(d.accrued), 'إجمالي المستحق')}${kpi('📥', money(d.received), 'الوارد فعلاً', 'ok')}
+      ${kpi('⏳', money(d.outstanding), 'لم يُحوَّل بعد (رصيد 1204)', +d.outstanding > 0 ? 'warn' : 'ok')}</div>
+    ${ed ? `<div class="card"><h2>➕ إثبات استحقاق فترة</h2><form id="duesf" class="row">
+      <label style="flex:1;min-width:130px"><span class="muted" style="font-size:12px">أول شهر</span><input class="input" type="month" name="from" value="${esc(next)}" required></label>
+      <label style="flex:1;min-width:100px"><span class="muted" style="font-size:12px">عدد الشهور</span><input class="input" type="number" name="months" min="1" max="12" value="3" required></label>
+      <label style="flex:1;min-width:130px"><span class="muted" style="font-size:12px">عدد المستقطع منهم (اختياري)</span><input class="input" type="number" name="members" min="0" placeholder="${esc(d.membersNow)} محسوب"></label>
+      <label style="flex:2;min-width:160px"><span class="muted" style="font-size:12px">مصدر العدد</span><input class="input" name="basis" placeholder="كشف الاستقطاع من النقابة العامة"></label>
+      <button class="btn" style="align-self:flex-end">إثبات الاستحقاق</button></form>
+      <div class="muted" style="margin-top:6px">الأصح إدخال العدد الفعلي من كشف الاستقطاع؛ لو فاضي يُحسب من المنظومة (النقابة العامة + نشط في منتصف الفترة).</div><div id="duesErr"></div></div>
+    <div class="card row"><button class="btn sec" data-act="duesRcpt">📥 تسجيل وارد حصة الاشتراكات (تحويل النقابة العامة)</button></div>` : ''}
+    ${grid('dues', [
+      { t: 'الفترة', v: x => `${dt(x.from)} ← ${dt(x.to)}`, raw: x => x.from },
+      { t: 'الشهور', v: x => numAr(x.months), raw: x => x.months, num: true },
+      { t: 'الأعضاء', v: x => `${numAr(x.members)}${x.members !== x.members_calc ? ` <small class="muted">(محسوب ${numAr(x.members_calc)})</small>` : ''}`, raw: x => x.members, num: true },
+      { t: 'المصدر', v: x => esc(x.basis || ''), raw: x => x.basis || '' },
+      { t: 'المستحق', v: x => money(x.amount), raw: x => +x.amount, num: true },
+      { t: 'الوارد منه', v: x => money(x.paid), raw: x => +x.paid, num: true },
+      { t: 'الحالة', v: x => +x.paid >= +x.amount - 0.005 ? '<span class="pill ok">محوَّل</span>' : +x.paid > 0 ? '<span class="pill warn">جزئي</span>' : '<span class="pill bad">لم يُحوَّل</span>', raw: x => +x.paid >= +x.amount ? 'محوّل' : 'لم يُحوَّل' },
+    ], d.periods, { title: '📅 فترات الاستحقاق', file: 'dues-periods', attr: x => x.entry_id ? `data-entry="${x.entry_id}"` : '', empty: 'لم تُثبت أي فترة بعد' })}
+    <div class="card"><h2>📥 التحويلات الواردة</h2>${(d.receipts || []).map(r => kvh(`${dt(r.date)} <small class="muted">${esc(r.no)}${r.notes ? ' · ' + esc(r.notes) : ''}</small>`, money(r.amount))).join('') || '<div class="empty">لا تحويلات مسجّلة</div>'}</div>`;
+}
+function policyView() {
+  const items = S.pol || [], ed = S.polEdit;
+  return finTabs('#/policy') + `<div class="card"><h2>📜 اللائحة المالية — حدود بنود الصرف</h2>
+      <div class="muted">لكل بند مصروف: حد الصرف الواحد، والسقف السنوي، واشتراط قرار المجلس، وجهة الاعتماد، والمستندات، ورقم المادة. المنظومة تتحقق عند صرف الشيك وعند التسوية: «منع» يوقف العملية، و«تنبيه» يسمح مع التنبيه. أدخل القيم من اللائحة المعتمدة فقط.</div></div>
+    ${grid('pol', [
+      { t: 'البند', v: x => `<b>${esc(x.account)}</b> ${esc(x.name)}`, raw: x => x.account },
+      { t: 'حد الصرف الواحد', v: x => x.policy && x.policy.max_per_txn ? money(x.policy.max_per_txn) : '<span class="muted">—</span>', raw: x => +(x.policy || {}).max_per_txn || 0, num: true },
+      { t: 'السقف السنوي', v: x => x.policy && x.policy.annual_cap ? money(x.policy.annual_cap) : '<span class="muted">—</span>', raw: x => +(x.policy || {}).annual_cap || 0, num: true },
+      { t: 'المصروف هذا العام', v: x => { const cap = +(x.policy || {}).annual_cap; return money(x.spent) + (cap ? ` <small class="muted">(${Math.round(100 * x.spent / cap)}%)</small>` : ''); }, raw: x => +x.spent, num: true },
+      { t: 'قرار مجلس', v: x => x.policy ? (x.policy.requires_decision ? '✅' : '—') : '<span class="muted">غير محدد</span>', raw: x => x.policy && x.policy.requires_decision ? 'نعم' : 'لا' },
+      { t: 'التطبيق', v: x => x.policy ? `<span class="pill ${x.policy.enforce === 'منع' ? 'bad' : 'warn'}">${esc(x.policy.enforce)}</span>${x.policy.active ? '' : ' <span class="pill">موقوف</span>'}` : '', raw: x => (x.policy || {}).enforce || '' },
+      { t: 'المادة', v: x => esc((x.policy || {}).article_ref || ''), raw: x => (x.policy || {}).article_ref || '' },
+    ], items, { title: 'بنود المصروفات', file: 'financial-policy', attr: x => ed ? `data-pol="${esc(x.account)}"` : '', empty: 'لا بنود' })}
+    ${ed ? '<div class="muted card">اضغط على أي بند لتعديل حدوده.</div>' : ''}`;
+}
+function policyForm(x) {
+  const p = x.policy || { requires_decision: true, enforce: 'منع', active: true };
+  return `<h3>${esc(x.account)} — ${esc(x.name)}</h3><form id="polf">
+    <div class="grid2"><label class="f"><span>حد الصرف الواحد (فاضي = بلا حد)</span><input class="input" name="max_per_txn" inputmode="decimal" value="${esc(p.max_per_txn || '')}"></label>
+      <label class="f"><span>السقف السنوي (فاضي = بلا سقف)</span><input class="input" name="annual_cap" inputmode="decimal" value="${esc(p.annual_cap || '')}"></label></div>
+    <div class="grid2"><label class="f"><span>جهة الاعتماد</span><input class="input" name="approver" value="${esc(p.approver || '')}" placeholder="مثال: مجلس الإدارة / الرئيس وأمين الصندوق"></label>
+      <label class="f"><span>رقم المادة في اللائحة</span><input class="input" name="article_ref" value="${esc(p.article_ref || '')}"></label></div>
+    <label class="f"><span>المستندات المطلوبة</span><input class="input" name="required_docs" value="${esc(p.required_docs || '')}" placeholder="فاتورة ضريبية، قرار، كشف توقيع المستفيدين…"></label>
+    <div class="grid2"><label class="f"><span>التطبيق</span><select class="input" name="enforce">${options(['منع', 'تنبيه'], p.enforce, false)}</select></label>
+      <label class="f"><span>ملاحظات</span><input class="input" name="notes" value="${esc(p.notes || '')}"></label></div>
+    <label class="f"><input type="checkbox" name="requires_decision" ${p.requires_decision ? 'checked' : ''}> يشترط قرار مجلس</label>
+    <label class="f"><input type="checkbox" name="active" ${p.active !== false ? 'checked' : ''}> البند مفعّل</label>
+    <label class="f"><span>سبب التعديل / رقم قرار اعتماد اللائحة</span><input class="input" name="reason" required></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
 // ───────── القوائم المالية (عرض وتجميع لأرصدة ميزان المراجعة المحسوبة على الخادم) ─────────
 function statementsView() {
   const t = S.trial || {}, items = t.items || [], names = Object.fromEntries((S.accts || []).map(a => [a.code, a.name])), parents = Object.fromEntries((S.accts || []).map(a => [a.code, a.parent]));
@@ -1796,7 +1856,7 @@ function chequeForm() {
         .map(a => `<option value="${a.code}">${a.code} — ${esc(a.name)}</option>`).join('')}</select></label></div>
     <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${decs}</select></label>
     <label class="f"><span>البيان</span><input class="input" name="notes"></label>
-    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">صرف</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+    <div id="polMsg"></div><div id="ferr"></div><div class="acts"><button class="btn" type="submit">صرف</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 function settleForm(c) {
   const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
@@ -2062,13 +2122,19 @@ async function render() {
     const r = await call('BEN_REPORT', { year: S.benYear || '' }); if (!r.success) return toast(r.message, true);
     S.benRep = r; body = benefitsReportView();
   }
-  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/settlements', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
+  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/settlements', '#/dues', '#/policy', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
     title = 'المالية'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const P = S.finP || {};
     if (h.startsWith('#/finance')) { const r = await call('FIN_SUMMARY', P); if (!r.success) return toast(r.message, true); S.fin = r; body = finSummaryView(); }
     else if (h.startsWith('#/cheques')) { const r = await call('FIN_CHEQUES', { from: '2000-01-01', ...(S.chqF || {}) }); S.cheques = r.success ? r.items : []; body = chequesView(); }
     else if (h.startsWith('#/cheque/')) { const r = await call('FIN_CHEQUE', { id: h.split('/')[2] }); if (!r.success) return toast(r.message, true); S.cheque = r.cheque; body = chequeView(); }
     else if (h.startsWith('#/receipts')) { const r = await call('FIN_RECEIPTS', { from: '2000-01-01', ...P }); S.receipts = r.success ? r.items : []; body = receiptsView(); }
+    else if (h.startsWith('#/dues')) {
+      const r = await call('DUES_STATUS'); if (!r.success) return toast(r.message, true); S.dues = r.status; S.duesEdit = r.canEdit; body = duesView();
+    }
+    else if (h.startsWith('#/policy')) {
+      const r = await call('POL_LIST'); if (!r.success) return toast(r.message, true); S.pol = r.items; S.polEdit = r.canEdit; body = policyView();
+    }
     else if (h.startsWith('#/settlements')) {
       const r = await call('FIN_CHEQUES', { from: '2000-01-01' }); if (!r.success) return toast(r.message, true);
       S.openAdv = r.items.filter(c => c.requires_settlement && ['صادر', 'مرحّل الرصيد'].includes(c.status)); body = settlementsView();
@@ -2206,6 +2272,15 @@ function bindPage(gridOnly) {
     if (box.innerHTML) { box.innerHTML = ''; return; } box.innerHTML = docsBox('grant', b.dataset.grtdocs, '📎 مستندات الطلب (صور أو PDF)').replace('class="card docbox"', 'class="docbox inl"'); loadDocBoxes(); });
   const arcf = $('#arcf'); if (arcf) arcf.onsubmit = e => { e.preventDefault(); S.arcF = Object.fromEntries(Object.entries(formData(arcf)).filter(([, v]) => v)); render(); };
   app.querySelectorAll('tr[data-docopen]').forEach(tr => tr.onclick = ev => { if (!ev.target.closest('a')) openDoc(tr.dataset.docopen); });
+  const duesf = $('#duesf'); if (duesf) duesf.onsubmit = async e => { e.preventDefault(); const d = formData(duesf); d.from = d.from + '-01';
+    if (!confirm(`إثبات استحقاق ${d.months} شهر من ${d.from}؟ هيتعمل قيد مرحّل.`)) return;
+    const r = await busy(duesf.querySelector('button'), () => call('DUES_ACCRUE', d)); if (!r.success) { $('#duesErr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+    toast('اتثبت الاستحقاق بقيد ✓'); render(); };
+  app.querySelectorAll('[data-pol]').forEach(tr => tr.onclick = () => { const x = S.pol.find(i => i.account === tr.dataset.pol);
+    openModal(policyForm(x), m => { m.querySelector('[data-close]').onclick = closeModal;
+      $('#polf').onsubmit = async e => { e.preventDefault(); const f = e.target, d = formData(f); d.account = x.account;
+        const r = await busy(f.querySelector('[type=submit]'), () => call('POL_SAVE', d)); if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتحفظ البند ✓'); render(); }; }); });
   app.querySelectorAll('[data-act=voucher]').forEach(b => b.onclick = () => printDoc(voucherHTML(S.cheque).replace(/^<div class="voucher">([\s\S]*)<\/div>$/, '$1')));
   app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
@@ -2564,8 +2639,14 @@ function bindPage(gridOnly) {
     if (!S.accounts) { const r = await call('FIN_ACCOUNTS'); S.accounts = r.success ? r.items : []; }
     if (!S.decOpts) { const r = await call('GOV_LIST_DECISIONS'); S.decOpts = r.success ? r.items.filter(d => ['صرف', 'دعم نشاط', 'منحة', 'إعفاء'].includes(d.category)) : []; }
     finForm(chequeForm(), '#chf', f => formData(f), 'FIN_ISSUE_CHEQUE', 'اتصرف الشيك واترحّل القيد ✓', r => { location.hash = '#/cheque/' + r.id; });
+    const f = $('#chf'), chk = async () => { const d = formData(f); if (!d.expense_account || !+d.amount || f.purpose.value === 'عهدة') { $('#polMsg').innerHTML = ''; return; }
+      const r = await call('POL_CHECK', { account: d.expense_account, amount: +d.amount, date: d.date, hasDecision: !!d.decision_id });
+      $('#polMsg').innerHTML = r.success && r.message ? `<div class="alert warn">📜 ${esc(r.message)}</div>` : ''; };
+    ['amount', 'expense_account', 'decision_id', 'date', 'purpose'].forEach(n => { if (f[n]) f[n].addEventListener('change', chk); });
     const sync = () => { $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; }; sync(); $('#chPurpose').onchange = sync;
   });
+  on('duesRcpt', () => { finForm(receiptForm(), '#rcf', f => formData(f), 'FIN_RECEIPT', 'اتسجّل الوارد واترحّل القيد ✓', () => render());
+    const k = $('#modal [name=kind]'); if (k) k.value = 'حصة الاشتراكات'; const pt = $('#modal [name=party]'); if (pt) pt.value = 'النقابة العامة'; });
   on('rcptNew', () => finForm(receiptForm(), '#rcf', f => formData(f), 'FIN_RECEIPT', 'اتسجّل واترحّل القيد ✓',
     r => { toast('رقم الإيصال: ' + r.receipt_no); location.hash = '#/receipts'; render(); }));
   on('settleNew', () => {
