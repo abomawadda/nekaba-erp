@@ -387,10 +387,13 @@ function adminView() {
   return `<div class="card"><h2>👥 الأعضاء</h2>
     <form id="qs" class="row"><input class="input" style="flex:1" name="q" value="${esc(q)}" placeholder="اسم أو رقم وظيفي أو موبايل أو قومي">
       <button class="btn">بحث</button></form></div>
-    <div class="card list" id="res">${(S.results || []).map(x => `<div class="li" data-person="${x.id}">
-      <div class="nm"><b>${esc(x.full_name)}</b><span class="muted">${esc(x.job_id || '')} · ${esc(x.workplace || '—')} · ${esc(x.job_title || '—')}</span></div>
-      <span class="pill ${x.union_org === 'النقابة العامة' ? 'ok' : 'warn'}">${esc(x.union_org || '؟')}</span></div>`).join('')
-      || '<div class="empty">ابحث عن عضو</div>'}</div>`;
+    <div id="res">${grid('mem', [
+      { t: 'الاسم', v: x => `<b>${esc(x.full_name)}</b>`, raw: x => x.full_name },
+      { t: 'الرقم الوظيفي', v: x => esc(x.job_id || ''), raw: x => x.job_id || '' },
+      { t: 'جهة العمل', v: x => esc(x.workplace || '—'), raw: x => x.workplace || '' },
+      { t: 'الوظيفة', v: x => esc(x.job_title || '—'), raw: x => x.job_title || '' },
+      { t: 'التنظيم', v: x => `<span class="pill ${x.union_org === 'النقابة العامة' ? 'ok' : 'warn'}">${esc(x.union_org || '؟')}</span>`, raw: x => x.union_org || '' },
+    ], S.results, { title: '👥 نتائج البحث', file: 'members', attr: x => `data-person="${x.id}"`, empty: 'ابحث عن عضو بالاسم أو الرقم الوظيفي' })}</div>`;
 }
 function personView() {
   const pr = S.person; if (!pr) return '<div class="empty">...</div>';
@@ -956,6 +959,50 @@ function benefitsReportView() {
       <div class="nm"><b>${esc(t.full_name)}</b><span class="muted">${esc(t.job_id || '')}</span></div><b>${money(t.total)}</b></div>`).join('')}</div>`;
 }
 
+
+// ───────── جدول البيانات (فرز · فلترة · تصدير Excel · طباعة) — جدول على الكمبيوتر وكروت على الموبايل ─────────
+const G = {};
+const plain = h => String(h ?? '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+function grid(id, cols, rows, o = {}) {
+  const st = (S.grid = S.grid || {})[id] = (S.grid || {})[id] || { q: '', sort: null, dir: 1 };
+  G[id] = { cols, rows: rows || [], o };
+  return `<div class="card grid" id="g-${id}">
+    <div class="gbar">${o.title ? `<h2>${o.title}</h2>` : ''}<span class="sp"></span>
+      <input class="input gq" data-gq="${id}" value="${esc(st.q)}" placeholder="🔎 فلترة النتائج…">
+      <span class="pill gcount" data-gc="${id}"></span>
+      <button class="btn sm sec" data-gx="${id}" title="تصدير Excel">⬇️ Excel</button>
+      <button class="btn sm sec gprint" data-gp="${id}" title="طباعة">🖨️</button></div>
+    <div class="gtw"><table class="gt"><thead><tr>${cols.map((c, i) => `<th data-gs="${id}:${i}" class="${c.num ? 'n' : ''}">${esc(c.t)}${st.sort === i ? (st.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+    <tbody data-gb="${id}">${gridRows(id)}</tbody>${o.foot ? `<tfoot>${o.foot}</tfoot>` : ''}</table></div></div>`;
+}
+const cellRaw = (c, r) => c.raw ? c.raw(r) : plain(c.v(r));
+function gridView(id) {
+  const g = G[id], st = S.grid[id], q = st.q.trim().toLowerCase();
+  let rows = g.rows.filter(r => !q || g.cols.some(c => String(cellRaw(c, r)).toLowerCase().includes(q)));
+  if (st.sort != null) { const c = g.cols[st.sort];
+    rows = rows.slice().sort((a, b) => { const x = cellRaw(c, a), y = cellRaw(c, b);
+      return (c.num ? (+x || 0) - (+y || 0) : String(x).localeCompare(String(y), 'ar')) * st.dir; }); }
+  return rows;
+}
+function gridRows(id) {
+  const g = G[id], rows = gridView(id);
+  setTimeout(() => { const el = document.querySelector(`[data-gc="${id}"]`); if (el) el.textContent = rows.length.toLocaleString('ar-EG') + (rows.length !== g.rows.length ? ' من ' + g.rows.length.toLocaleString('ar-EG') : '') + ' سجل'; });
+  return rows.map(r => `<tr ${g.o.attr ? g.o.attr(r) : ''}>${g.cols.map(c => `<td data-l="${esc(c.t)}" class="${c.num ? 'n' : ''}">${c.v(r) ?? ''}</td>`).join('')}</tr>`).join('')
+    || `<tr class="ge"><td colspan="${g.cols.length}"><div class="empty">${g.o.empty || 'لا بيانات'}</div></td></tr>`;
+}
+function bindGrids() {
+  document.querySelectorAll('[data-gq]').forEach(i => i.oninput = () => { const id = i.dataset.gq; S.grid[id].q = i.value;
+    document.querySelector(`[data-gb="${id}"]`).innerHTML = gridRows(id); bindPage(true); });
+  document.querySelectorAll('[data-gs]').forEach(th => th.onclick = () => { const [id, i] = th.dataset.gs.split(':'), st = S.grid[id];
+    if (st.sort === +i) st.dir = -st.dir; else { st.sort = +i; st.dir = 1; } render(); });
+  document.querySelectorAll('[data-gx]').forEach(b => b.onclick = () => { const id = b.dataset.gx, g = G[id];
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const csv = [g.cols.map(c => q(c.t)).join(','), ...gridView(id).map(r => g.cols.map(c => q(cellRaw(c, r))).join(','))].join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = (g.o.file || id) + '-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
+  document.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => { document.body.dataset.printGrid = b.dataset.gp; window.print(); delete document.body.dataset.printGrid; });
+}
+
 // ───────── المالية والخزينة ─────────
 const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
 const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
@@ -987,9 +1034,16 @@ function chequesView() {
       <select class="input" style="flex:1;min-width:100px" name="status"><option value="">كل الحالات</option>${options(['صادر', 'مسوّى', 'مرحّل الرصيد'], f.status, false)}</select>
       <button class="btn">بحث</button></form>
     <div class="muted" style="margin-top:6px">الفترة: ${dt(f.from || '2000-01-01')} ← ${dt(f.to || 'اليوم')}</div></div>
-  <div class="card list">${(S.cheques || []).map(c => `<div class="li" data-chq="${c.id}"><div class="nm"><b>${esc(c.payee_name)}</b>
-      <span class="muted">${dt(c.issue_date)} · ${esc(c.purpose)}${c.cheque_no ? ' · شيك ' + esc(c.cheque_no) : ''}${c.decision_no ? ' · قرار ' + esc(c.decision_no) : ''}</span></div>
-      <div style="text-align:left"><b>${money(c.amount)}</b><br>${stPill(c.status)}</div></div>`).join('') || '<div class="empty">لا شيكات</div>'}</div>`;
+  ${grid('chq', [
+    { t: 'التاريخ', v: c => dt(c.issue_date), raw: c => c.issue_date },
+    { t: 'رقم الشيك', v: c => esc(c.cheque_no || '—'), raw: c => c.cheque_no || '' },
+    { t: 'المستفيد', v: c => `<b>${esc(c.payee_name)}</b>`, raw: c => c.payee_name },
+    { t: 'الغرض', v: c => esc(c.purpose), raw: c => c.purpose },
+    { t: 'القرار', v: c => esc(c.decision_no || '—'), raw: c => c.decision_no || '' },
+    { t: 'المبلغ', v: c => money(c.amount), raw: c => +c.amount, num: true },
+    { t: 'الحالة', v: c => stPill(c.status), raw: c => c.status },
+  ], S.cheques, { title: '🧾 الشيكات', file: 'cheques', attr: c => `data-chq="${c.id}"`, empty: 'لا شيكات',
+    foot: `<tr><td colspan="5"><b>الإجمالي</b></td><td class="n"><b>${money((S.cheques || []).reduce((x, c) => x + +c.amount, 0))}</b></td><td></td></tr>` })}`;
 }
 function chequeView() {
   const c = S.cheque; if (!c) return '';
@@ -1010,16 +1064,27 @@ function chequeView() {
 }
 function receiptsView() {
   return finTabs('#/receipts') + `${can('treasury.receipt') ? '<div class="card"><button class="btn" data-act="rcptNew">+ إيداع / تحصيل / رسوم</button></div>' : ''}
-  <div class="card list">${(S.receipts || []).map(r => `<div class="li" ${r.entry_id ? `data-entry="${r.entry_id}"` : ''}><div class="nm"><b>${esc(r.kind)}${r.party ? ' — ' + esc(r.party) : ''}</b>
-      <span class="muted">${dt(r.receipt_date)} · ${esc(r.receipt_no)}</span></div><b>${money(r.amount)}</b></div>`).join('') || '<div class="empty">لا مقبوضات في الفترة</div>'}</div>`;
+  ${grid('rcpt', [
+    { t: 'التاريخ', v: r => dt(r.receipt_date), raw: r => r.receipt_date },
+    { t: 'رقم الإيصال', v: r => esc(r.receipt_no), raw: r => r.receipt_no },
+    { t: 'النوع', v: r => `<b>${esc(r.kind)}</b>`, raw: r => r.kind },
+    { t: 'الجهة', v: r => esc(r.party || '—'), raw: r => r.party || '' },
+    { t: 'المبلغ', v: r => money(r.amount), raw: r => +r.amount, num: true },
+  ], S.receipts, { title: '📥 المقبوضات', file: 'receipts', attr: r => r.entry_id ? `data-entry="${r.entry_id}"` : '', empty: 'لا مقبوضات في الفترة',
+    foot: `<tr><td colspan="4"><b>الإجمالي</b></td><td class="n"><b>${money((S.receipts || []).reduce((x, r) => x + +r.amount, 0))}</b></td></tr>` })}`;
 }
 function trialView() {
   const t = S.trial || {}, items = t.items || [];
   const sum = k => items.reduce((a, x) => a + Number(x[k] || 0), 0);
   return finTabs('#/trial') + `<div class="card">${periodForm(S.finP || { from: t.from, to: t.to })}</div>
-  <div class="card"><h2>⚖️ ميزان المراجعة</h2>
-    ${items.map(x => `<div class="kv" style="cursor:pointer" data-ledger="${x.code}"><span><b>${esc(x.code)}</b> ${esc(x.name)}</span>
-      <span>${money(x.closing)}</span></div>`).join('') || '<div class="empty">لا حركة</div>'}
+  ${grid('trial', [
+    { t: 'الكود', v: x => `<b>${esc(x.code)}</b>`, raw: x => x.code },
+    { t: 'الحساب', v: x => esc(x.name), raw: x => x.name },
+    { t: 'مدين الفترة', v: x => money(x.debit), raw: x => +x.debit || 0, num: true },
+    { t: 'دائن الفترة', v: x => money(x.credit), raw: x => +x.credit || 0, num: true },
+    { t: 'الرصيد', v: x => `<b>${money(x.closing)}</b>`, raw: x => +x.closing || 0, num: true },
+  ], items, { title: '⚖️ ميزان المراجعة', file: 'trial-balance', attr: x => `data-ledger="${x.code}"`, empty: 'لا حركة',
+    foot: `<tr><td colspan="2"><b>الإجمالي</b></td><td class="n"><b>${money(sum('debit'))}</b></td><td class="n"><b>${money(sum('credit'))}</b></td><td></td></tr>` })}<div class="card">
     <div class="kv"><span><b>مدين الفترة / دائن الفترة</b></span><span>${money(sum('debit'))} / ${money(sum('credit'))}</span></div>
     <div class="alert ${Math.abs(sum('debit') - sum('credit')) < 0.005 ? 'ok' : 'bad'}" style="margin-top:8px">${Math.abs(sum('debit') - sum('credit')) < 0.005 ? 'الميزان متوازن ✓' : 'الميزان غير متوازن!'}</div></div>`;
 }
@@ -1027,17 +1092,26 @@ function ledgerView() {
   const l = S.ledger || {}; let bal = Number(l.opening || 0);
   return `<a href="#/trial" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الميزان</a>
   <div class="card"><h2>📒 ${esc(l.account ? l.account.code + ' — ' + l.account.name : '')}</h2>${kvh('رصيد أول المدة', money(l.opening))}</div>
-  <div class="card list">${(l.items || []).map(x => { bal += Number(x.debit) - Number(x.credit);
-    return `<div class="li" data-entry="${x.entry_id}"><div class="nm"><b>${esc(x.description)}</b>
-      <span class="muted">${dt(x.date)} · ${esc(x.entry_no)}${x.party ? ' · ' + esc(x.party) : ''}${x.status === 'معكوس' ? ' · معكوس' : ''}</span></div>
-      <div style="text-align:left">${+x.debit ? '<span class="pill ok">مدين</span> ' + money(x.debit) : '<span class="pill warn">دائن</span> ' + money(x.credit)}<br><small class="muted">رصيد ${money(bal)}</small></div></div>`; }).join('')
-    || '<div class="empty">لا حركة</div>'}</div>`;
+  ${grid('ledger', [
+    { t: 'التاريخ', v: x => dt(x.date), raw: x => x.date },
+    { t: 'رقم القيد', v: x => esc(x.entry_no), raw: x => x.entry_no },
+    { t: 'البيان', v: x => `<b>${esc(x.description)}</b>${x.status === 'معكوس' ? ' <span class="pill bad">معكوس</span>' : ''}`, raw: x => x.description },
+    { t: 'الطرف', v: x => esc(x.party || '—'), raw: x => x.party || '' },
+    { t: 'مدين', v: x => +x.debit ? money(x.debit) : '', raw: x => +x.debit || 0, num: true },
+    { t: 'دائن', v: x => +x.credit ? money(x.credit) : '', raw: x => +x.credit || 0, num: true },
+    { t: 'الرصيد', v: x => money(x._bal), raw: x => x._bal, num: true },
+  ], (l.items || []).map(x => ({ ...x, _bal: (bal += Number(x.debit) - Number(x.credit)) })), { file: 'ledger-' + (l.account ? l.account.code : ''), attr: x => `data-entry="${x.entry_id}"`, empty: 'لا حركة' })}`;
 }
 function entriesView() {
   return finTabs('#/entries') + `<div class="card"><form id="ef" class="row"><input class="input" style="flex:1" name="q" value="${esc((S.entF || {}).q || '')}" placeholder="بحث في البيان أو رقم القيد"><button class="btn">بحث</button></form></div>
-  <div class="card list">${(S.entries || []).map(e => `<div class="li" data-entry="${e.id}"><div class="nm"><b>${esc(e.description)}</b>
-    <span class="muted">${dt(e.entry_date)} · ${esc(e.entry_no)} · ${esc(e.source)}${e.status === 'معكوس' ? ' · <span class="pill bad">معكوس</span>' : ''}</span></div><b>${money(e.total)}</b></div>`).join('')
-    || '<div class="empty">لا قيود</div>'}</div>`;
+  ${grid('ent', [
+    { t: 'التاريخ', v: e => dt(e.entry_date), raw: e => e.entry_date },
+    { t: 'رقم القيد', v: e => esc(e.entry_no), raw: e => e.entry_no },
+    { t: 'البيان', v: e => `<b>${esc(e.description)}</b>`, raw: e => e.description },
+    { t: 'المصدر', v: e => esc(e.source), raw: e => e.source },
+    { t: 'الحالة', v: e => e.status === 'معكوس' ? '<span class="pill bad">معكوس</span>' : `<span class="pill ok">${esc(e.status || 'مرحّل')}</span>`, raw: e => e.status },
+    { t: 'القيمة', v: e => money(e.total), raw: e => +e.total, num: true },
+  ], S.entries, { title: '📒 دفتر اليومية', file: 'journal', attr: e => `data-entry="${e.id}"`, empty: 'لا قيود' })}`;
 }
 function entryModal(e) {
   return `<h3>${esc(e.entry_no)} <small class="muted">${dt(e.entry_date)}</small></h3><p>${esc(e.description)}</p>
@@ -1318,8 +1392,9 @@ async function render() {
 }
 
 // ───────── الأحداث ─────────
-function bindPage() {
+function bindPage(gridOnly) {
   const app = $('#app');
+  if (!gridOnly) bindGrids();
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
   const admin = location.hash.startsWith('#/person/');
   const pr = admin ? S.person : S.me.profile;

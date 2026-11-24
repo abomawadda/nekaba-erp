@@ -175,3 +175,38 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 }
 @media(min-width:1440px){.dgrid{grid-template-columns:repeat(3,1fr)}}
 @media print{.side,.gs{display:none!important}}
+
+/* ───────── جدول البيانات ───────── */
+.grid{padding:12px}
+.gbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.gbar h2{margin:0}
+.gbar .sp{flex:1}
+.gbar .gq{flex:1 1 160px;max-width:280px;padding:7px 10px}
+.gt{width:100%;border-collapse:collapse;font-size:14px}
+.gt thead{display:none}
+.gt tr{display:block;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:8px;cursor:pointer}
+.gt tr[class=ge],.gt tr.ge{border:0;cursor:default}
+.gt td{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+.gt td::before{content:attr(data-l);color:var(--mute);font-size:12px}
+.gt tr.ge td::before{content:none}.gt tr.ge td{display:block}
+.gt tfoot tr{background:#f3f7fb;cursor:default}
+.gt tfoot td::before{content:none}.gt tfoot td:empty{display:none}
+@media(min-width:1024px){
+  .gtw{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  .gt thead{display:table-header-group}
+  .gt tr{display:table-row;border:0;border-radius:0;padding:0;margin:0}
+  .gt td{display:table-cell;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .gt td::before{content:none}
+  .gt td:has(b){white-space:normal}
+  .gt th{position:sticky;top:0;background:#f5f7fa;text-align:start;padding:9px 12px;font-size:13px;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
+  .gt th:hover{color:var(--brand)}
+  .gt .n{text-align:end}
+  .gt tbody tr:nth-child(even){background:#fafbfd}
+  .gt tbody tr:hover{background:#eaf2f8}
+  .gt tfoot td{background:#f3f7fb;display:table-cell!important}
+}
+@media print{
+  body[data-print-grid] .side,body[data-print-grid] .top,body[data-print-grid] .gbar input,body[data-print-grid] .gbar button,body[data-print-grid] .gbar .gcount{display:none!important}
+  body[data-print-grid] .wrap > *:not(.grid){display:none!important}
+  .gt thead{display:table-header-group}.gt tr{display:table-row;border:0}.gt td{display:table-cell;border-bottom:1px solid #ccc;padding:4px 8px}.gt td::before{content:none}
+}
