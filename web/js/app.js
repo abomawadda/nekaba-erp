@@ -1510,6 +1510,10 @@ function bankView() {
       ${diff == null ? '<div class="alert warn" style="margin-top:10px">اكتب رصيد كشف البنك واحسب المطابقة.</div>'
         : `<div class="alert ${Math.abs(diff) < 0.01 ? 'ok' : 'bad'}" style="margin-top:10px;font-size:16px">${Math.abs(diff) < 0.01 ? '✓ مطابق — لا يوجد فرق' : `فرق غير مفسَّر: <b>${money(diff)}</b><br><small>علِّم الشيكات اللي ظهرت في كشف البنك كـ«منصرفة»، والإيداعات اللي ظهرت كـ«مودعة». الفرق الباقي غالباً مصاريف أو فوايد بنكية في الكشف ماتسجّلتش — سجّلها من «المقبوضات» (رسوم بنكية / إيرادات أخرى).</small>`}</div>`}
       ${ed && diff != null ? `<div class="row" style="margin-top:10px"><button class="btn sec" data-act="reconSave">💾 حفظ المطابقة</button>${Math.abs(diff) < 0.01 ? '<button class="btn gold" data-act="reconApprove">✓ اعتماد المطابقة</button>' : ''}</div>` : ''}</div>
+    ${ed ? `<div class="card"><details class="paste"><summary><b>📋 لصق كشف البنك</b> <span class="muted">— انسخ سطور الكشف من ملف البنك (Excel أو PDF) والصقها هنا</span></summary>
+      <div class="muted" style="margin-top:6px">المنظومة بتدوّر في كل سطر على رقم شيك من الشيكات المعلّقة (وتتأكد من المبلغ)، وعلى إيداعات بنفس المبلغ، وبتعلّمهم بتاريخ السطر. بعدها راجع واضغط «✓ المحدد ظهر في الكشف».</div>
+      <textarea class="input" id="stmtBox" rows="6" dir="ltr" style="margin-top:6px" placeholder="مثال: 15/11/2026  شيك 100006859333  300.00"></textarea>
+      <button class="btn sm" data-act="stmtMatch" style="margin-top:6px">مطابقة</button><div id="stmtRes"></div></details></div>` : ''}
     <div class="card"><h2>🧾 شيكات صادرة لم تُصرف من البنك<span class="sp"></span>${ed ? '<input class="input" type="date" id="clrDate" style="max-width:160px" value="' + esc(f.date || today) + '"><button class="btn sm" data-act="clrSel" data-kind="cheque">✓ المحدد ظهر في الكشف</button>' : ''}</h2>
       <div class="muted" style="margin-bottom:6px">حدّد الشيكات اللي ظهرت في كشف البنك (اتصرفت) واضغط التأكيد. اللي يفضل هنا هو الشيكات اللي مع المستفيدين ولسه ما صرفوهاش.</div>
       <div class="gtw"><table class="bt"><thead><tr><th>${ed ? '<input type="checkbox" data-all="cheque">' : ''}</th><th>التاريخ</th><th>رقم الشيك</th><th>المستفيد</th><th class="n">المبلغ</th><th></th></tr></thead>
@@ -1521,6 +1525,31 @@ function bankView() {
       <div class="row" style="margin-top:8px"><input class="input" type="date" id="uptoDate" style="max-width:180px"><button class="btn sec" data-act="clrUpto">تأكيد كل ما قبل هذا التاريخ</button></div></div>` : ''}
     <div class="card"><h2>📚 المطابقات السابقة</h2>${(r.history || []).map(x => kvh(`${dt(x.stmt_date)} <span class="pill ${x.status === 'معتمدة' ? 'ok' : ''}">${esc(x.status)}</span> <small class="muted">${esc(x.created_by || '')}${x.approved_by ? ' · اعتمد ' + esc(x.approved_by) : ''}</small>`,
       `${money(x.stmt_balance)} <small class="muted">فرق ${money(x.difference)}</small>`)).join('') || '<div class="empty">لا مطابقات محفوظة</div>'}</div>`;
+}
+
+function matchStatement() {
+  const r = S.recon || {}, norm = v => String(v).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٬،]/g, ',').replace(/٫/g, '.');
+  const lines = norm($('#stmtBox').value).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const chq = {}; (r.cheques || []).forEach(c => { if (c.cheque_no) chq[String(c.cheque_no)] = c; });
+  const deps = (r.deposits || []).slice(), usedDep = new Set(), hits = [], unmatched = [];
+  let lastDate = null;
+  for (const l of lines) {
+    const dm = l.match(/(\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/), date = dm ? parseAnyDate(dm[1]) : lastDate; if (date) lastDate = date;
+    const amounts = (l.replace(dm ? dm[1] : '', ' ').match(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{1,2}|\d+/g) || []).map(x => +x.replace(/,/g, ''));
+    const tokens = l.match(/\d{6,18}/g) || [];
+    const c = tokens.map(t => chq[t] || Object.values(chq).find(x => x.cheque_no.endsWith(t) && t.length >= 6)).find(Boolean);
+    if (c) { const okAmt = amounts.some(a => Math.abs(a - +c.amount) < 0.01);
+      const cb = document.querySelector(`[data-clr=cheque][value="${c.id}"]`); if (cb && okAmt) { cb.checked = true; cb.closest('tr').classList.add('hit'); }
+      hits.push({ kind: 'شيك ' + c.cheque_no, amt: +c.amount, date, ok: okAmt }); delete chq[c.cheque_no]; continue; }
+    const d = deps.find(x => !usedDep.has(x.id) && amounts.some(a => Math.abs(a - +x.amount) < 0.01));
+    if (d) { usedDep.add(d.id); const cb = document.querySelector(`[data-clr=receipt][value="${d.id}"]`); if (cb) { cb.checked = true; cb.closest('tr').classList.add('hit'); }
+      hits.push({ kind: 'إيداع ' + d.receipt_no, amt: +d.amount, date, ok: true }); continue; }
+    const big = amounts.filter(a => a > 0 && a < 1e8); if (big.length) unmatched.push({ l, date });
+  }
+  const dates = hits.filter(h => h.ok && h.date).map(h => h.date).sort(); if (dates.length && $('#clrDate')) $('#clrDate').value = dates[dates.length - 1];
+  $('#stmtRes').innerHTML = `<div class="alert ${hits.length ? 'ok' : 'warn'}" style="margin-top:8px">اتعلّم ${hits.filter(h => h.ok).length} (شيكات وإيداعات) — راجعهم في الجداول تحت (باللون الأخضر) واضغط «✓ المحدد ظهر في الكشف».
+    ${hits.filter(h => !h.ok).length ? `<br>⚠️ رقم شيك موجود بس المبلغ مختلف: ${hits.filter(h => !h.ok).map(h => esc(h.kind)).join('، ')}` : ''}</div>
+    ${unmatched.length ? `<div class="alert warn">سطور مالهاش مقابل في الدفاتر (${unmatched.length}) — غالباً مصاريف/فوائد بنكية أو تحويلات لازم تتسجّل من «المقبوضات»:<br><span dir="ltr" style="font-size:12px">${unmatched.slice(0, 30).map(u => esc(u.l)).join('<br>')}</span></div>` : ''}`;
 }
 function booksView() {
   const items = S.books || [], ed = can('treasury.cheque.issue');
@@ -2056,6 +2085,7 @@ function bindPage(gridOnly) {
     if (!ids.length) return toast('حدّد من الجدول الأول', true);
     const r = await busy(b, () => call('BANK_CLEAR', { kind, ids, date: ($('#clrDate') || {}).value || (S.bankF || {}).date || new Date().toISOString().slice(0, 10) }));
     if (!r.success) return toast(r.message, true); toast(`اتأكد ${r.updated} ✓`); render(); });
+  app.querySelectorAll('[data-act=stmtMatch]').forEach(b => b.onclick = matchStatement);
   app.querySelectorAll('[data-act=clrUpto]').forEach(b => b.onclick = async () => { const d = $('#uptoDate').value; if (!d) return toast('حدد التاريخ', true);
     if (!confirm(`تأكيد صرف كل الشيكات والإيداعات حتى ${d}؟`)) return;
     const r = await busy(b, () => call('BANK_CLEAR_UPTO', { upto: d })); if (!r.success) return toast(r.message, true); toast(`اتأكد ${r.updated} شيك ✓`); render(); });

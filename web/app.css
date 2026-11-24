@@ -325,3 +325,4 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .help h2 a{color:var(--brand);text-decoration:none}.help ol{margin:0;padding-inline-start:20px;font-size:14px}.help li{margin-bottom:4px}
 .fixbox .fixin{max-width:180px;padding:6px 8px}
 .fixin.filled{border-color:var(--ok);background:var(--okbg)}.paste summary{cursor:pointer}.paste textarea{margin-top:6px;font-family:monospace}
+.bt tr.hit td{background:var(--okbg)}
