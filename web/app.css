@@ -233,3 +233,18 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .steps.x{opacity:.45}
 .wfa{gap:8px}
 .sec-h{font-size:15px;margin:16px 4px 8px;color:var(--mute)}
+
+/* ───────── القوائم المالية ───────── */
+.fsh{text-align:center;margin-bottom:10px}.fsh h2{justify-content:center;margin:4px 0}.fsh small{color:var(--mute)}
+.fst{width:100%;border-collapse:collapse;font-size:14px}
+.fst td{padding:6px 8px}.fst .n{text-align:end;white-space:nowrap}
+.fst .sh td{background:var(--brand);color:#fff;font-weight:700;border-radius:6px}
+.fst .sg td{font-weight:700;border-bottom:1px solid var(--line)}
+.fst .sr td{color:var(--mute);padding-inline-start:22px;cursor:pointer}.fst .sr:hover td{background:#eaf2f8}
+.fst .st td{font-weight:800;border-top:2px solid var(--ink);border-bottom:10px solid transparent}
+.fst .sf td{font-weight:800;font-size:16px;background:#f3f7fb;border-top:2px double var(--ink)}
+.fst .sf.ok td{color:var(--ok)}.fst .sf.bad td{color:var(--bad)}
+@media print{
+  body[data-print-fs] .side,body[data-print-fs] .top,body[data-print-fs] .tabs,body[data-print-fs] .wrap>.card:first-of-type{display:none!important}
+  body[data-print-fs] .fs{display:block}body[data-print-fs] .fs>.card{break-after:page}
+}

@@ -101,7 +101,7 @@ function navModel() {
     ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
-    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin]]],
+    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
     ['النظام', [['#/account', '⚙️', 'حسابي', true]]],
@@ -123,7 +123,7 @@ function shell(title, body) {
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
   // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/myrequests', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/myrequests', '#/statements', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
@@ -1062,7 +1062,7 @@ const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { 
 const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
 const RCPT_KINDS = ['تحويل النقابة العامة', 'اشتراكات', 'رد عهدة', 'إيرادات أخرى', 'رسوم بنكية'];
 const finTabs = act => `<div class="tabs" style="margin-bottom:12px;overflow-x:auto">${[['#/finance', 'الملخص'], ['#/cheques', 'الشيكات'],
-  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/entries', 'القيود']]
+  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/statements', 'القوائم المالية'], ['#/entries', 'القيود']]
   .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}" style="white-space:nowrap">${t}</button>`).join('')}</div>`;
 const periodForm = f => `<form id="pf" class="row" style="margin-bottom:10px"><input class="input" style="flex:1" type="date" name="from" value="${esc(f.from || '')}">
   <input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}"><button class="btn sm">عرض</button></form>`;
@@ -1126,6 +1126,34 @@ function receiptsView() {
     { t: 'المبلغ', v: r => money(r.amount), raw: r => +r.amount, num: true },
   ], S.receipts, { title: '📥 المقبوضات', file: 'receipts', attr: r => r.entry_id ? `data-entry="${r.entry_id}"` : '', empty: 'لا مقبوضات في الفترة',
     foot: `<tr><td colspan="4"><b>الإجمالي</b></td><td class="n"><b>${money((S.receipts || []).reduce((x, r) => x + +r.amount, 0))}</b></td></tr>` })}`;
+}
+
+// ───────── القوائم المالية (عرض وتجميع لأرصدة ميزان المراجعة المحسوبة على الخادم) ─────────
+function statementsView() {
+  const t = S.trial || {}, items = t.items || [], names = Object.fromEntries((S.accts || []).map(a => [a.code, a.name]));
+  const grp = (type, val) => { const g = {}; items.filter(x => x.type === type).forEach(x => { const k = x.code.slice(0, 2), v = val(x);
+      if (Math.abs(v) < 0.005) return; (g[k] = g[k] || { name: names[k] || k, total: 0, rows: [] }).total += v; g[k].rows.push([x.code, x.name, v]); });
+    return Object.entries(g).sort(); };
+  const tot = gs => gs.reduce((a, [, g]) => a + g.total, 0);
+  const sec = (title, gs, label) => `<tr class="sh"><td colspan="2">${title}</td></tr>${gs.map(([k, g]) => `<tr class="sg"><td>${esc(k)} — ${esc(g.name)}</td><td class="n">${money(g.total)}</td></tr>
+      ${g.rows.map(([c, n, v]) => `<tr class="sr" data-ledger="${c}"><td>${esc(c)} ${esc(n)}</td><td class="n">${money(v)}</td></tr>`).join('')}`).join('') || '<tr><td colspan="2" class="muted">لا حركة</td></tr>'}
+    <tr class="st"><td>${label}</td><td class="n">${money(tot(gs))}</td></tr>`;
+  const rev = grp('إيرادات', x => +x.credit - +x.debit), exp = grp('مصروفات', x => +x.debit - +x.credit);
+  const surplus = tot(rev) - tot(exp);
+  const ast = grp('أصول', x => +x.closing), lia = grp('خصوم', x => -x.closing), fnd = grp('أرصدة', x => -x.closing);
+  const accum = -items.filter(x => x.type === 'إيرادات' || x.type === 'مصروفات').reduce((a, x) => a + +x.closing, 0);
+  const right = tot(lia) + tot(fnd) + accum, ok = Math.abs(tot(ast) - right) < 0.01;
+  return finTabs('#/statements') + `<div class="card">${periodForm(S.finP || { from: t.from, to: t.to })}
+      <div class="row"><span class="muted" style="flex:1">الفترة من ${dt(t.from)} إلى ${dt(t.to)} — من القيود المرحّلة</span><button class="btn sm sec" data-act="stPrint">🖨️ طباعة القوائم</button></div></div>
+    <div class="dgrid fs">
+    <div class="card"><div class="fsh"><b>${esc(C.ORG_NAME)}</b><h2>قائمة الإيرادات والمصروفات</h2><small>عن الفترة من ${dt(t.from)} إلى ${dt(t.to)}</small></div>
+      <table class="fst">${sec('الإيرادات', rev, 'إجمالي الإيرادات')}${sec('المصروفات', exp, 'إجمالي المصروفات')}
+      <tr class="sf ${surplus >= 0 ? 'ok' : 'bad'}"><td>${surplus >= 0 ? 'فائض الفترة' : 'عجز الفترة'}</td><td class="n">${money(Math.abs(surplus))}</td></tr></table></div>
+    <div class="card"><div class="fsh"><b>${esc(C.ORG_NAME)}</b><h2>قائمة المركز المالي</h2><small>في ${dt(t.to)}</small></div>
+      <table class="fst">${sec('الأصول', ast, 'إجمالي الأصول')}${sec('الخصوم', lia, 'إجمالي الخصوم')}${sec('الأرصدة والصناديق', fnd, 'إجمالي الأرصدة')}
+      <tr class="sg"><td>الفائض (العجز) المتراكم</td><td class="n">${money(accum)}</td></tr>
+      <tr class="sf"><td>إجمالي الخصوم والأرصدة والفائض</td><td class="n">${money(right)}</td></tr></table>
+      <div class="alert ${ok ? 'ok' : 'bad'}" style="margin-top:10px">${ok ? 'القائمة متوازنة ✓ (الأصول = الخصوم + الأرصدة + الفائض)' : 'القائمة غير متوازنة — راجع الميزان'}</div></div></div>`;
 }
 function trialView() {
   const t = S.trial || {}, items = t.items || [];
@@ -1418,13 +1446,17 @@ async function render() {
     const r = await call('BEN_REPORT', { year: S.benYear || '' }); if (!r.success) return toast(r.message, true);
     S.benRep = r; body = benefitsReportView();
   }
-  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
+  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
     title = 'المالية'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const P = S.finP || {};
     if (h.startsWith('#/finance')) { const r = await call('FIN_SUMMARY', P); if (!r.success) return toast(r.message, true); S.fin = r; body = finSummaryView(); }
     else if (h.startsWith('#/cheques')) { const r = await call('FIN_CHEQUES', { from: '2000-01-01', ...(S.chqF || {}) }); S.cheques = r.success ? r.items : []; body = chequesView(); }
     else if (h.startsWith('#/cheque/')) { const r = await call('FIN_CHEQUE', { id: h.split('/')[2] }); if (!r.success) return toast(r.message, true); S.cheque = r.cheque; body = chequeView(); }
     else if (h.startsWith('#/receipts')) { const r = await call('FIN_RECEIPTS', { from: '2000-01-01', ...P }); S.receipts = r.success ? r.items : []; body = receiptsView(); }
+    else if (h.startsWith('#/statements')) {
+      const [t, a] = await Promise.all([call('FIN_TRIAL_BALANCE', { from: (P.from || new Date().getFullYear() + '-01-01'), to: P.to || new Date().toISOString().slice(0, 10) }), S.accts ? null : call('FIN_ACCOUNTS')]);
+      if (!t.success) return toast(t.message, true); S.trial = t; if (a && a.success) S.accts = a.items; body = statementsView();
+    }
     else if (h.startsWith('#/trial')) { const r = await call('FIN_TRIAL_BALANCE', { from: '2000-01-01', ...P }); S.trial = r.success ? r : {}; body = trialView(); }
     else if (h.startsWith('#/ledger/')) { const r = await call('FIN_LEDGER', { account: h.split('/')[2], from: '2000-01-01', ...P }); S.ledger = r.success ? r : {}; body = ledgerView(); }
     else { const r = await call('FIN_ENTRIES', { from: '2000-01-01', ...(S.entF || {}) }); S.entries = r.success ? r.items : []; body = entriesView(); }
@@ -1457,6 +1489,7 @@ async function render() {
 function bindPage(gridOnly) {
   const app = $('#app');
   if (!gridOnly) bindGrids();
+  app.querySelectorAll('[data-act=stPrint]').forEach(b => b.onclick = () => { document.body.dataset.printFs = 1; window.print(); delete document.body.dataset.printFs; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
   app.querySelectorAll('[data-act=logout]').forEach(b => b.onclick = () => { if (confirm('تسجيل الخروج؟')) logout(); });
