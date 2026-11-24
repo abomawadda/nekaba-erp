@@ -326,3 +326,16 @@ label.f span{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .fixbox .fixin{max-width:180px;padding:6px 8px}
 .fixin.filled{border-color:var(--ok);background:var(--okbg)}.paste summary{cursor:pointer}.paste textarea{margin-top:6px;font-family:monospace}
 .bt tr.hit td{background:var(--okbg)}
+
+/* ───────── التقرير السنوي ───────── */
+.annual{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:24px;color:#111}
+.ann-cover{text-align:center;border-bottom:3px double var(--ink);padding-bottom:16px;margin-bottom:16px}.ann-cover img{width:90px}
+.ann-cover h1{margin:6px 0;font-size:22px}.ann-cover h2{margin:4px 0;font-size:18px;color:var(--brand)}
+.annual section{margin-bottom:18px}.annual h3{background:var(--brand);color:#fff;padding:6px 12px;border-radius:8px;font-size:16px}
+.annual p{line-height:1.9}.ann2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.annual h3,.annual .fst .sh td{-webkit-print-color-adjust:exact;print-color-adjust:exact}.annual .vt{margin-bottom:8px}
+.annual .fs{grid-template-columns:1fr 1fr}.annual .fs .card{box-shadow:none;border:1px solid var(--line)}
+.ann-sign{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;margin-top:30px}
+@media(max-width:700px){.ann2,.annual .fs{grid-template-columns:1fr}.annual{padding:12px}}
+@media print{body[data-print-annual] .side,body[data-print-annual] .top,body[data-print-annual] .noprint,body[data-print-annual] .nav{display:none!important}
+  body[data-print-annual] .annual{box-shadow:none;padding:0}body[data-print-annual] .annual h3{break-after:avoid}body[data-print-annual] .annual .vt tr{break-inside:avoid}body[data-print-annual] .ann-cover{break-after:page;padding-top:30vh;border:0}}
