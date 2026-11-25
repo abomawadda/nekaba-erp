@@ -475,7 +475,7 @@ const HELP = [
   { who: 's', p: 'treasury.receipt', i: '📥', t: 'المقبوضات وسند القبض', l: '#/receipts', s: ['«+ إيداع / تحصيل»: تحويل النقابة العامة، اشتراكات، رد عهدة، رسوم بنكية…', 'من الجدول «🖨️ سند قبض» لكل إيصال.'] },
   { who: 's', p: 'finance.view', i: '📑', t: 'القوائم المالية والموازنة', l: '#/statements', s: ['«القوائم المالية»: الإيرادات والمصروفات والمركز المالي لأي فترة، مع الطباعة.', '«الموازنة»: اكتب المقدّر لكل بند واحفظ، وتابع الانحراف ونسبة التنفيذ.'] },
   { who: 's', p: 'grants.review', i: '🎁', t: 'مراجعة المنح', l: '#/grantsadmin', s: ['راجع المستندات (ومرفقاتها في «📎 المستندات») وعلّم المستلم.', 'المستوفى يعتمده المعتمِد، والمعتمد تصرفه الخزينة بشيك.'] },
-  { who: 's', p: 'governance.view', i: '🏛️', t: 'المجلس والاجتماعات', l: '#/meetings', s: ['سجّل الاجتماع والحضور والقرارات، وارفع صورة المحضر في «📎 محضر الاجتماع».'] },
+  { who: 's', p: 'governance.view', i: '🏛️', t: 'المجلس والاجتماعات والقرارات', l: '#/meetings', s: ['سجّل الجلسة وجدول أعمالها، وحدد حضور الأعضاء بنقرة واحدة (أو «✓ الكل حاضر»).', 'المنظومة تحسب «💼 بدل الجلسة» للحاضرين تلقائياً، وتقدر تستورده داخل نافذة تسوية العهدة بضغطة زر فيمنع تكرار الصرف ويغذّي المزايا.', 'اطبع رسمياً بتوقيعات (أمين الصندوق · الأمين العام · رئيس اللجنة النقابية): محضر الاجتماع، كشف الحضور، كشف صرف البدلات، ومستخرج القرار.', 'من «⚖️ القرارات»: تابع حالة التنفيذ والمسئول والموعد والمنصرف الفعلي مقابل السقف ومرفقات كل قرار.'] },
   { who: 's', p: 'users.manage', i: '🔐', t: 'المستخدمون والصلاحيات', l: '#/users', s: ['«+ مستخدم جديد»: اسم إنجليزي وكلمة مؤقتة (يغيّرها أول دخول) والأدوار.', 'شوف «مصفوفة الصلاحيات» لتعرف كل دور يقدر يعمل إيه وحدوده المالية.', 'لإيقاف موظف: افتح حسابه وشيل علامة «الحساب نشط».'] },
   { who: 's', p: 'audit.view', i: '🛡️', t: 'سجل التدقيق والأرشيف', l: '#/audit', s: ['كل تعديل في المنظومة متسجّل: مين وإمتى وإيه اللي اتغيّر (قبل/بعد).', '«الأرشيف الإلكتروني»: كل المستندات المرفوعة بالبحث والفلترة.'] },
 ];
@@ -897,43 +897,305 @@ function boardView() {
     <span>${esc(c.full_name)} <small class="muted">(${esc(c.position)})</small></span>
     <span>${c.votes ?? '—'} صوت · <span class="pill ${c.result === 'فائز أصلي' ? 'ok' : c.result === 'احتياطي' ? 'warn' : ''}">${esc(c.result || '')}</span></span></div>`).join('')}</div>` : ''}`;
 }
-function meetingsView() {
-  const items = S.meetings || [], g = S.gov || {};
-  return govTabs('#/meetings') + `<div class="card"><h2>📅 الاجتماعات<span class="sp"></span>${g.canManage ? '<button class="btn sm" data-act="meetNew">+ اجتماع</button>' : ''}</h2>
-    <div class="list">${items.map(m => {
-      const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
-      return `<div class="li" data-meet="${m.id}"><div class="nm"><b>${esc(m.title)}</b>
-        <span class="muted">${dt(m.meeting_date)} · ${esc(m.kind)} · ${m.decisions_count} قرار</span></div>
-        <span class="pill ${m.present ? (q ? 'ok' : 'bad') : ''}">${m.present ? `${m.present}/${m.seats} ${q ? 'نصاب' : 'بلا نصاب'}` : 'حضور غير مسجّل'}</span></div>`;
-    }).join('') || '<div class="empty">لا اجتماعات</div>'}</div></div>`;
+const EXEC_STATES = ['لم يبدأ', 'قيد التنفيذ', 'منفّذ', 'لا يتطلب تنفيذ'];
+const execPill = s => `<span class="pill ${s === 'منفّذ' ? 'ok' : s === 'قيد التنفيذ' ? 'warn' : s === 'لم يبدأ' ? 'bad' : ''}">${esc(s || 'لم يبدأ')}</span>`;
+
+function govSigsHTML(sigs = {}) {
+  const cols = [
+    ['أمين الصندوق', sigs.treasurer],
+    ['الأمين العام', sigs.secretary],
+    ['رئيس اللجنة النقابية', sigs.chair],
+  ];
+  return `<div class="gd-sigs">${cols.map(([r, n]) => `<div class="sg"><div class="sg-role">${r}</div><div class="sg-name">${esc(n || '')}</div><div class="sg-line"></div></div>`).join('')}</div>
+    <div class="gd-stamp"><span>خاتم اللجنة النقابية</span><span>طُبع من منصة النقابة في ${new Date().toISOString().slice(0, 16).replace('T', ' ')}</span></div>`;
 }
+function govDocFrame(docTitle, subTitle, badgeLbl, badgeVal, metaPairs, bodyHtml, sigs) {
+  return `<div class="govdoc">
+    <div class="gd-head"><img src="img/logo-union.png" alt=""><div class="gd-org"><small>النقابة العامة للعاملين بالاتصالات</small><b>${esc(C.ORG_NAME)}</b></div>
+      <div class="gd-badge"><small>${esc(badgeLbl)}</small><b>${esc(badgeVal || '—')}</b></div></div>
+    <div class="gd-title"><h2>${docTitle}</h2>${subTitle ? `<small>${subTitle}</small>` : ''}</div>
+    <div class="gd-meta">${metaPairs.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join('')}</div>
+    ${bodyHtml}${govSigsHTML(sigs)}</div>`;
+}
+function meetingMinutesHTML(m) {
+  const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
+  const attRows = (m.attendance.length ? m.attendance : (m.board || []).map(b => ({ ...b, status: '—' })))
+    .map((a, i) => `<tr><td>${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.role || 'عضو مجلس إدارة')}</td><td>${esc(a.status)}</td><td>${esc(a.notes || '')}</td></tr>`).join('');
+  const decHtml = (m.decisions || []).map(d => `<div class="gd-dec"><b>قرار رقم (${esc(d.decision_no)})</b> — <small>[${esc(d.category)}${d.amount != null ? ' · السقف: ' + money(d.amount) + ' ج' : ''} · ${esc(d.status)}]</small>
+    <div style="margin-top:4px">${esc(d.text)}</div>
+    ${d.votes_for != null ? `<div style="font-size:11px;color:#555;margin-top:4px">التصويت: موافق (${numAr(d.votes_for)}) · معترض (${numAr(d.votes_against ?? 0)}) · ممتنع (${numAr(d.votes_abstain ?? 0)})</div>` : ''}</div>`).join('') || '<p class="muted">لم تصدر قرارات في هذه الجلسة.</p>';
+  return govDocFrame('محضر اجتماع مجلس الإدارة', esc(m.title), 'رقم الجلسة', m.meeting_no,
+    [['تاريخ الانعقاد', dt(m.meeting_date) + (m.meeting_time ? ' — ' + esc(m.meeting_time) : '')], ['نوع الاجتماع', esc(m.kind)],
+     ['مقر الانعقاد', esc(m.venue || 'مقر اللجنة النقابية')], ['النصاب القانوني', m.present ? `${numAr(m.present)} من ${numAr(m.seats)} (${q ? 'مكتمل قانوناً' : 'غير مكتمل'})` : 'غير مسجّل']],
+    `<div class="gd-sec">أولاً: إثبات الحضور والنصاب القانوني</div>
+     <table class="gd-tbl"><thead><tr><th style="width:36px">م</th><th>اسم عضو المجلس</th><th>الصفة بمجلس الإدارة</th><th>الحالة</th><th>ملاحظات</th></tr></thead><tbody>${attRows}</tbody></table>
+     ${(m.agenda || []).length ? `<div class="gd-sec">ثانياً: جدول الأعمال المعروض</div><ol style="margin:4px 0 10px;padding-inline-start:20px;font-size:13px">${m.agenda.map(a => `<li>${esc(a)}</li>`).join('')}</ol>` : ''}
+     <div class="gd-sec">${(m.agenda || []).length ? 'ثالثاً' : 'ثانياً'}: القرارات الصادرة عن المجلس (${numAr((m.decisions || []).length)})</div>${decHtml}
+     ${m.notes ? `<div class="gd-sec">ملاحظات ختامية</div><p style="font-size:13px;margin:4px 0">${esc(m.notes)}</p>` : ''}
+     <p style="font-size:12px;margin-top:10px">أُقفل المحضر عقب تلاوته والتصديق عليه في تاريخه وساعته.</p>`, m.signatories);
+}
+function attendanceSheetHTML(m, blank = false) {
+  const list = !blank && m.attendance && m.attendance.length ? m.attendance : (m.board || []);
+  const rows = list.map((a, i) => `<tr><td>${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
+    <td>${blank ? '' : esc(a.status || '')}</td><td style="width:26%"></td></tr>`).join('');
+  return govDocFrame('كشف حضور وتوقيع أعضاء مجلس الإدارة', esc(m.title), 'جلسة رقم', m.meeting_no,
+    [['التاريخ', dt(m.meeting_date)], ['الوقت', esc(m.meeting_time || '—')], ['المقر', esc(m.venue || 'مقر اللجنة')], ['إجمالي المقاعد', numAr(m.seats || list.length)]],
+    `<table class="gd-tbl"><thead><tr><th style="width:36px">م</th><th>الاسم الرباعي</th><th>الرقم الوظيفي</th><th>الصفة</th><th>الحالة</th><th>التوقيع بالحضور</th></tr></thead><tbody>${rows}</tbody></table>`, m.signatories);
+}
+function allowanceSheetHTML(m, rateOverride) {
+  const alw = m.allowance || {}, rate = +(rateOverride || alw.rate || 75);
+  const att = (m.attendance || []).filter(a => a.status === 'حاضر');
+  const tot = alw.paid && !rateOverride ? +alw.total : att.length * rate;
+  const share = att.length ? +(tot / att.length).toFixed(2) : rate;
+  const rows = att.map((a, i) => {
+    const amt = i === att.length - 1 ? +(tot - share * (att.length - 1)).toFixed(2) : share;
+    return `<tr><td>${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
+      <td><b>${money(amt)} ج</b></td><td style="width:26%"></td></tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center">لم يُسجَّل حاضرون لهذه الجلسة بعد</td></tr>';
+  return govDocFrame('كشف صرف بدل حضور جلسة مجلس الإدارة', `${esc(m.title)} — حساب (5401) بدلات جلسات المجلس`, 'جلسة رقم', m.meeting_no,
+    [['تاريخ الجلسة', dt(m.meeting_date)], ['عدد الحاضرين المستحقين', numAr(att.length) + ' عضو'], ['فئة البدل للعضو', money(rate) + ' جنيه'], ['إجمالي الكشف', money(tot) + ' جنيه']],
+    `<table class="gd-tbl"><thead><tr><th style="width:36px">م</th><th>اسم العضو المستحق</th><th>الرقم الوظيفي</th><th>الصفة بالمجلس</th><th>المبلغ المستحق</th><th>التوقيع بالاستلام</th></tr></thead>
+     <tbody>${rows}</tbody>
+     <tfoot><tr><th colspan="4">إجمالي بدلات الجلسة المنصرفة</th><th colspan="2">${money(tot)} جنيه مصري فقط لا غير</th></tr></tfoot></table>
+     ${alw.paid ? `<p style="font-size:12px;color:#1e8a4c"><b>✓ مسجّل مالياً:</b> صُرف ضمن تسوية الشيك رقم (${esc(alw.cheque_no || 'بدون رقم')}) بتاريخ ${dt(alw.settle_date)}.</p>` : '<p style="font-size:12px">يُرفق هذا الكشف موقعاً ضمن مستندات تسوية العهدة بالخزينة لتغذية القيد وسجل مزايا الأعضاء.</p>'}`, m.signatories);
+}
+function decisionExtractHTML(d) {
+  return govDocFrame('مستخرج رسمي من قرار مجلس الإدارة', esc(d.term_title || ''), 'قرار رقم', d.decision_no,
+    [['رقم وتاريخ الجلسة', `جلسة (${numAr(d.meeting_no)}) — ${dt(d.meeting_date)}`], ['تصنيف القرار', esc(d.category)],
+     ['السقف المالي المعتمد', d.amount != null && +d.amount > 0 ? money(d.amount) + ' جنيه' : 'غير محدد بمبلغ'], ['حالة القرار والتنفيذ', `${esc(d.status)} · ${esc(d.exec_status || 'لم يبدأ')}`]],
+    `<div class="gd-sec">منطوق القرار</div>
+     <div class="gd-dec" style="font-size:15px;line-height:1.9;padding:14px"><b>قرّر مجلس إدارة اللجنة النقابية في جلسته رقم (${numAr(d.meeting_no)}) المنعقدة بتاريخ ${dt(d.meeting_date)} ما يلي:</b>
+       <div style="margin-top:8px">${esc(d.text)}</div></div>
+     <table class="gd-tbl" style="margin-top:10px"><tr><th>نتيجة التصويت</th><td>${d.votes_for != null ? `موافق: ${numAr(d.votes_for)} · معترض: ${numAr(d.votes_against ?? 0)} · ممتنع: ${numAr(d.votes_abstain ?? 0)}` : 'بالإجماع / معتمد'}</td>
+       <th>المسئول عن التنفيذ</th><td>${esc(d.assignee_display || '—')}</td></tr>
+       <tr><th>موعد التنفيذ المستهدف</th><td>${d.due_date ? dt(d.due_date) : '—'}</td><th>المنصرف الفعلي حتى تاريخه</th><td>${+d.spent > 0 ? money(d.spent) + ' جنيه' : '—'}</td></tr>
+       ${d.follow_up ? `<tr><th>بيان المتابعة</th><td colspan="3">${esc(d.follow_up)}</td></tr>` : ''}</table>
+     <p style="font-size:12px;margin-top:8px">تحريراً للعمل بموجبه وإرفاقه بالمستندات الرسمية والمالية ذات الصلة.</p>`, d.signatories);
+}
+
+function decisionCardHTML(d, showMeet = true) {
+  const hasCeil = d.amount != null && +d.amount > 0, spent = +(d.spent || 0);
+  const over = hasCeil && spent > +d.amount + 0.005;
+  const overdue = d.due_date && d.due_date < new Date().toISOString().slice(0, 10) && ['لم يبدأ', 'قيد التنفيذ'].includes(d.exec_status);
+  const pct = hasCeil ? Math.min(100, Math.round((spent / +d.amount) * 100)) : 0;
+  const cls = over || overdue ? 'over' : d.exec_status === 'منفّذ' ? 'done' : d.exec_status === 'قيد التنفيذ' ? 'prog' : '';
+  return `<div class="dec-card ${cls}" data-decopen="${d.id}">
+    <div class="row" style="align-items:center;gap:6px;margin-bottom:4px">
+      <span class="dec-no">قرار ${esc(d.decision_no)}</span>
+      <span class="pill">${esc(d.category)}</span>
+      ${execPill(d.exec_status)}
+      ${overdue ? '<span class="pill bad">⏰ متأخر</span>' : ''}
+      ${over ? `<span class="pill bad">⚠️ تجاوز السقف بـ ${money(spent - +d.amount)}</span>` : ''}
+      <span class="sp"></span>
+      <button class="btn sm sec" type="button" data-decprt="${d.id}" title="طباعة مستخرج القرار">🖨️ مستخرج</button>
+    </div>
+    <div style="font-weight:700;margin:4px 0">${esc(d.text)}</div>
+    <div class="muted" style="font-size:12px;display:flex;flex-wrap:wrap;gap:10px">
+      ${showMeet && d.meeting_title ? `<span>🗓️ ${esc(d.meeting_title)} (${dt(d.meeting_date)})</span>` : ''}
+      ${d.assignee || d.assignee_display ? `<span>👤 المسئول: <b>${esc(d.assignee || d.assignee_display)}</b></span>` : ''}
+      ${d.due_date ? `<span>🎯 الموعد: ${dt(d.due_date)}</span>` : ''}
+      ${d.cheques_count ? `<span>🧾 ${numAr(d.cheques_count)} شيك مرتبط</span>` : ''}
+      ${d.votes_for != null ? `<span>🗳️ موافق ${numAr(d.votes_for)} / معترض ${numAr(d.votes_against ?? 0)}</span>` : ''}
+    </div>
+    ${hasCeil || spent > 0 ? `<div class="pbar-wrap">
+      <div class="row" style="justify-content:space-between;font-size:12px">
+        <span>💰 المنصرف الفعلي: <b>${money(spent)} ج</b></span>
+        <span>${hasCeil ? `السقف المعتمد: <b>${money(d.amount)} ج</b> (${numAr(pct)}%)` : 'بلا سقف رقمي محدد'}</span>
+      </div>
+      ${hasCeil ? `<div class="pbar ${over ? 'over' : ''}"><i style="width:${pct}%"></i></div>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+
+function decisionModalHTML(d, canManage) {
+  const hasCeil = d.amount != null && +d.amount > 0, spent = +(d.spent || 0), over = hasCeil && spent > +d.amount + 0.005;
+  const pct = hasCeil ? Math.min(100, Math.round((spent / +d.amount) * 100)) : 0;
+  return `<div class="gov-hero" style="margin:-4px 0 12px">
+      <div class="gh-meta"><span class="gh-chip gh-gold">قرار رقم ${esc(d.decision_no)}</span>
+        <span class="gh-chip">🗓️ ${esc(d.meeting_title)} · ${dt(d.meeting_date)}</span>
+        <span class="gh-chip">${esc(d.category)}</span></div>
+      <div style="font-size:15px;font-weight:700;line-height:1.7">${esc(d.text)}</div>
+      <div class="gh-acts">
+        <button class="btn sm gold" type="button" data-act="decModalPrint">🖨️ طباعة مستخرج رسمي للقرار</button>
+        <a class="btn sm" href="#/meeting/${d.meeting_id}" style="text-decoration:none">🗓️ فتح الجلسة</a>
+      </div></div>
+    ${hasCeil || spent > 0 || (d.cheques || []).length ? `<div class="form-sec">
+      <div class="form-sec-hd"><span>💰 الموقف المالي والشيكات المرتبطة بالقرار</span>
+        ${over ? `<span class="pill bad">تجاوز السقف بـ ${money(spent - +d.amount)} ج</span>` : hasCeil ? `<span class="pill ok">متبقي من السقف ${money(+d.amount - spent)} ج</span>` : ''}</div>
+      <div class="alw-stats">
+        <div class="alw-stat"><small>السقف المعتمد</small><b>${hasCeil ? money(d.amount) + ' ج' : 'غير محدد'}</b></div>
+        <div class="alw-stat"><small>صافي المنصرف الفعلي</small><b style="color:${over ? 'var(--bad)' : 'var(--ok)'}">${money(spent)} ج</b></div>
+        <div class="alw-stat"><small>الشيكات المرتبطة</small><b>${numAr((d.cheques || []).length)}</b></div></div>
+      ${hasCeil ? `<div class="pbar ${over ? 'over' : ''}"><i style="width:${pct}%"></i></div>` : ''}
+      ${(d.cheques || []).map(c => `<div class="kv" style="align-items:center">
+        <span><a href="#/cheque/${c.id}"><b>شيك ${esc(c.cheque_no || 'بدون رقم')}</b></a> — ${esc(c.payee_name)} <small class="muted">(${dt(c.issue_date)})</small></span>
+        <span><b>${money(c.amount)}</b> ${stPill(c.status)}</span></div>`).join('')}
+      ${(d.activities || []).map(a => `<div class="kv"><span>🚌 نشاط: <a href="#/actadmin/${a.id}"><b>${esc(a.title)}</b></a> (${dt(a.start_date)})</span><span class="pill">${esc(a.status)}</span></div>`).join('')}
+    </div>` : ''}
+    ${canManage ? `<form id="dcf" class="form-sec">
+      <div class="form-sec-hd"><span>⚙️ متابعة التنفيذ وتحديث بيانات القرار</span></div>
+      <input type="hidden" name="exec_status" value="${esc(d.exec_status || 'لم يبدأ')}">
+      <div class="muted" style="font-size:12px">حالة التنفيذ (اضغط للاختيار):</div>
+      <div class="step-seg">${[['لم يبدأ', '📌 لم يبدأ'], ['قيد التنفيذ', '⚙️ قيد التنفيذ'], ['منفّذ', '✅ منفّذ'], ['لا يتطلب تنفيذ', '➖ لا يتطلب']].map(([v, l]) =>
+        `<button type="button" data-step="${v}" class="${(d.exec_status || 'لم يبدأ') === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="grid2">
+        <label class="f"><span>الفئة</span><select class="input" name="category">${options(DEC_CATS, d.category, false)}</select></label>
+        <label class="f"><span>سقف المبلغ المعتمد (ج)</span><input class="input" name="amount" inputmode="decimal" value="${esc(d.amount ?? '')}" placeholder="اختياري"></label></div>
+      <div class="grid2">
+        <label class="f"><span>المسئول عن التنفيذ (اسم أو صفة)</span><input class="input" name="assignee_name" value="${esc(d.assignee_name || d.assignee_display || '')}" placeholder="مثلاً: أمين الصندوق / لجنة الرحلات"></label>
+        <label class="f"><span>أو الرقم الوظيفي للمسئول</span><input class="input" name="assignee_job" inputmode="numeric" value="${esc(d.assignee_job || '')}" placeholder="اختياري لربطه بملفه"></label></div>
+      <div class="grid2">
+        <label class="f"><span>الموعد المستهدف للتنفيذ</span><input class="input" type="date" name="due_date" value="${esc(d.due_date || '')}"></label>
+        <label class="f"><span>تاريخ تمام التنفيذ</span><input class="input" type="date" name="executed_at" value="${esc(d.executed_at || '')}"></label></div>
+      <div class="grid2">
+        <label class="f"><span>ملاحظات المتابعة وما تم إنجازه</span><input class="input" name="follow_up" value="${esc(d.follow_up || '')}" placeholder="خطوات التنفيذ، رقم المحضر، أو سبب التأجيل"></label>
+        <label class="f"><span>حالة اعتماد القرار</span><select class="input" name="status">${options(['معتمد', 'مرفوض', 'مؤجل', 'ملغى'], d.status || 'معتمد', false)}</select></label></div>
+      <div id="ferr"></div>
+      <div class="acts"><button class="btn" type="submit">💾 حفظ متابعة القرار</button><button class="btn sec" type="button" data-close>إغلاق</button></div>
+    </form>` : `<div class="acts"><button class="btn sec" type="button" data-close>إغلاق</button></div>`}
+    ${docsBox('decision', d.id, '📎 مستندات ومرفقات القرار (خطابات، عروض أسعار، محاضر)').replace('class="card docbox"', 'class="docbox inl"')}`;
+}
+
+function meetingsView() {
+  const all = S.meetings || [], g = S.gov || {}, mf = S.meetF || 'all', rate = S.govRate || g.allowanceRate || 75;
+  const withAtt = all.filter(m => m.present > 0), noAtt = all.filter(m => !m.present), unpaid = withAtt.filter(m => !m.allowance_paid);
+  const items = mf === 'att' ? withAtt : mf === 'noatt' ? noAtt : mf === 'unpaid' ? unpaid : all;
+  const kpi = (i, v, l, cls = '') => `<div class="kpi ${cls}"><i>${i}</i><div><b>${v}</b><small>${l}</small></div></div>`;
+  return govTabs('#/meetings') + `<div class="kpis">
+      ${kpi('🗓️', numAr(all.length), 'إجمالي الجلسات المسجّلة')}
+      ${kpi('✅', numAr(withAtt.length), 'مسجّل حضورها ونصابها', 'ok')}
+      ${kpi('📝', numAr(noAtt.length), 'بانتظار تفريغ الحضور', noAtt.length ? 'warn' : 'ok')}
+      ${kpi('💼', money(rate) + ' ج', 'فئة بدل الجلسة للعضو')}</div>
+    <div class="card"><div class="row" style="align-items:center;gap:8px">
+        <b style="font-size:16px">📅 سجل جلسات مجلس الإدارة</b><span class="sp"></span>
+        ${g.canManage ? `<button class="btn sm sec" data-act="alwRateSet">⚙️ فئة البدل (${numAr(rate)} ج)</button><button class="btn sm" data-act="meetNew">+ تسجيل جلسة جديدة</button>` : ''}</div>
+      <div class="fchips">
+        ${[['all', `الكل (${numAr(all.length)})`], ['att', `✓ مسجّل الحضور (${numAr(withAtt.length)})`], ['noatt', `📝 حضور ناقص (${numAr(noAtt.length)})`], ['unpaid', `💰 بدل لم يُصرف (${numAr(unpaid.length)})`]]
+          .map(([k, l]) => `<button type="button" class="fchip ${mf === k ? 'on' : ''}" data-mfchip="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="list">${items.map(m => {
+        const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
+        return `<div class="li" data-meet="${m.id}" style="align-items:center"><div class="nm">
+            <b><span class="dec-no" style="margin-inline-end:6px">#${numAr(m.meeting_no)}</span>${esc(m.title)}</b>
+            <span class="muted">${dt(m.meeting_date)} · ${esc(m.kind)}${m.venue ? ' · ' + esc(m.venue) : ''} · ${numAr(m.decisions_count)} قرار</span></div>
+          <div class="row" style="gap:4px;justify-content:flex-end">
+            ${m.allowance_paid ? `<span class="pill ok" title="صُرف بدل الجلسة">💼 ${money(m.allowance_amount)}</span>` : m.present ? `<span class="pill warn">💼 ${money(m.allowance_amount)} لم يُصرف</span>` : ''}
+            <span class="pill ${m.present ? (q ? 'ok' : 'bad') : ''}">${m.present ? `${numAr(m.present)}/${numAr(m.seats)} ${q ? 'نصاب' : 'بلا نصاب'}` : 'حضور غير مسجّل'}</span>
+          </div></div>`;
+      }).join('') || '<div class="empty">لا اجتماعات مطابقة للفلتر</div>'}</div></div>`;
+}
+
+function attSegRows(board, attMap) {
+  return board.map(b => {
+    const cur = attMap[b.person_id] || 'حاضر';
+    return `<div class="att-row" data-attrow="${b.person_id}">
+      <div><b>${esc(b.full_name)}</b> <small class="muted">· ${esc(b.role || 'عضو مجلس')}</small></div>
+      <input type="hidden" data-att="${b.person_id}" value="${esc(cur)}">
+      <div class="att-seg">${[['حاضر', '✓ حاضر'], ['غائب بعذر', '⏳ بعذر'], ['غائب', '✕ غائب']].map(([v, l]) =>
+        `<button type="button" data-v="${v}" class="${cur === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>`;
+  }).join('');
+}
+
 function meetingView() {
   const m = S.meeting, g = S.gov || {}; if (!m) return '';
   const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
-  return `<a href="#/meetings" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الاجتماعات</a>
-  <div class="card"><h2>${esc(m.title)}<span class="sp"></span>${g.canManage ? '<button class="btn sm sec" data-act="meetEdit">تعديل</button>' : ''}</h2>
-    ${kv('التاريخ', m.meeting_date + (m.meeting_time ? ' · ' + m.meeting_time : ''))}${kv('النوع', m.kind)}${kv('المكان', m.venue)}
-    ${kv('النصاب', m.present ? `${m.present} من ${m.seats} — ${q ? 'مكتمل' : 'غير مكتمل'}` : 'الحضور غير مسجّل')}
-    ${(m.agenda || []).length ? `<b>جدول الأعمال</b><ol style="margin:6px 0">${m.agenda.map(a => `<li>${esc(a)}</li>`).join('')}</ol>` : ''}</div>
-  <div class="card"><h2>✅ القرارات (${m.decisions.length})</h2>${m.decisions.map(d => `<div class="kv" style="display:block">
-      <b>${esc(d.decision_no)}</b> — ${esc(d.text)}
-      <div class="row" style="margin-top:4px"><span class="pill">${esc(d.category)}</span>
-        ${d.amount != null ? `<span class="pill warn">${Number(d.amount).toLocaleString('ar-EG')} ج</span>` : ''}
-        <span class="pill ${d.status === 'معتمد' ? 'ok' : 'bad'}">${esc(d.status)}</span>
-        ${d.votes_for != null ? `<span class="muted">موافق ${d.votes_for} · معترض ${d.votes_against ?? 0} · ممتنع ${d.votes_abstain ?? 0}</span>` : ''}</div></div>`).join('') || '<div class="empty">لا قرارات</div>'}</div>
-  <div class="card"><h2>🧾 الحضور</h2>${m.attendance.map(a => `<div class="kv"><span>${esc(a.full_name)} <small class="muted">${esc(a.role || '')}</small></span>
-      <span class="pill ${a.status === 'حاضر' ? 'ok' : a.status === 'غائب' ? 'bad' : 'warn'}">${esc(a.status)}</span></div>`).join('') || '<div class="empty">الحضور غير مسجّل</div>'}</div>
-  ${docsBox('meeting', m.id, '📎 محضر الاجتماع ومستنداته')}`;
+  const pct = m.seats ? Math.min(100, Math.round((m.present / m.seats) * 100)) : 0;
+  const alw = m.allowance || { rate: 75, present: m.present || 0, total: 0, paid: false };
+  const presentList = (m.attendance || []).filter(a => a.status === 'حاضر');
+  const attMap = {}; (m.attendance || []).forEach(a => (attMap[a.person_id] = a.status));
+  const showQuickAtt = g.canManage && (!m.attendance.length || S.quickAttOpen);
+  return `<a href="#/meetings" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ سجل الاجتماعات</a>
+  <div class="gov-hero">
+    <div class="gh-meta">
+      <span class="gh-chip gh-gold">جلسة رقم ${numAr(m.meeting_no)} · ${esc(m.kind)}</span>
+      <span class="gh-chip">📅 ${dt(m.meeting_date)}${m.meeting_time ? ' · ' + esc(m.meeting_time) : ''}</span>
+      <span class="gh-chip">📍 ${esc(m.venue || 'مقر اللجنة النقابية')}</span>
+      <span class="gh-chip">${esc(m.status)}</span>
+    </div>
+    <h2>${esc(m.title)}</h2>
+    <div style="font-size:13px;opacity:.95">النصاب القانوني: <b>${m.present ? `${numAr(m.present)} حاضرون من ${numAr(m.seats)} (${q ? 'نصاب مكتمل ✓' : 'أقل من النصاب'})` : 'الحضور غير مسجّل بعد'}</b></div>
+    <div class="qbar ${!m.present ? 'empty' : q ? '' : 'bad'}"><i style="width:${pct}%"></i></div>
+    <div class="gh-acts">
+      <button class="btn sm gold" data-act="prtMinutes">🖨️ محضر الاجتماع</button>
+      <button class="btn sm" data-act="prtAttend">🖨️ كشف الحضور والتوقيع</button>
+      ${!m.attendance.length ? '<button class="btn sm" data-act="prtAttendBlank">🖨️ كشف توقيع فارغ</button>' : ''}
+      <button class="btn sm" data-act="prtAllow">🖨️ كشف صرف البدلات</button>
+      ${g.canManage ? '<button class="btn sm" data-act="meetEdit">✏️ تعديل شامل</button>' : ''}
+    </div>
+  </div>
+
+  <div class="alw-card">
+    <div class="row" style="align-items:center;gap:8px">
+      <b style="font-size:16px;color:var(--brand)">💼 بدل حضور الجلسة</b><span class="sp"></span>
+      ${alw.paid ? `<span class="pill ok">✓ صُرف البدل${alw.cheque_no ? ' — شيك ' + esc(alw.cheque_no) : ''} (${dt(alw.settle_date)})</span>`
+                 : m.present ? '<span class="pill warn">⏳ محسوب وجاهز للصرف في التسوية</span>' : '<span class="pill">سجّل الحضور لحساب البدل</span>'}
+    </div>
+    <div class="alw-stats">
+      <div class="alw-stat"><small>فئة البدل للعضو الحاضر</small><b>${money(alw.rate)} ج</b></div>
+      <div class="alw-stat"><small>الحاضرون المستحقون</small><b>${numAr(m.present || 0)} عضو</b></div>
+      <div class="alw-stat"><small>إجمالي بدل الجلسة</small><b>${money(alw.total)} ج</b></div>
+    </div>
+    ${presentList.length ? `<div class="mchips">${presentList.map(a => `<span class="mchip"><b>${esc(a.full_name)}</b><small class="muted">${esc(a.role)}</small><i>+${money(alw.rate)}</i></span>`).join('')}</div>` : ''}
+    <div class="row" style="margin-top:10px;gap:8px">
+      <button class="btn sm sec" data-act="prtAllow">🖨️ طباعة كشف البدلات للتوقيع</button>
+      ${alw.paid && alw.cheque_id ? `<a class="btn sm sec" href="#/cheque/${alw.cheque_id}" style="text-decoration:none">🧾 فتح شيك التسوية</a>`
+        : !alw.paid && m.present && can('treasury.settlement') ? '<a class="btn sm gold" href="#/settlements" style="text-decoration:none">💰 إدراج البدل في تسوية عهدة</a>' : ''}
+    </div>
+  </div>
+
+  ${(m.agenda || []).length ? `<div class="card"><h2>📋 جدول الأعمال</h2><ol style="margin:6px 0;padding-inline-start:20px">${m.agenda.map(a => `<li style="margin-bottom:4px">${esc(a)}</li>`).join('')}</ol></div>` : ''}
+
+  <div class="card">
+    <div class="row" style="align-items:center;margin-bottom:8px">
+      <h2 style="margin:0">⚖️ القرارات الصادرة (${numAr(m.decisions.length)})</h2><span class="sp"></span>
+      <small class="muted">اضغط على أي قرار لمتابعة تنفيذه ومرفقاته وشيكاته</small></div>
+    ${m.decisions.map(d => decisionCardHTML(d, false)).join('') || '<div class="empty">لا قرارات مسجّلة لهذه الجلسة</div>'}
+  </div>
+
+  <div class="card">
+    <div class="row" style="align-items:center;margin-bottom:8px">
+      <h2 style="margin:0">👥 سجل الحضور (${numAr(m.attendance.length)})</h2><span class="sp"></span>
+      ${g.canManage && m.attendance.length ? `<button class="btn sm sec" data-act="toggleQuickAtt">${S.quickAttOpen ? 'إلغاء' : '✏️ تعديل سريع للحضور'}</button>` : ''}
+    </div>
+    ${showQuickAtt ? `<div class="form-sec" id="qattBox" data-seats="${(m.board || []).length}">
+        <div class="form-sec-hd"><span id="qattStat">حدد حالة كل عضو مجلس بنقرة واحدة:</span>
+          <button class="btn sm sec" type="button" data-act="attAllPresent">✓ تحديد الكل حاضر</button></div>
+        ${attSegRows(m.board || [], attMap)}
+        <div class="acts" style="margin-top:8px"><button class="btn" type="button" data-act="saveQuickAtt">💾 حفظ كشف الحضور وحساب البدل</button></div>
+      </div>`
+      : m.attendance.map(a => `<div class="kv"><span><b>${esc(a.full_name)}</b> <small class="muted">· ${esc(a.role || '')}</small></span>
+          <span class="pill ${a.status === 'حاضر' ? 'ok' : a.status === 'غائب' ? 'bad' : 'warn'}">${esc(a.status)}</span></div>`).join('') || '<div class="empty">الحضور غير مسجّل</div>'}
+  </div>
+  ${docsBox('meeting', m.id, '📎 محضر الاجتماع الموقّع ومستنداته')}`;
 }
+
 function decisionsView() {
-  const items = S.decisions || [], f = S.decF || {};
-  return govTabs('#/decisions') + `<div class="card"><h2>📚 سجل القرارات</h2>
-    <form id="df" class="row"><input class="input" style="flex:2;min-width:140px" name="q" value="${esc(f.q || '')}" placeholder="بحث في النص أو رقم القرار">
-      <select class="input" style="flex:1;min-width:110px" name="category"><option value="">كل الفئات</option>${options(DEC_CATS, f.category, false)}</select>
-      <button class="btn">بحث</button></form></div>
-  <div class="card list">${items.map(d => `<div class="li" data-meet="${d.meeting_id}"><div class="nm"><b>${esc(d.decision_no)} — ${esc(d.text)}</b>
-      <span class="muted">${esc(d.meeting_title)} · ${dt(d.meeting_date)}</span></div>
-      <span class="pill">${esc(d.category)}</span></div>`).join('') || '<div class="empty">لا نتائج</div>'}</div>`;
+  const items = S.decisions || [], f = S.decF || {}, sm = S.decSummary || {};
+  const kpi = (i, v, l, cls = '') => `<div class="kpi ${cls}"><i>${i}</i><div><b>${v}</b><small>${l}</small></div></div>`;
+  const chipKey = f.alert ? 'al:' + f.alert : f.exec_status ? 'ex:' + f.exec_status : 'all';
+  return govTabs('#/decisions') + `<div class="kpis">
+      ${kpi('⚖️', numAr(sm.total || items.length), 'إجمالي القرارات المعتمدة')}
+      ${kpi('✅', numAr(sm.executed || 0), 'قرارات منفّذة', 'ok')}
+      ${kpi('⏳', numAr((sm.in_progress || 0) + (sm.not_started || 0)), 'قيد التنفيذ أو لم تبدأ', (sm.in_progress || sm.not_started) ? 'warn' : 'ok')}
+      ${kpi('💰', money(sm.total_spent || 0), `منصرف فعلي (من سقوف ${money(sm.total_ceiling || 0)})`, (sm.exceeded || 0) > 0 ? 'bad' : 'ok')}</div>
+    ${(sm.overdue || 0) > 0 || (sm.exceeded || 0) > 0 ? `<div class="alert bad" style="margin-bottom:12px">
+      تنبيه رقابي: ${sm.overdue ? `<b>${numAr(sm.overdue)}</b> قرار متأخر عن موعد تنفيذه` : ''}${sm.overdue && sm.exceeded ? ' · ' : ''}${sm.exceeded ? `<b>${numAr(sm.exceeded)}</b> قرار تجاوز المنصرف عليه سقفه المعتمد` : ''} — اضغط الفلتر بالأسفل للمراجعة.</div>` : ''}
+    <div class="card">
+      <form id="df" class="row" style="gap:8px">
+        <input class="input" style="flex:2;min-width:150px" name="q" value="${esc(f.q || '')}" placeholder="🔎 ابحث في نص القرار، رقمه (مثل 31/3)، أو اسم المسئول…">
+        <select class="input" style="flex:1;min-width:120px" name="category"><option value="">كل الفئات</option>${options(DEC_CATS, f.category, false)}</select>
+        <button class="btn">بحث</button></form>
+      <div class="fchips">
+        ${[['all', `الكل (${numAr(sm.total || items.length)})`],
+           ['ex:قيد التنفيذ', `⚙️ قيد التنفيذ (${numAr(sm.in_progress || 0)})`],
+           ['ex:لم يبدأ', `📌 لم يبدأ (${numAr(sm.not_started || 0)})`],
+           ['ex:منفّذ', `✅ منفّذ (${numAr(sm.executed || 0)})`],
+           ['al:exceeded', `⚠️ تجاوز السقف (${numAr(sm.exceeded || 0)})`],
+           ['al:overdue', `⏰ متأخر (${numAr(sm.overdue || 0)})`],
+           ['ex:لا يتطلب تنفيذ', `➖ إجرائي (${numAr(sm.no_exec || 0)})`]]
+          .map(([k, l]) => `<button type="button" class="fchip ${chipKey === k ? 'on' : ''}" data-dfchip="${k}">${l}</button>`).join('')}
+      </div></div>
+    <div>${items.map(d => decisionCardHTML(d, true)).join('') || '<div class="card empty">لا قرارات مطابقة للبحث</div>'}</div>`;
 }
 function termForm(t = {}) {
   return `<h3>${t.id ? 'تعديل الدورة' : 'دورة جديدة'}</h3><form id="tf">
@@ -966,31 +1228,44 @@ function seatEndForm(s) {
     <label class="f"><span>يكمل بمنصب جديد؟ (اختياري — يبدأ من اليوم التالي)</span><select class="input" name="newRole">${options(ROLES)}</select></label>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تأكيد</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
-const decRow = (d, i) => `<div class="card" style="box-shadow:none;border:1px solid var(--line);padding:10px" data-dec>
-      <label class="f"><span>القرار ${i + 1}</span><textarea class="input" name="d_text" rows="2">${esc(d.text)}</textarea></label>
+const decRow = (d, i) => `<div class="card" style="box-shadow:none;border:1px solid var(--line);border-inline-start:4px solid var(--brand2);padding:10px;margin-bottom:8px" data-dec>
+      <div class="row" style="align-items:center;margin-bottom:6px"><span class="dec-no">قرار #${numAr(i + 1)}</span><span class="sp"></span>
+        <select class="input" style="width:auto;padding:4px 8px" name="d_status">${options(['معتمد', 'مرفوض', 'مؤجل', 'ملغى'], d.status || 'معتمد', false)}</select></div>
+      <label class="f"><span>منطوق القرار</span><textarea class="input" name="d_text" rows="2" placeholder="اكتب نص القرار بوضوح…">${esc(d.text)}</textarea></label>
       <div class="grid2"><label class="f"><span>الفئة</span><select class="input" name="d_category">${options(DEC_CATS, d.category || 'إداري', false)}</select></label>
-        <label class="f"><span>المبلغ (إن وُجد)</span><input class="input" name="d_amount" inputmode="decimal" value="${esc(d.amount)}"></label></div>
-      <div class="grid2"><label class="f"><span>موافق / معترض / ممتنع</span><div class="row">
-        <input class="input" style="flex:1" name="d_for" inputmode="numeric" value="${esc(d.votes_for)}">
-        <input class="input" style="flex:1" name="d_against" inputmode="numeric" value="${esc(d.votes_against)}">
-        <input class="input" style="flex:1" name="d_abstain" inputmode="numeric" value="${esc(d.votes_abstain)}"></div></label>
-        <label class="f"><span>الحالة</span><select class="input" name="d_status">${options(['معتمد', 'مرفوض', 'مؤجل', 'ملغى'], d.status || 'معتمد', false)}</select></label></div></div>`;
+        <label class="f"><span>السقف المالي المعتمد (إن وُجد)</span><input class="input" name="d_amount" inputmode="decimal" value="${esc(d.amount)}" placeholder="0.00"></label></div>
+      <div class="grid2"><label class="f"><span>التصويت (موافق / معترض / ممتنع)</span><div class="row" style="gap:4px">
+        <input class="input" style="flex:1" name="d_for" inputmode="numeric" value="${esc(d.votes_for)}" placeholder="موافق">
+        <input class="input" style="flex:1" name="d_against" inputmode="numeric" value="${esc(d.votes_against)}" placeholder="معترض">
+        <input class="input" style="flex:1" name="d_abstain" inputmode="numeric" value="${esc(d.votes_abstain)}" placeholder="ممتنع"></div></label>
+        <label class="f"><span>حالة التنفيذ</span><select class="input" name="d_exec">${options(EXEC_STATES, d.exec_status || 'لم يبدأ', false)}</select></label></div>
+      <div class="grid2"><label class="f"><span>المسئول عن التنفيذ (اختياري)</span><input class="input" name="d_assignee" value="${esc(d.assignee_name || d.assignee_display || '')}" placeholder="مثلاً: أمين الصندوق"></label>
+        <label class="f"><span>موعد التنفيذ المستهدف</span><input class="input" type="date" name="d_due" value="${esc(d.due_date || '')}"></label></div></div>`;
 function meetingForm(m) {
-  const board = (m && m.board) || (S.gov ? S.gov.term.seats.filter(s => !s.to_date) : []);
+  const board = (m && m.board && m.board.length) ? m.board : (S.gov ? S.gov.term.seats.filter(s => !s.to_date) : []);
   const att = {}; ((m && m.attendance) || []).forEach(a => (att[a.person_id] = a.status));
   const decs = (m && m.decisions && m.decisions.length) ? m.decisions : [{}];
-  return `<h3>${m && m.id ? 'تعديل الاجتماع' : 'اجتماع جديد'}</h3><form id="mtf">
-    <label class="f"><span>العنوان</span><input class="input" name="title" value="${esc(m && m.title)}" required placeholder="اجتماع رقم ..."></label>
-    <div class="grid2"><label class="f"><span>التاريخ</span><input class="input" type="date" name="meeting_date" value="${esc(m && m.meeting_date)}" required></label>
-      <label class="f"><span>النوع</span><select class="input" name="kind">${options(['عادي', 'طارئ', 'سنوي', 'جمعية عمومية'], (m && m.kind) || 'عادي', false)}</select></label></div>
-    <div class="grid2"><label class="f"><span>الوقت</span><input class="input" name="meeting_time" value="${esc(m && m.meeting_time)}"></label>
-      <label class="f"><span>المكان</span><input class="input" name="venue" value="${esc(m && m.venue)}"></label></div>
-    <label class="f"><span>جدول الأعمال (بند في كل سطر)</span><textarea class="input" name="agenda" rows="3">${esc(((m && m.agenda) || []).join('\n'))}</textarea></label>
-    <b>الحضور</b>${board.map(b => `<div class="kv"><span>${esc(b.full_name)} <small class="muted">${esc(b.role)}</small></span>
-      <select class="input" style="width:auto" data-att="${b.person_id}">${options(['حاضر', 'غائب بعذر', 'غائب'], att[b.person_id] || 'حاضر', false)}</select></div>`).join('')}
-    <b style="display:block;margin-top:10px">القرارات</b><div id="decs">${decs.map(decRow).join('')}</div>
-    <button class="btn sm sec" type="button" data-act="decAdd">+ قرار</button>
-    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+  return `<h3>${m && m.id ? '✏️ تعديل بيانات ومحضر الجلسة' : '🗓️ تسجيل جلسة مجلس إدارة جديدة'}</h3><form id="mtf">
+    <div class="form-sec">
+      <div class="form-sec-hd"><span>📌 أولاً: بيانات الانعقاد وجدول الأعمال</span></div>
+      <label class="f"><span>عنوان الجلسة</span><input class="input" name="title" value="${esc(m && m.title)}" required placeholder="مثلاً: الاجتماع الدوري رقم 32"></label>
+      <div class="grid2"><label class="f"><span>تاريخ الانعقاد</span><input class="input" type="date" name="meeting_date" value="${esc(m && m.meeting_date)}" required></label>
+        <label class="f"><span>نوع الاجتماع</span><select class="input" name="kind">${options(['عادي', 'طارئ', 'سنوي', 'جمعية عمومية'], (m && m.kind) || 'عادي', false)}</select></label></div>
+      <div class="grid2"><label class="f"><span>وقت الانعقاد</span><input class="input" name="meeting_time" value="${esc(m && m.meeting_time)}" placeholder="مثلاً: 5:00 مساءً"></label>
+        <label class="f"><span>مقر الانعقاد</span><input class="input" name="venue" value="${esc((m && m.venue) || 'مقر اللجنة النقابية')}"></label></div>
+      <label class="f"><span>جدول الأعمال (اكتب كل بند في سطر مستقل)</span><textarea class="input" name="agenda" rows="3" placeholder="1- التصديق على محضر الجلسة السابقة&#10;2- مناقشة طلبات المنح والأنشطة">${esc(((m && m.agenda) || []).join('\n'))}</textarea></label>
+    </div>
+    <div class="form-sec" data-seats="${board.length}">
+      <div class="form-sec-hd"><span id="mtfQuorum">👥 ثانياً: سجل الحضور والنصاب</span>
+        <button class="btn sm sec" type="button" data-act="attAllPresent">✓ الكل حاضر</button></div>
+      ${attSegRows(board, att)}
+    </div>
+    <div class="form-sec">
+      <div class="form-sec-hd"><span>⚖️ ثالثاً: القرارات الصادرة والتصويت</span>
+        <button class="btn sm sec" type="button" data-act="decAdd">+ إضافة قرار</button></div>
+      <div id="decs">${decs.map(decRow).join('')}</div>
+    </div>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">💾 حفظ الجلسة والمحضر</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 // ───────── الأنشطة والرحلات ─────────
 const BK_PILL = { 'مؤكد': 'ok', 'بانتظار السداد': 'warn', 'قائمة انتظار': 'warn', 'ملغى': 'bad', 'منتهٍ': '' };
@@ -1973,19 +2248,27 @@ function settleForm(c, h = {}, dr = null) {
   const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
   const v = x => esc(x == null ? '' : String(x)), d = dr || {};
   const bensTxt = b => (b || []).map(x => x.amount ? `${x.job_id}:${x.amount}` : x.job_id).join(', ');
-  const row = (l = {}) => `<div class="row" data-sl style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, l.category || null, false)}</select>
+  const row = (l = {}) => `<div class="row" data-sl ${l.meeting_ids && l.meeting_ids.length ? `data-mids="${esc(l.meeting_ids.join(','))}" data-alwrow="1"` : ''} style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, l.category || null, false)}</select>
     <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ" value="${v(l.amount)}"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند" value="${v(l.notes)}">
     <input class="input" style="flex:1 1 100%" name="bens" placeholder="المستفيدون (اختياري): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200" value="${v(bensTxt(l.beneficiaries))}"></div>`;
   const ids = d.cheque_ids || [];
-  const grp = (h.group || []).length ? `<b>شيكات أخرى لنفس صاحب العهدة (تسوية مجمّعة)</b><div class="muted">علّم الشيكات اللي بتتسوّى مع الشيك ده — العهدة = مجموعهم وكلهم يتقفلوا مع بعض.</div>
-    <div style="margin-bottom:8px">${h.group.map(g => `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;margin:4px 0;border:1px solid var(--line);border-radius:8px;cursor:pointer"><input type="checkbox" name="grp" value="${g.id}" data-amt="${g.amount}" style="margin-top:5px" ${ids.includes(g.id) ? 'checked' : ''}>
+  const selMids = new Set((d.lines || []).flatMap(l => l.meeting_ids || []));
+  const grp = (h.group || []).length ? `<div class="form-sec"><div class="form-sec-hd"><span>🧾 شيكات أخرى لنفس صاحب العهدة (تسوية مجمّعة)</span></div>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">علّم الشيكات اللي بتتسوّى مع الشيك ده — العهدة = مجموعهم وكلهم يتقفلوا مع بعض.</div>
+    ${h.group.map(g => `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;margin:4px 0;background:#fff;border:1px solid var(--line);border-radius:8px;cursor:pointer"><input type="checkbox" name="grp" value="${g.id}" data-amt="${g.amount}" style="margin-top:5px" ${ids.includes(g.id) ? 'checked' : ''}>
       <div><b>شيك ${esc(g.cheque_no || 'بدون رقم')}</b> — ${dt(g.issue_date)} — ${money(g.amount)}${g.notes ? '<div class="muted" style="font-size:13px">' + esc(g.notes) + '</div>' : ''}</div></label>`).join('')}</div>` : '';
+  const alwBox = (h.meetings || []).length ? `<div class="form-sec" style="background:#fffdf6;border-color:#ead89c"><div class="form-sec-hd"><span>🏛️ استيراد بدلات جلسات المجلس (تلقائي من الحضور)</span></div>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">اختر الجلسة فينزل بند «بدل جلسات» تلقائياً بإجمالي الحاضرين وأسمائهم لتغذية المزايا ومنع تكرار الصرف:</div>
+    ${h.meetings.map(m => `<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;margin:4px 0;background:#fff;border:1px solid #eee1b5;border-radius:8px;cursor:pointer">
+      <input type="checkbox" name="malw" value="${m.id}" ${selMids.has(m.id) ? 'checked' : ''}>
+      <div style="flex:1"><b>جلسة #${numAr(m.meeting_no)} — ${esc(m.title)}</b> <small class="muted">(${dt(m.meeting_date)} · ${numAr(m.present)} حاضر × ${money(m.rate)})</small></div>
+      <b style="color:var(--brand)">${money(m.total)} ج</b></label>`).join('')}</div>` : '';
   const car = (h.carry || []).length ? `<label class="f"><span>رصيد مرحّل من تسوية سابقة (يُجلب آلياً)</span><select class="input" name="carried_from"><option value="" data-amt="0">— لا يوجد —</option>
     ${h.carry.map(x => `<option value="${x.id}" data-amt="${x.amount}" ${d.carried_from === x.id ? 'selected' : ''}>شيك ${esc(x.cheque_no || 'بدون رقم')} — تسوية ${dt(x.settle_date)} — متبقي ${money(x.amount)}</option>`).join('')}</select></label>` : '';
   const lines = (d.lines || []).length ? d.lines.map(row).join('') : row() + row();
   return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3>${dr ? '<div class="alert warn">بتكمّل مسودة محفوظة.</div>' : ''}<form id="stf">
     <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" value="${v(d.date)}" required></label>
-    ${grp}${car}
+    ${grp}${alwBox}${car}
     <b>المصروفات بالمستندات</b><div id="sls">${lines}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
     <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات حُصّلت من المشاركين</span><input class="input" name="subscriptions" inputmode="decimal" value="${v(d.subscriptions ?? 0)}"></label>
       <label class="f"><span>المتبقي المردود</span><input class="input" name="returned" inputmode="decimal" value="${v(d.returned ?? 0)}"></label></div>
@@ -2292,17 +2575,18 @@ async function render() {
     if (!S.gov) { app.innerHTML = shell(title, '<div class="spin"></div>'); await loadGov(); }
     if (h.startsWith('#/board')) body = boardView();
     else if (h.startsWith('#/meetings')) {
-      if (!S.meetings) { const r = await call('GOV_LIST_MEETINGS'); S.meetings = r.success ? r.items : []; }
+      if (!S.meetings) { const r = await call('GOV_LIST_MEETINGS'); S.meetings = r.success ? r.items : []; if (r.success) S.govRate = r.allowanceRate; }
       body = meetingsView();
     } else if (h.startsWith('#/meeting/')) {
       const id = h.split('/')[2];
       if (!S.meeting || S.meeting.id !== id) {
+        S.quickAttOpen = false;
         app.innerHTML = shell(title, '<div class="spin"></div>');
         const r = await call('GOV_GET_MEETING', { id }); if (!r.success) return toast(r.message, true); S.meeting = r.meeting;
       }
       body = meetingView();
     } else {
-      if (!S.decisions) { const r = await call('GOV_LIST_DECISIONS', S.decF || {}); S.decisions = r.success ? r.items : []; }
+      if (!S.decisions) { const r = await call('GOV_LIST_DECISIONS', S.decF || {}); S.decisions = r.success ? r.items : []; S.decSummary = r.success ? r.summary : {}; }
       body = decisionsView();
     }
   }
@@ -2511,25 +2795,112 @@ function bindPage(gridOnly) {
   on('seatAdd', () => govForm(seatAddForm(), '#saf', f => ({ termId: S.gov.term.id, ...formData(f) }), 'GOV_ADD_SEAT', govDone));
   on('seatEnd', b => { const s = S.gov.term.seats.find(x => x.id === b.dataset.id);
     govForm(seatEndForm(s), '#sef', f => ({ seatId: s.id, ...formData(f) }), 'GOV_END_SEAT', govDone); });
+  const bindAttBox = (root, statEl) => {
+    if (!root) return;
+    const seats = +(root.dataset.seats || 0);
+    const upd = () => {
+      const pres = [...root.querySelectorAll('[data-att]')].filter(i => i.value === 'حاضر').length;
+      const q = seats ? pres >= Math.floor(seats / 2) + 1 : false;
+      if (statEl) statEl.innerHTML = `👥 الحضور: <b>${numAr(pres)}</b> من <b>${numAr(seats)}</b> — ${q ? '<span style="color:var(--ok)">نصاب مكتمل ✓</span>' : '<span style="color:var(--bad)">أقل من النصاب</span>'}`;
+    };
+    root.querySelectorAll('.att-seg button').forEach(b => b.onclick = () => {
+      const r = b.closest('[data-attrow]'); r.querySelector('[data-att]').value = b.dataset.v;
+      r.querySelectorAll('.att-seg button').forEach(x => x.classList.toggle('on', x === b)); upd();
+    });
+    const allBtn = root.querySelector('[data-act=attAllPresent]');
+    if (allBtn) allBtn.onclick = () => {
+      root.querySelectorAll('[data-attrow]').forEach(r => {
+        r.querySelector('[data-att]').value = 'حاضر';
+        r.querySelectorAll('.att-seg button').forEach(x => x.classList.toggle('on', x.dataset.v === 'حاضر'));
+      }); upd();
+    };
+    upd();
+  };
+  bindAttBox($('#qattBox'), $('#qattStat'));
+  on('toggleQuickAtt', () => { S.quickAttOpen = !S.quickAttOpen; render(); });
+  on('saveQuickAtt', async b => {
+    const box = $('#qattBox'); if (!box) return;
+    const attendance = [...box.querySelectorAll('[data-att]')].map(i => ({ person_id: i.dataset.att, status: i.value }));
+    const r = await busy(b, () => call('GOV_SAVE_ATTENDANCE', { meetingId: S.meeting.id, attendance }));
+    if (!r.success) return toast(r.message, true);
+    S.meeting = r.meeting; S.meetings = null; S.quickAttOpen = false; toast('اتحفظ كشف الحضور واتحسب البدل ✓'); render();
+  });
+  on('alwRateSet', async () => {
+    const cur = S.govRate || (S.gov && S.gov.allowanceRate) || 75;
+    const v = prompt('قيمة بدل حضور جلسة المجلس للعضو الحاضر (جنيه):', cur);
+    if (!v) return;
+    const r = await call('GOV_SET_ALLOWANCE_RATE', { rate: v });
+    if (!r.success) return toast(r.message, true);
+    S.govRate = r.rate; S.meetings = null; S.meeting = null; toast('اتحدثت فئة البدل ✓'); render();
+  });
+  app.querySelectorAll('[data-mfchip]').forEach(b => b.onclick = () => { S.meetF = b.dataset.mfchip; render(); });
+  on('prtMinutes', () => S.meeting && printDoc(meetingMinutesHTML(S.meeting)));
+  on('prtAttend', () => S.meeting && printDoc(attendanceSheetHTML(S.meeting, false)));
+  on('prtAttendBlank', () => S.meeting && printDoc(attendanceSheetHTML(S.meeting, true)));
+  on('prtAllow', () => S.meeting && printDoc(allowanceSheetHTML(S.meeting)));
+
   const meetBuild = (f, id) => ({ termId: S.gov.term.id, meeting: { ...formData(f), id,
     agenda: f.agenda.value.split('\n').map(x => x.trim()).filter(Boolean),
     attendance: [...f.querySelectorAll('[data-att]')].map(s => ({ person_id: s.dataset.att, status: s.value })),
     decisions: [...f.querySelectorAll('[data-dec]')].map(d => ({ text: d.querySelector('[name=d_text]').value.trim(),
       category: d.querySelector('[name=d_category]').value, amount: d.querySelector('[name=d_amount]').value.trim(),
       votes_for: d.querySelector('[name=d_for]').value.trim(), votes_against: d.querySelector('[name=d_against]').value.trim(),
-      votes_abstain: d.querySelector('[name=d_abstain]').value.trim(), status: d.querySelector('[name=d_status]').value })).filter(d => d.text) } });
+      votes_abstain: d.querySelector('[name=d_abstain]').value.trim(), status: d.querySelector('[name=d_status]').value,
+      exec_status: d.querySelector('[name=d_exec]').value, assignee_name: d.querySelector('[name=d_assignee]').value.trim(),
+      due_date: d.querySelector('[name=d_due]').value })).filter(d => d.text) } });
   const meetAfter = r => { S.meeting = r.meeting; S.meetings = null; S.decisions = null; S.gov = null; closeModal(); toast('اتحفظ ✓');
     location.hash = '#/meeting/' + r.meeting.id; render(); };
-  const bindDecAdd = () => { const b = $('#modal [data-act=decAdd]'); if (b) b.onclick = () => {
-    const box = $('#decs'), n = box.querySelectorAll('[data-dec]').length, tmp = document.createElement('div');
-    tmp.innerHTML = decRow({}, n);
-    box.appendChild(tmp.firstElementChild); }; };
-  on('meetNew', () => { govForm(meetingForm(null), '#mtf', f => meetBuild(f), 'GOV_SAVE_MEETING', meetAfter); bindDecAdd(); });
-  on('meetEdit', () => { govForm(meetingForm(S.meeting), '#mtf', f => meetBuild(f, S.meeting.id), 'GOV_SAVE_MEETING', meetAfter); bindDecAdd(); });
+  const bindMeetModal = () => {
+    bindAttBox($('#mtf [data-seats]'), $('#mtfQuorum'));
+    const b = $('#modal [data-act=decAdd]'); if (b) b.onclick = () => {
+      const box = $('#decs'), n = box.querySelectorAll('[data-dec]').length, tmp = document.createElement('div');
+      tmp.innerHTML = decRow({}, n); box.appendChild(tmp.firstElementChild); };
+  };
+  on('meetNew', () => { govForm(meetingForm(null), '#mtf', f => meetBuild(f), 'GOV_SAVE_MEETING', meetAfter); bindMeetModal(); });
+  on('meetEdit', () => { govForm(meetingForm(S.meeting), '#mtf', f => meetBuild(f, S.meeting.id), 'GOV_SAVE_MEETING', meetAfter); bindMeetModal(); });
+
+  const reloadDecs = async () => {
+    const r = await call('GOV_LIST_DECISIONS', S.decF || {});
+    if (r.success) { S.decisions = r.items; S.decSummary = r.summary || {}; }
+  };
   const df = $('#df');
-  if (df) df.onsubmit = async e => { e.preventDefault(); S.decF = formData(df);
-    const r = await busy(df.querySelector('button'), () => call('GOV_LIST_DECISIONS', S.decF));
-    S.decisions = r.success ? r.items : []; render(); };
+  if (df) df.onsubmit = async e => { e.preventDefault(); S.decF = { ...(S.decF || {}), ...formData(df) };
+    await busy(df.querySelector('button'), reloadDecs); render(); };
+  app.querySelectorAll('[data-dfchip]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.dfchip, base = { q: (S.decF || {}).q || '', category: (S.decF || {}).category || '' };
+    if (k.startsWith('ex:')) base.exec_status = k.slice(3);
+    else if (k.startsWith('al:')) base.alert = k.slice(3);
+    S.decF = base; await reloadDecs(); render();
+  });
+  app.querySelectorAll('[data-decprt]').forEach(b => b.onclick = async ev => {
+    ev.stopPropagation();
+    const r = await busy(b, () => call('GOV_GET_DECISION', { id: b.dataset.decprt }));
+    if (!r.success) return toast(r.message, true);
+    printDoc(decisionExtractHTML(r.decision));
+  });
+  app.querySelectorAll('[data-decopen]').forEach(el => el.onclick = async () => {
+    const r = await call('GOV_GET_DECISION', { id: el.dataset.decopen });
+    if (!r.success) return toast(r.message, true);
+    const d = r.decision;
+    openModal(decisionModalHTML(d, r.canManage), m => {
+      m.querySelectorAll('[data-close]').forEach(x => (x.onclick = closeModal));
+      const prt = m.querySelector('[data-act=decModalPrint]');
+      if (prt) prt.onclick = () => printDoc(decisionExtractHTML(d));
+      m.querySelectorAll('[data-step]').forEach(sb => sb.onclick = () => {
+        m.querySelector('[name=exec_status]').value = sb.dataset.step;
+        m.querySelectorAll('[data-step]').forEach(x => x.classList.toggle('on', x === sb));
+      });
+      const dcf = m.querySelector('#dcf');
+      if (dcf) dcf.onsubmit = async e => {
+        e.preventDefault();
+        const s = await busy(dcf.querySelector('[type=submit]'), () => call('GOV_SAVE_DECISION', { id: d.id, ...formData(dcf) }));
+        if (!s.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(s.message)}</div>`; return; }
+        S.decisions = null; if (S.meeting && S.meeting.id === d.meeting_id) S.meeting = null;
+        closeModal(); toast('اتحفظت متابعة القرار ✓'); render();
+      };
+      loadDocBoxes();
+    });
+  });
 
   // ── الأنشطة ──
   app.querySelectorAll('[data-trip]').forEach(c => c.onclick = () => { location.hash = '#/trip/' + c.dataset.trip; });
@@ -2823,8 +3194,9 @@ function bindPage(gridOnly) {
       carried_from: f.carried_from ? f.carried_from.value : '',
       lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
         amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim(),
+        meeting_ids: r.dataset.mids ? r.dataset.mids.split(',').filter(Boolean) : undefined,
         beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) });
-    finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => render());
+    finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => { S.meetings = null; S.meeting = null; render(); });
     $('#modal [data-act=stlDraft]').onclick = async e => {
       const r = await busy(e.target, () => call('FIN_SETTLE', { ...build($('#stf')), draft: true }));
       if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
@@ -2834,8 +3206,28 @@ function bindPage(gridOnly) {
       const prev = f.carried_from ? +(f.carried_from.selectedOptions[0]?.dataset.amt || 0) : 0;
       const adv = +c.amount + grp, left = adv + prev + (+f.subscriptions.value || 0) - spent - (+f.returned.value || 0);
       $('#stCalc').innerHTML = `العهدة ${money(adv)}${prev ? ' + مرحّل ' + money(prev) : ''} · المصروف ${money(spent)} · المتبقي ${money(left)}${Math.abs(left) > 0.005 ? (left > 0 ? ' — رد أو ورّد أو رحّل' : ' — عجز يلزمه قرار') : ' ✓'}`; };
+    const syncMalw = () => {
+      const picked = [...$('#stf').querySelectorAll('[name=malw]:checked')].map(ch => (h.meetings || []).find(x => x.id === ch.value)).filter(Boolean);
+      let r = $('#sls [data-alwrow]') || [...$('#sls').querySelectorAll('[data-sl]')].find(x => !x.querySelector('[name=amt]').value.trim());
+      if (!picked.length) {
+        const ex = $('#sls [data-alwrow]');
+        if (ex) { ex.removeAttribute('data-mids'); ex.removeAttribute('data-alwrow'); ex.querySelectorAll('input').forEach(i => (i.value = '')); }
+        calc(); return;
+      }
+      if (!r) { $('#modal [data-act=slAdd]').click(); r = $('#sls').lastElementChild; }
+      const byJob = {}; let tot = 0;
+      picked.forEach(m => { tot += +m.total; (m.attendees || []).forEach(a => { if (a.job_id) byJob[a.job_id] = +(+(byJob[a.job_id] || 0) + +m.rate).toFixed(2); }); });
+      r.dataset.alwrow = '1'; r.dataset.mids = picked.map(m => m.id).join(',');
+      r.querySelector('[name=cat]').value = 'بدل جلسات';
+      r.querySelector('[name=amt]').value = String(tot);
+      r.querySelector('[name=note]').value = 'بدل جلسات اجتماع ' + picked.map(m => m.meeting_no).join(' + ');
+      r.querySelector('[name=bens]').value = Object.entries(byJob).map(([j, amt]) => `${j}:${amt}`).join(', ');
+      calc();
+    };
+    $('#stf').querySelectorAll('[name=malw]').forEach(ch => (ch.onchange = syncMalw));
     $('#stf').addEventListener('input', calc); $('#stf').addEventListener('change', calc); calc();
     $('#modal [data-act=slAdd]').onclick = () => { const box = $('#sls'), t = document.createElement('div'); t.innerHTML = box.firstElementChild.outerHTML;
+      t.firstElementChild.removeAttribute('data-mids'); t.firstElementChild.removeAttribute('data-alwrow');
       t.firstElementChild.querySelectorAll('input').forEach(i => (i.value = '')); box.appendChild(t.firstElementChild); };
   };
   const delDraft = async id => {
