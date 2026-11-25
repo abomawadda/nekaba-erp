@@ -471,7 +471,7 @@ const HELP = [
   { who: 's', p: 'treasury.cheque.issue', i: '📗', t: 'دفاتر الشيكات', l: '#/chqbooks', s: ['سجّل كل دفتر جديد بأول وآخر رقم — بعدها أي شيك برقم خارج الدفتر يترفض.', 'الورقة اللي اتقطعت أو اتلخبطت سجّلها «تالفة» بالسبب.', 'المنظومة بتنبهك للأرقام المتخطّاة وبتقولك الرقم التالي.'] },
   { who: 's', p: 'finance.view', i: '🏦', t: 'مطابقة كشف البنك', l: '#/bank', s: ['اكتب تاريخ الكشف ورصيده واضغط «احسب المطابقة».', 'علّم الشيكات اللي ظهرت في الكشف كـ«منصرفة» والإيداعات اللي ظهرت كـ«مودعة».', 'الباقي في جدول الشيكات = شيكات مع المستفيدين لسه ما صرفوهاش (المتقادم +6 شهور بالأحمر).', 'لو فيه فرق باقي غالباً مصاريف/فوائد بنكية — سجّلها من «المقبوضات».', 'لما الفرق يبقى صفر: «حفظ» ثم «اعتماد المطابقة».'] },
   { who: 's', p: 'treasury.cheque.issue', i: '✗', t: 'إلغاء شيك لم يُصرف', l: '#/cheques', s: ['افتح الشيك ← «✗ إلغاء الشيك» واكتب السبب.', 'بيتعمل قيد عكسي تلقائياً، ولو كان منحة بترجع «معتمد» لصرف شيك جديد.', 'الشيك المنصرف من البنك أو المسوّى مايتلغيش.'] },
-  { who: 's', p: 'finance.view', i: '🧮', t: 'التسويات والعُهد المفتوحة', l: '#/settlements', s: ['كل عهدة/سلفة/رحلة/إفطار لسه ما اتسوّتش، بعمرها (المتأخر +30 و+90 يوم ملوّن).', 'افتح الشيك ← «تسوية العهدة»: المصروف الفعلي والاشتراكات والمتبقي (رد/توريد/ترحيل).', 'اطبع «كشف العُهد المفتوحة» للمجلس.'] },
+  { who: 's', p: 'finance.view', i: '🧮', t: 'التسويات والعُهد المفتوحة', l: '#/settlements', s: ['كل عهدة/سلفة/رحلة/إفطار لسه ما اتسوّتش، بعمرها (المتأخر +30 و+90 يوم ملوّن).', 'افتح الشيك ← «تسوية العهدة»: تقدر تعلّم شيكات تانية لنفس صاحب العهدة (تسوية مجمّعة)، وتختار رصيد مرحّل سابق يُجلب آلياً، وتحفظ «مسودة» قبل الاعتماد.', 'عند خطأ في تسوية معتمدة: «↩️ استرجاع التسوية» بقيد عكسي وسبب، فترجع الشيكات «صادر» وتُلغى مزاياها.', 'اطبع «كشف العُهد المفتوحة» للمجلس.'] },
   { who: 's', p: 'treasury.receipt', i: '📥', t: 'المقبوضات وسند القبض', l: '#/receipts', s: ['«+ إيداع / تحصيل»: تحويل النقابة العامة، اشتراكات، رد عهدة، رسوم بنكية…', 'من الجدول «🖨️ سند قبض» لكل إيصال.'] },
   { who: 's', p: 'finance.view', i: '📑', t: 'القوائم المالية والموازنة', l: '#/statements', s: ['«القوائم المالية»: الإيرادات والمصروفات والمركز المالي لأي فترة، مع الطباعة.', '«الموازنة»: اكتب المقدّر لكل بند واحفظ، وتابع الانحراف ونسبة التنفيذ.'] },
   { who: 's', p: 'grants.review', i: '🎁', t: 'مراجعة المنح', l: '#/grantsadmin', s: ['راجع المستندات (ومرفقاتها في «📎 المستندات») وعلّم المستلم.', 'المستوفى يعتمده المعتمِد، والمعتمد تصرفه الخزينة بشيك.'] },
@@ -1475,13 +1475,19 @@ function chequeView() {
     <button class="btn sm sec" data-act="voucher" style="margin-top:8px">🖨️ سند الصرف</button>
     ${can('treasury.cheque.issue') && c.status !== 'ملغى' ? `<button class="btn sm ${c.cleared_date ? 'sec' : ''}" data-act="chqClear" style="margin-top:8px">${c.cleared_date ? 'إلغاء تأكيد الصرف' : '✓ تأكيد الصرف من البنك'}</button>` : ''}
     ${can('treasury.cheque.issue') && c.status === 'صادر' && !c.cleared_date && !st ? '<button class="btn sm bad" data-act="chqVoid" style="margin-top:8px">✗ إلغاء الشيك</button>' : ''}
-    ${c.requires_settlement && c.status === 'صادر' && can('treasury.settlement') ? '<button class="btn sm gold" data-act="settleNew" style="margin-top:8px">تسوية العهدة</button>' : ''}</div>
-  ${st ? `<div class="card"><h2>🧮 التسوية (${dt(st.settle_date)})</h2>
-    ${kvh('العهدة', money(st.advance))}${+st.prev_balance ? kvh('رصيد مرحّل سابق', money(st.prev_balance)) : ''}
+    ${c.requires_settlement && c.status === 'صادر' && can('treasury.settlement') ? `<button class="btn sm gold" data-act="settleNew" style="margin-top:8px">${st && st.status === 'مسودة' ? '✏️ استكمال مسودة التسوية' : 'تسوية العهدة'}</button>` : ''}</div>
+  ${st ? `<div class="card"><h2>🧮 التسوية (${dt(st.settle_date)})<span class="sp"></span><span class="pill ${st.status === 'مسودة' ? 'warn' : 'ok'}">${esc(st.status || 'معتمدة')}</span></h2>
+    ${st.status === 'مسودة' ? '<div class="alert warn">مسودة محفوظة — لا قيد ولا مزايا لحد الاعتماد.</div>' : ''}
+    ${(st.cheques || []).length > 1 ? kvh('شيكات المجموعة', st.cheques.map(x => `<a href="#/cheque/${x.id}">${esc(x.cheque_no || 'بدون رقم')}</a> (${money(x.amount)})`).join(' + ')) : ''}
+    ${kvh('العهدة', money(st.advance))}${+st.prev_balance ? kvh('رصيد مرحّل سابق' + (st.carried_from_no ? ' من شيك ' + esc(st.carried_from_no) : ''), money(st.prev_balance)) : ''}
     ${+st.subscriptions ? kvh('اشتراكات المشاركين', money(st.subscriptions)) : ''}${kvh('المصروف', money(st.spent))}
     ${+st.returned ? kvh(esc(st.return_mode), money(st.returned)) : ''}
     ${(st.lines || []).map(l => `<div class="kv"><span>${esc(l.category)}${l.notes ? ' <small class="muted">' + esc(l.notes) + '</small>' : ''}</span><span>${money(l.amount)}</span></div>`).join('')}
-    ${st.entry_id ? `<button class="btn sm sec" data-entry="${st.entry_id}" style="margin-top:8px">عرض قيد التسوية</button>` : ''}</div>` : ''}
+    <div class="row" style="margin-top:8px">${st.entry_id ? `<button class="btn sm sec" data-entry="${st.entry_id}">عرض قيد التسوية</button>` : ''}
+    ${st.status === 'مسودة' && can('treasury.settlement') ? '<button class="btn sm bad" data-act="stlDraftDel">🗑️ حذف المسودة</button>' : ''}
+    ${st.status !== 'مسودة' && can('finance.journal') ? '<button class="btn sm bad" data-act="stlReverse">↩️ استرجاع التسوية (قيد عكسي)</button>' : ''}</div></div>` : ''}
+  ${(c.reversed || []).length ? `<div class="card"><h2>↩️ تسويات مسترجعة</h2>${c.reversed.map(r => `<div class="kv"><span>${dt(r.settle_date)} — مصروف ${money(r.spent)} <small class="muted">السبب: ${esc(r.reason || '')}</small></span>
+    <span>${r.reverse_entry_id ? `<button class="btn sm sec" data-entry="${r.reverse_entry_id}">القيد العكسي</button>` : ''}</span></div>`).join('')}</div>` : ''}
   ${docsBox('cheque', c.id, '📎 مستندات الشيك والتسوية (قرار، فواتير، إيصالات)')}`;
 }
 function receiptsView() {
@@ -1941,19 +1947,29 @@ function benForm() {
     <label class="f"><span>ملاحظات</span><input class="input" name="notes"></label>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
-function settleForm(c) {
+function settleForm(c, h = {}, dr = null) {
   const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
-  const row = () => `<div class="row" data-sl style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, null, false)}</select>
-    <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند">
-    <input class="input" style="flex:1 1 100%" name="bens" placeholder="المستفيدون (اختياري): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200"></div>`;
-  return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3><form id="stf">
-    <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" required></label>
-    <b>المصروفات بالمستندات</b><div id="sls">${row()}${row()}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
-    <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات حُصّلت من المشاركين</span><input class="input" name="subscriptions" inputmode="decimal" value="0"></label>
-      <label class="f"><span>المتبقي المردود</span><input class="input" name="returned" inputmode="decimal" value="0"></label></div>
-    <label class="f"><span>التصرف في المتبقي</span><select class="input" name="return_mode">${options(['لا يوجد', 'رد للخزينة', 'توريد للبنك', 'ترحيل'], 'لا يوجد', false)}</select></label>
+  const v = x => esc(x == null ? '' : String(x)), d = dr || {};
+  const bensTxt = b => (b || []).map(x => x.amount ? `${x.job_id}:${x.amount}` : x.job_id).join(', ');
+  const row = (l = {}) => `<div class="row" data-sl style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, l.category || null, false)}</select>
+    <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ" value="${v(l.amount)}"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند" value="${v(l.notes)}">
+    <input class="input" style="flex:1 1 100%" name="bens" placeholder="المستفيدون (اختياري): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200" value="${v(bensTxt(l.beneficiaries))}"></div>`;
+  const ids = d.cheque_ids || [];
+  const grp = (h.group || []).length ? `<b>شيكات أخرى لنفس صاحب العهدة (تسوية مجمّعة)</b><div class="muted">علّم الشيكات اللي بتتسوّى مع الشيك ده — العهدة = مجموعهم وكلهم يتقفلوا مع بعض.</div>
+    <div style="margin-bottom:8px">${h.group.map(g => `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;margin:4px 0;border:1px solid var(--line);border-radius:8px;cursor:pointer"><input type="checkbox" name="grp" value="${g.id}" data-amt="${g.amount}" style="margin-top:5px" ${ids.includes(g.id) ? 'checked' : ''}>
+      <div><b>شيك ${esc(g.cheque_no || 'بدون رقم')}</b> — ${dt(g.issue_date)} — ${money(g.amount)}${g.notes ? '<div class="muted" style="font-size:13px">' + esc(g.notes) + '</div>' : ''}</div></label>`).join('')}</div>` : '';
+  const car = (h.carry || []).length ? `<label class="f"><span>رصيد مرحّل من تسوية سابقة (يُجلب آلياً)</span><select class="input" name="carried_from"><option value="" data-amt="0">— لا يوجد —</option>
+    ${h.carry.map(x => `<option value="${x.id}" data-amt="${x.amount}" ${d.carried_from === x.id ? 'selected' : ''}>شيك ${esc(x.cheque_no || 'بدون رقم')} — تسوية ${dt(x.settle_date)} — متبقي ${money(x.amount)}</option>`).join('')}</select></label>` : '';
+  const lines = (d.lines || []).length ? d.lines.map(row).join('') : row() + row();
+  return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3>${dr ? '<div class="alert warn">بتكمّل مسودة محفوظة.</div>' : ''}<form id="stf">
+    <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" value="${v(d.date)}" required></label>
+    ${grp}${car}
+    <b>المصروفات بالمستندات</b><div id="sls">${lines}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
+    <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات حُصّلت من المشاركين</span><input class="input" name="subscriptions" inputmode="decimal" value="${v(d.subscriptions ?? 0)}"></label>
+      <label class="f"><span>المتبقي المردود</span><input class="input" name="returned" inputmode="decimal" value="${v(d.returned ?? 0)}"></label></div>
+    <label class="f"><span>التصرف في المتبقي</span><select class="input" name="return_mode">${options(['لا يوجد', 'رد للخزينة', 'توريد للبنك', 'ترحيل'], d.return_mode || 'لا يوجد', false)}</select></label>
     <div class="alert warn" id="stCalc"></div>
-    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل التسوية</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">اعتماد التسوية</button><button class="btn sec" type="button" data-act="stlDraft">💾 حفظ كمسودة</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 function receiptForm() {
   return `<h3>إيداع / تحصيل / رسوم بنكية</h3><form id="rcf">
@@ -2775,19 +2791,40 @@ function bindPage(gridOnly) {
     const k = $('#modal [name=kind]'); if (k) k.value = 'حصة الاشتراكات'; const pt = $('#modal [name=party]'); if (pt) pt.value = 'النقابة العامة'; });
   on('rcptNew', () => finForm(receiptForm(), '#rcf', f => formData(f), 'FIN_RECEIPT', 'اتسجّل واترحّل القيد ✓',
     r => { toast('رقم الإيصال: ' + r.receipt_no); location.hash = '#/receipts'; render(); }));
-  on('settleNew', () => {
-    const c = S.cheque;
-    finForm(settleForm(c), '#stf', f => ({ cheque_id: c.id, date: f.date.value, subscriptions: f.subscriptions.value, returned: f.returned.value,
-      return_mode: f.return_mode.value, lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
+  on('settleNew', async () => {
+    const c = S.cheque, st = c.settlement;
+    const h = await call('FIN_SETTLE_HELP', { cheque_id: c.id }); if (!h.success) return toast(h.message, true);
+    const dr = st && st.status === 'مسودة' ? st.draft : null;
+    const build = f => ({ cheque_id: c.id, date: f.date.value, subscriptions: f.subscriptions.value, returned: f.returned.value,
+      return_mode: f.return_mode.value, cheque_ids: [...f.querySelectorAll('[name=grp]:checked')].map(i => i.value),
+      carried_from: f.carried_from ? f.carried_from.value : '',
+      lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
         amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim(),
-        beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) }),
-      'FIN_SETTLE', 'اتسوّت العهدة ✓', () => render());
+        beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) });
+    finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => render());
+    $('#modal [data-act=stlDraft]').onclick = async e => {
+      const r = await busy(e.target, () => call('FIN_SETTLE', { ...build($('#stf')), draft: true }));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      closeModal(); toast('اتحفظت المسودة ✓'); render(); };
     const calc = () => { const f = $('#stf'); const spent = [...f.querySelectorAll('[name=amt]')].reduce((a, i) => a + (+i.value || 0), 0);
-      const left = +c.amount + (+f.subscriptions.value || 0) - spent - (+f.returned.value || 0);
-      $('#stCalc').innerHTML = `المصروف ${money(spent)} · المتبقي ${money(left)}${Math.abs(left) > 0.005 ? (left > 0 ? ' — رد أو ورّد أو رحّل' : ' — عجز يلزمه قرار') : ' ✓'}`; };
-    $('#stf').addEventListener('input', calc); calc();
+      const grp = [...f.querySelectorAll('[name=grp]:checked')].reduce((a, i) => a + (+i.dataset.amt || 0), 0);
+      const prev = f.carried_from ? +(f.carried_from.selectedOptions[0]?.dataset.amt || 0) : 0;
+      const adv = +c.amount + grp, left = adv + prev + (+f.subscriptions.value || 0) - spent - (+f.returned.value || 0);
+      $('#stCalc').innerHTML = `العهدة ${money(adv)}${prev ? ' + مرحّل ' + money(prev) : ''} · المصروف ${money(spent)} · المتبقي ${money(left)}${Math.abs(left) > 0.005 ? (left > 0 ? ' — رد أو ورّد أو رحّل' : ' — عجز يلزمه قرار') : ' ✓'}`; };
+    $('#stf').addEventListener('input', calc); $('#stf').addEventListener('change', calc); calc();
     $('#modal [data-act=slAdd]').onclick = () => { const box = $('#sls'), t = document.createElement('div'); t.innerHTML = box.firstElementChild.outerHTML;
       t.firstElementChild.querySelectorAll('input').forEach(i => (i.value = '')); box.appendChild(t.firstElementChild); };
+  });
+  on('stlDraftDel', async () => {
+    if (!confirm('حذف مسودة التسوية؟')) return;
+    const r = await call('FIN_SETTLE_DRAFT_DELETE', { id: S.cheque.settlement.id });
+    if (!r.success) return toast(r.message, true); toast('اتمسحت المسودة ✓'); render();
+  });
+  on('stlReverse', async () => {
+    const reason = prompt('سبب استرجاع التسوية؟ (هيتعمل قيد عكسي وتتلغي المزايا ويرجع الشيك «صادر»)');
+    if (!reason) return;
+    const r = await call('FIN_SETTLE_REVERSE', { id: S.cheque.settlement.id, reason });
+    if (!r.success) return toast(r.message, true); toast('اتسترجعت التسوية بقيد عكسي ✓'); render();
   });
 
   const pw = $('#pw');
