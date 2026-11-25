@@ -795,7 +795,7 @@ function personView() {
   const tab = S.ptab || 'data';
   const tabs = [['data', '🏢 البيانات'], ['family', `👨‍👩‍👧 الأسرة (${fam.length})`], ['ben', '🏅 المزايا', !!b], ['career', '🕓 المسيرة'], ['board', '🏛️ المجلس', (pr.board || []).length > 0], ['card', '💳 البطاقة'], ['docs', '📎 المستندات']].filter(t => t[2] !== false);
   const kpi = (i, v, l, t) => `<a class="kpi" ${t ? `data-ptab="${t}"` : ''}><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
-  const body = tab === 'docs' ? docsBox('person', p.id, '📎 مستندات العضو (بطاقة، مؤهل، قرارات…)') : tab === 'card' ? cardView(pr, true) : tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة') : tab === 'career' ? profileBody(pr, true, 'career')
+  const body = tab === 'docs' ? docsBox('person', p.id, '📎 مستندات العضو (بطاقة، مؤهل، قرارات…)') : tab === 'card' ? cardView(pr, true) : tab === 'family' ? familyView(pr, true) : tab === 'ben' ? benefitsBody(b, '🏅 ما استفاد به من النقابة', can('benefits.manage')) : tab === 'career' ? profileBody(pr, true, 'career')
     : tab === 'board' ? profileBody(pr, true, 'board') : `<div class="dgrid">${profileBody(pr, true, 'job')}${profileBody(pr, true, 'personal')}</div>`;
   return `<a href="#/admin" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ الأعضاء</a>
     <div class="card p360"><div class="pav">${esc((p.full_name || '؟').trim()[0])}</div>
@@ -1345,16 +1345,16 @@ function reportsView() {
 
 // ───────── سجل المزايا ─────────
 const KIND_ICON = { 'منحة': '🎁', 'بدل': '💼', 'جائزة': '🏆', 'دعم': '🤝', 'إعفاء': '🎟️', 'خصم': '📚', 'ميزة عينية': '📦' };
-function benefitsBody(b, title) {
+function benefitsBody(b, title, admin) {
   if (!b) return '<div class="spin"></div>';
   const kinds = Object.entries(b.byKind || {});
-  return `<div class="card"><h2>${title}</h2>
+  return `<div class="card"><h2>${title}</h2>${admin ? '<button class="btn sm" style="float:left" data-act="benAdd">+ ميزة مباشرة</button>' : ''}
       <div style="font-size:28px;font-weight:800;color:var(--brand)">${money(b.total)} <small style="font-size:14px">ج</small></div>
       <div class="chips" style="margin-top:8px">${kinds.map(([k, v]) => `<span class="pill">${KIND_ICON[k] || '•'} ${esc(k)}: ${money(v)}</span>`).join('')}</div>
       ${(b.byYear || []).length > 1 ? `<div style="margin-top:10px">${b.byYear.map(y => kvh('سنة ' + y.year, money(y.total))).join('')}</div>` : ''}</div>
     <div class="card list">${(b.items || []).map(x => `<div class="li"><div class="av" style="width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:#eaf2f8;flex:none">${KIND_ICON[x.kind] || '•'}</div>
       <div class="nm"><b>${esc(x.category)}</b><span class="muted">${dt(x.date)} · ${esc(x.source)}${x.basis ? ' · ' + esc(x.basis) : ''}${x.board_role ? ' · بصفته ' + esc(x.board_role) : ''}${x.notes ? ' · ' + esc(x.notes) : ''}</span></div>
-      <b>${money(x.amount)}</b></div>`).join('') || '<div class="empty">لا توجد مزايا مسجّلة</div>'}</div>`;
+      <b>${money(x.amount)}</b>${admin && x.source === 'يدوي' ? `<button class="btn sm sec" data-act="benCancel" data-ref="${esc(x.ref)}" title="إلغاء بسبب">✕</button>` : ''}</div>`).join('') || '<div class="empty">لا توجد مزايا مسجّلة</div>'}</div>`;
 }
 function benefitsReportView() {
   const r = S.benRep; if (!r) return '<div class="spin"></div>';
@@ -1924,10 +1924,28 @@ function chequeForm() {
     <label class="f"><span>البيان</span><input class="input" name="notes"></label>
     <div id="polMsg"></div><div id="ferr"></div><div class="acts"><button class="btn" type="submit">صرف</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
+// «1234, 5678:200» ⇒ [{job_id:'1234'},{job_id:'5678',amount:200}] — كل مستفيد يتسجّل له ميزة بنصيبه على الخادم
+function parseBens(v) {
+  const a = String(v || '').split(/[,،\s]+/).map(x => x.trim()).filter(Boolean)
+    .map(x => { const [j, m] = x.split(':'); return m ? { job_id: j, amount: +m } : { job_id: j }; });
+  return a.length ? a : undefined;
+}
+function benForm() {
+  return `<h3>تسجيل ميزة مباشرة</h3><p class="muted">لما استفاد به العضو خارج الخزينة (خصم/دعم سابق على كتب أو مبادرات…) — بسند أو قرار، وتُلغى بسبب فقط.</p><form id="bnf">
+    <div class="grid2"><label class="f"><span>النوع</span><select class="input" name="kind">${options(Object.keys(KIND_ICON), 'دعم', false)}</select></label>
+      <label class="f"><span>القيمة</span><input class="input" name="amount" inputmode="decimal" required></label></div>
+    <label class="f"><span>البند</span><input class="input" name="category" placeholder="مثلاً: دعم مبادرة الكتب 2024" required></label>
+    <div class="grid2"><label class="f"><span>التاريخ</span><input class="input" type="date" name="date" required></label>
+      <label class="f"><span>السند (مستند/كشف)</span><input class="input" name="basis"></label></div>
+    <label class="f"><span>قرار المجلس (اختياري)</span><select class="input" name="decision_id"><option value="">—</option>${(S.decAll || []).map(d => `<option value="${d.id}">${esc((d.decision_no || '') + ' ' + (d.title || d.text || '')).slice(0, 80)}</option>`).join('')}</select></label>
+    <label class="f"><span>ملاحظات</span><input class="input" name="notes"></label>
+    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
 function settleForm(c) {
   const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
   const row = () => `<div class="row" data-sl style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, null, false)}</select>
-    <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند"></div>`;
+    <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند">
+    <input class="input" style="flex:1 1 100%" name="bens" placeholder="المستفيدون (اختياري): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200"></div>`;
   return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3><form id="stf">
     <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" required></label>
     <b>المصروفات بالمستندات</b><div id="sls">${row()}${row()}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
@@ -2742,6 +2760,17 @@ function bindPage(gridOnly) {
     ['amount', 'expense_account', 'decision_id', 'date', 'purpose'].forEach(n => { if (f[n]) f[n].addEventListener('change', chk); });
     const sync = () => { $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; }; sync(); $('#chPurpose').onchange = sync;
   });
+  on('benAdd', async () => {
+    if (!S.decAll) { const r = await call('GOV_LIST_DECISIONS'); S.decAll = r.success ? r.items : []; }
+    const pid = S.person.person.id;
+    finForm(benForm(), '#bnf', f => ({ ...formData(f), person_id: pid }), 'BEN_ADD', 'اتسجّلت الميزة ✓', async () => {
+      const b = await call('BEN_PERSON', { personId: pid }); S.personBen = b.success ? b.benefits : S.personBen; render(); });
+  });
+  on('benCancel', async b => {
+    const reason = prompt('سبب إلغاء الميزة؟'); if (!reason) return;
+    const r = await call('BEN_CANCEL', { ref: b.dataset.ref, reason }); if (!r.success) return toast(r.message);
+    const x = await call('BEN_PERSON', { personId: S.person.person.id }); S.personBen = x.success ? x.benefits : S.personBen; toast('اتلغت ✓'); render();
+  });
   on('duesRcpt', () => { finForm(receiptForm(), '#rcf', f => formData(f), 'FIN_RECEIPT', 'اتسجّل الوارد واترحّل القيد ✓', () => render());
     const k = $('#modal [name=kind]'); if (k) k.value = 'حصة الاشتراكات'; const pt = $('#modal [name=party]'); if (pt) pt.value = 'النقابة العامة'; });
   on('rcptNew', () => finForm(receiptForm(), '#rcf', f => formData(f), 'FIN_RECEIPT', 'اتسجّل واترحّل القيد ✓',
@@ -2750,7 +2779,8 @@ function bindPage(gridOnly) {
     const c = S.cheque;
     finForm(settleForm(c), '#stf', f => ({ cheque_id: c.id, date: f.date.value, subscriptions: f.subscriptions.value, returned: f.returned.value,
       return_mode: f.return_mode.value, lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
-        amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim() })).filter(l => +l.amount > 0) }),
+        amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim(),
+        beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) }),
       'FIN_SETTLE', 'اتسوّت العهدة ✓', () => render());
     const calc = () => { const f = $('#stf'); const spent = [...f.querySelectorAll('[name=amt]')].reduce((a, i) => a + (+i.value || 0), 0);
       const left = +c.amount + (+f.subscriptions.value || 0) - spent - (+f.returned.value || 0);
