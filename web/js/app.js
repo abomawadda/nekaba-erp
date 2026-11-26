@@ -55,11 +55,11 @@ const isStaff = () => S.kind === 'staff';
 
 // ───────── النافذة ─────────
 function openModal(html, onMount) {
-  const m = $('#modal'); m.innerHTML = `<div class="sheet">${html}</div>`; m.hidden = false;
+  const m = $('#modal'); m.className = 'modal'; m.innerHTML = `<div class="sheet">${html}</div>`; m.hidden = false;
   m.onclick = e => { if (e.target === m) closeModal(); };
   onMount && onMount(m);
 }
-function closeModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
+function closeModal() { const m = $('#modal'); m.hidden = true; m.className = 'modal'; m.innerHTML = ''; }
 const formData = el => Object.fromEntries([...el.querySelectorAll('[name]')].map(i =>
   [i.name, i.type === 'checkbox' ? i.checked : i.value.trim()]));
 async function busy(btn, fn) { btn.disabled = true; try { return await fn(); } finally { btn.disabled = false; } }
@@ -532,33 +532,33 @@ function annualView() {
   const meets = (A.meetings || []).filter(x => String(x.meeting_date).startsWith(y)), decs = (A.decisions || []).filter(x => String(x.meeting_date).startsWith(y));
   const byCat = {}; decs.forEach(d => { byCat[d.category || 'أخرى'] = (byCat[d.category || 'أخرى'] || 0) + 1; });
   const years = r.years || [];
-  const tbl = (head, rows) => `<table class="vt"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${rows.join('') || `<tr><td colspan="${head.length}" class="muted">لا بيانات</td></tr>`}</table>`;
+  const tbl = (head, rows) => `<table class="ed-tbl"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('') || `<tr><td colspan="${head.length}" class="muted">لا بيانات</td></tr>`}</tbody></table>`;
   return `<div class="card noprint row"><select class="input" id="annY" style="max-width:160px">${years.map(x => `<option ${String(x) === String(y) ? 'selected' : ''}>${x}</option>`).join('')}</select>
       <button class="btn" data-act="annGo">عرض</button><button class="btn gold" data-act="annPrint">🖨️ طباعة / PDF</button>
       <span class="muted">تقرير مجمّع تلقائياً من المنظومة — راجعه قبل العرض على الجمعية العمومية.</span></div>
     <div class="annual">
-    <div class="ann-cover"><img src="img/logo-union.png" alt=""><h1>${esc(C.ORG_NAME)}</h1><h2>التقرير السنوي لمجلس الإدارة عن عام ${esc(y)}</h2>
-      <div class="muted">مقدَّم إلى الجمعية العمومية — أُعد من منصة النقابة في ${new Date().toISOString().slice(0, 10)}</div></div>
+    <div class="ann-cover"><img src="img/logo-union.png" alt=""><div style="font-size:12px;font-weight:700;color:#64748b;margin-top:6px">الاتحاد العام لنقابات عمال مصر · النقابة العامة للعاملين بالاتصالات</div><h1>${esc(C.ORG_NAME)}</h1><h2>التقرير السنوي لمجلس الإدارة عن عام ${esc(y)}</h2>
+      <div class="muted">مقدَّم إلى الجمعية العمومية الموقرة — أُعد آلياً من منظومة النقابة في ${new Date().toISOString().slice(0, 10)}</div></div>
     <section><h3>أولاً: العضوية</h3>
       <p>بلغ إجمالي المسجّلين في المنظومة <b>${numAr(m.total)}</b> عضواً، موزّعين كالتالي:</p>
-      <div class="ann2">${tbl(['التنظيم', 'العدد'], Object.entries(m.byOrg || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${numAr(v)}</td></tr>`))}
-        ${tbl(['الحالة', 'العدد'], Object.entries(m.byState || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${numAr(v)}</td></tr>`))}</div></section>
+      <div class="ann2">${tbl(['التنظيم', 'العدد'], Object.entries(m.byOrg || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${numAr(v)}</td></tr>`))}
+        ${tbl(['الحالة', 'العدد'], Object.entries(m.byState || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${numAr(v)}</td></tr>`))}</div></section>
     <section><h3>ثانياً: نشاط مجلس الإدارة</h3>
       <p>عقد المجلس <b>${numAr(meets.length)}</b> اجتماعاً خلال العام، وأصدر <b>${numAr(decs.length)}</b> قراراً.</p>
-      <div class="ann2">${tbl(['الاجتماع', 'التاريخ', 'الحضور', 'القرارات'], meets.slice().reverse().map(x => `<tr><td>${esc(x.title)}</td><td>${dt(x.meeting_date)}</td><td>${x.present ? numAr(x.present) + '/' + numAr(x.seats) : '—'}</td><td>${numAr(x.decisions_count)}</td></tr>`))}
-        ${tbl(['تصنيف القرارات', 'العدد'], Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${numAr(v)}</td></tr>`))}</div></section>
+      <div class="ann2">${tbl(['الاجتماع', 'التاريخ', 'الحضور', 'القرارات'], meets.slice().reverse().map(x => `<tr><td>${esc(x.title)}</td><td>${dt(x.meeting_date)}</td><td class="c">${x.present ? numAr(x.present) + '/' + numAr(x.seats) : '—'}</td><td class="c">${numAr(x.decisions_count)}</td></tr>`))}
+        ${tbl(['تصنيف القرارات', 'العدد'], Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${numAr(v)}</td></tr>`))}</div></section>
     <section><h3>ثالثاً: الموقف المالي</h3>
       <p>بلغت الإيرادات <b>${money(f.revenue)}</b> جنيه، والمصروفات <b>${money(f.expense)}</b> جنيه، بـ${+f.revenue - +f.expense >= 0 ? 'فائض' : 'عجز'} قدره <b>${money(Math.abs(+f.revenue - +f.expense))}</b> جنيه.
         ورصيد البنك الدفتري الحالي ${money(f.bank)} جنيه، والعُهد تحت التسوية ${money(f.custody)} جنيه.</p>
       ${fsTables()}</section>
     <section><h3>رابعاً: الخدمات والمزايا المقدَّمة للأعضاء</h3>
       <p>استفاد <b>${numAr(b.beneficiaries)}</b> عضواً من مزايا النقابة بإجمالي <b>${money(b.total)}</b> جنيه.</p>
-      <div class="ann2">${tbl(['البند', 'المستفيدون', 'القيمة'], (b.byCategory || []).map(c => `<tr><td>${esc(c.category)}</td><td>${numAr(c.people)}</td><td>${money(c.total)}</td></tr>`))}
-        ${tbl(['المنحة', 'المصروف', 'القيمة'], ((r.grants || {}).byType || []).map(g => `<tr><td>${esc(g.type)}</td><td>${numAr(g.paid)}</td><td>${money(g.amount)}</td></tr>`))}</div></section>
+      <div class="ann2">${tbl(['البند', 'المستفيدون', 'القيمة'], (b.byCategory || []).map(c => `<tr><td>${esc(c.category)}</td><td class="n">${numAr(c.people)}</td><td class="n">${money(c.total)}</td></tr>`))}
+        ${tbl(['المنحة', 'المصروف', 'القيمة'], ((r.grants || {}).byType || []).map(g => `<tr><td>${esc(g.type)}</td><td class="n">${numAr(g.paid)}</td><td class="n">${money(g.amount)}</td></tr>`))}</div></section>
     <section><h3>خامساً: الأنشطة والرحلات</h3>
-      ${tbl(['النشاط', 'التاريخ', 'المشاركون', 'المحصّل', 'دعم النقابة'], (r.activities || []).map(a => `<tr><td>${esc(a.title)}</td><td>${dt(a.date)}</td><td>${numAr(a.people)}</td><td>${money(a.collected)}</td><td>${money(a.subsidy)}</td></tr>`))}
-      ${(r.summer || []).length ? tbl(['المصيف', 'الحالة', 'الطلبات', 'الدعم'], r.summer.map(x => `<tr><td>${esc(x.title)}</td><td>${esc(x.status)}</td><td>${numAr(x.applied)}</td><td>${money(x.subsidy)}</td></tr>`)) : ''}</section>
-    <section class="ann-sign"><div>أمين الصندوق<br><br>........................</div><div>السكرتير العام<br><br>........................</div><div>رئيس مجلس الإدارة<br><br>........................</div></section>
+      ${tbl(['النشاط', 'التاريخ', 'المشاركون', 'المحصّل', 'دعم النقابة'], (r.activities || []).map(a => `<tr><td>${esc(a.title)}</td><td>${dt(a.date)}</td><td class="n">${numAr(a.people)}</td><td class="n">${money(a.collected)}</td><td class="n">${money(a.subsidy)}</td></tr>`))}
+      ${(r.summer || []).length ? tbl(['المصيف', 'الحالة', 'الطلبات', 'الدعم'], r.summer.map(x => `<tr><td>${esc(x.title)}</td><td>${esc(x.status)}</td><td class="n">${numAr(x.applied)}</td><td class="n">${money(x.subsidy)}</td></tr>`)) : ''}</section>
+    ${edSigs(null, 'ANNUAL-' + y)}
     </div>`;
 }
 
@@ -900,47 +900,159 @@ function boardView() {
 const EXEC_STATES = ['لم يبدأ', 'قيد التنفيذ', 'منفّذ', 'لا يتطلب تنفيذ'];
 const execPill = s => `<span class="pill ${s === 'منفّذ' ? 'ok' : s === 'قيد التنفيذ' ? 'warn' : s === 'لم يبدأ' ? 'bad' : ''}">${esc(s || 'لم يبدأ')}</span>`;
 
-function govSigsHTML(sigs = {}) {
-  const cols = [
-    ['أمين الصندوق', sigs.treasurer],
-    ['الأمين العام', sigs.secretary],
-    ['رئيس اللجنة النقابية', sigs.chair],
+// ───────── المحرك المؤسسي الموحّد للمستندات والسندات والتقارير الرسمية (ERP Document Engine) ─────────
+function tafqeetInt(n) {
+  n = Math.floor(Math.abs(n));
+  if (!n) return '';
+  const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة',
+    'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
+  const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
+  const hunds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
+  const sub1000 = x => {
+    const p = [], h = Math.floor(x / 100), r = x % 100;
+    if (h) p.push(hunds[h]);
+    if (r > 0 && r < 20) p.push(ones[r]);
+    else if (r >= 20) { const o = r % 10, t = Math.floor(r / 10); p.push(o ? ones[o] + ' و' + tens[t] : tens[t]); }
+    return p.join(' و');
+  };
+  const parts = [], mil = Math.floor(n / 1e6), th = Math.floor((n % 1e6) / 1e3), rem = n % 1e3;
+  if (mil === 1) parts.push('مليون');
+  else if (mil === 2) parts.push('مليونان');
+  else if (mil >= 3 && mil <= 10) parts.push(sub1000(mil) + ' ملايين');
+  else if (mil > 10) parts.push(sub1000(mil) + ' مليوناً');
+  if (th === 1) parts.push('ألف');
+  else if (th === 2) parts.push('ألفان');
+  else if (th >= 3 && th <= 10) parts.push(sub1000(th) + ' آلاف');
+  else if (th > 10) parts.push(sub1000(th) + ' ألفاً');
+  if (rem > 0) parts.push(sub1000(rem));
+  return parts.join(' و');
+}
+function tafqeet(amount) {
+  const v = Math.abs(+(amount || 0)), egp = Math.floor(v + 1e-6), pt = Math.round((v - egp) * 100);
+  if (!egp && !pt) return 'صفر جنيه مصري لا غير';
+  const unit = (n, pl, acc, sg) => { const r = n % 100; return r >= 3 && r <= 10 ? pl : r >= 11 ? acc : sg; };
+  const parts = [];
+  if (egp > 0) parts.push(tafqeetInt(egp) + ' ' + unit(egp, 'جنيهات مصرية', 'جنيهاً مصرياً', 'جنيه مصري'));
+  if (pt > 0) parts.push(tafqeetInt(pt) + ' ' + unit(pt, 'قروش', 'قرشاً', 'قرش'));
+  return 'فقط وقدره ' + parts.join(' و') + ' لا غير';
+}
+function getOfficialSigs(sigs) {
+  if (sigs && (sigs.treasurer || sigs.secretary || sigs.chair)) return sigs;
+  if (S.gov && S.gov.signatories) return S.gov.signatories;
+  const seats = (S.gov && S.gov.term && S.gov.term.seats || []).filter(s => !s.to_date);
+  const byRole = r => (seats.find(s => s.role === r) || {}).full_name || '';
+  return { treasurer: byRole('أمين الصندوق'), secretary: byRole('الأمين العام'), chair: byRole('رئيس المجلس') };
+}
+function edSigs(customCols, refCode = '', sigsObj = null) {
+  const s = getOfficialSigs(sigsObj);
+  const cols = customCols || [
+    ['أمين الصندوق', s.treasurer],
+    ['الأمين العام', s.secretary],
+    ['رئيس اللجنة النقابية', s.chair],
   ];
-  return `<div class="gd-sigs">${cols.map(([r, n]) => `<div class="sg"><div class="sg-role">${r}</div><div class="sg-name">${esc(n || '')}</div><div class="sg-line"></div></div>`).join('')}</div>
-    <div class="gd-stamp"><span>خاتم اللجنة النقابية</span><span>طُبع من منصة النقابة في ${new Date().toISOString().slice(0, 16).replace('T', ' ')}</span></div>`;
+  const stampTime = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  return `<div class="ed-foot">
+    <div class="ed-sigs" style="grid-template-columns:repeat(${cols.length},1fr)">
+      ${cols.map(([role, name]) => `<div class="ed-sig"><div class="ed-sig-hd">${esc(role)}</div>
+        <div class="ed-sig-bd"><div class="ed-sig-nm" data-sigrole="${esc(role)}">${esc(name || '')}</div><div class="ed-sig-ln">التوقيع: ........................</div></div></div>`).join('')}
+    </div>
+    <div class="ed-sealrow">
+      <span>مستند رسمي صادر آلياً من منظومة النقابة (ERP)${refCode ? ' · مرجع: <b>' + esc(refCode) + '</b>' : ''}</span>
+      <span class="ed-seal">خاتم اللجنة النقابية المعتمد</span>
+      <span>تاريخ الطباعة: ${stampTime}</span>
+    </div></div>`;
 }
-function govDocFrame(docTitle, subTitle, badgeLbl, badgeVal, metaPairs, bodyHtml, sigs) {
-  return `<div class="govdoc">
-    <div class="gd-head"><img src="img/logo-union.png" alt=""><div class="gd-org"><small>النقابة العامة للعاملين بالاتصالات</small><b>${esc(C.ORG_NAME)}</b></div>
-      <div class="gd-badge"><small>${esc(badgeLbl)}</small><b>${esc(badgeVal || '—')}</b></div></div>
-    <div class="gd-title"><h2>${docTitle}</h2>${subTitle ? `<small>${subTitle}</small>` : ''}</div>
-    <div class="gd-meta">${metaPairs.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join('')}</div>
-    ${bodyHtml}${govSigsHTML(sigs)}</div>`;
+const edMoney = (amt, lbl = 'المبلغ الإجمالي') => `<div class="ed-moneybox">
+  <div class="ed-mnum"><small>${esc(lbl)}</small><b>${money(amt)} ج.م</b></div>
+  <div class="ed-mwords"><small>المبلغ بالحروف العربية (التفقيط المعتمد)</small><b>${esc(tafqeet(amt))}</b></div></div>`;
+const edGrid = cells => `<div class="ed-grid">${cells.map(([sp, lbl, val]) =>
+  `<div class="ed-f s${sp}"><span class="ed-fl">${esc(lbl)}</span><div class="ed-fv">${val || '—'}</div></div>`).join('')}</div>`;
+
+function erpDoc(o) {
+  const refNo = String(o.refNo || '—'), docDate = o.date || new Date().toISOString().slice(0, 10);
+  const qrPayload = o.qrData || `NEKABA-ERP|${o.code || 'DOC'}|${encodeURI(refNo).slice(0, 48)}|${docDate}`;
+  const ctrlRows = [[o.refLbl || 'رقم المستند', refNo], ['التاريخ', dt(docDate)], ...(o.ctrl || [])];
+  const sigCols = o.sigCols ? o.sigCols(getOfficialSigs(o.sigs)) : null;
+  return `<div class="erp-doc" data-doctitle="${esc(plain(o.title))}">
+    <div class="ed-crown"></div>
+    <div class="ed-inner">
+      <img class="ed-wm" src="img/logo-union.png" alt="">
+      <div class="ed-body">
+        <div class="ed-mast">
+          <div class="ed-org">
+            <div class="ed-sup">الاتحاد العام لنقابات عمال مصر</div>
+            <div class="ed-sub">النقابة العامة للعاملين بالاتصالات</div>
+            <div class="ed-name">${esc(C.ORG_NAME)}</div>
+            <span class="ed-dept">${esc(o.dept || 'الإدارة العامة')}</span>
+          </div>
+          <div class="ed-crest">
+            <div class="ed-crest-ring"><img src="img/logo-union.png" alt=""></div>
+            <span class="ed-kind">${esc(o.kind || 'مستند رسمي معتمد')}</span>
+          </div>
+          <div class="ed-ctrl">
+            <div class="ed-ctrl-rows">${ctrlRows.map(([k, v]) => `<div class="ed-ctrl-r"><span>${esc(k)}</span><b>${esc(plain(v || '—'))}</b></div>`).join('')}</div>
+            <div class="ed-qr" data-dqr="${esc(qrPayload)}"></div>
+          </div>
+        </div>
+        <div class="ed-banner">
+          <div><h1>${o.title}</h1>${o.sub ? `<small>${o.sub}</small>` : ''}</div>
+          ${o.status ? `<span class="ed-st ${o.statusCls || ''}">${esc(o.status)}</span>` : ''}
+        </div>
+        ${o.body || ''}
+        ${edSigs(sigCols, refNo, o.sigs)}
+      </div>
+    </div></div>`;
 }
+
 function meetingMinutesHTML(m) {
   const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
   const attRows = (m.attendance.length ? m.attendance : (m.board || []).map(b => ({ ...b, status: '—' })))
-    .map((a, i) => `<tr><td>${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.role || 'عضو مجلس إدارة')}</td><td>${esc(a.status)}</td><td>${esc(a.notes || '')}</td></tr>`).join('');
-  const decHtml = (m.decisions || []).map(d => `<div class="gd-dec"><b>قرار رقم (${esc(d.decision_no)})</b> — <small>[${esc(d.category)}${d.amount != null ? ' · السقف: ' + money(d.amount) + ' ج' : ''} · ${esc(d.status)}]</small>
-    <div style="margin-top:4px">${esc(d.text)}</div>
-    ${d.votes_for != null ? `<div style="font-size:11px;color:#555;margin-top:4px">التصويت: موافق (${numAr(d.votes_for)}) · معترض (${numAr(d.votes_against ?? 0)}) · ممتنع (${numAr(d.votes_abstain ?? 0)})</div>` : ''}</div>`).join('') || '<p class="muted">لم تصدر قرارات في هذه الجلسة.</p>';
-  return govDocFrame('محضر اجتماع مجلس الإدارة', esc(m.title), 'رقم الجلسة', m.meeting_no,
-    [['تاريخ الانعقاد', dt(m.meeting_date) + (m.meeting_time ? ' — ' + esc(m.meeting_time) : '')], ['نوع الاجتماع', esc(m.kind)],
-     ['مقر الانعقاد', esc(m.venue || 'مقر اللجنة النقابية')], ['النصاب القانوني', m.present ? `${numAr(m.present)} من ${numAr(m.seats)} (${q ? 'مكتمل قانوناً' : 'غير مكتمل'})` : 'غير مسجّل']],
-    `<div class="gd-sec">أولاً: إثبات الحضور والنصاب القانوني</div>
-     <table class="gd-tbl"><thead><tr><th style="width:36px">م</th><th>اسم عضو المجلس</th><th>الصفة بمجلس الإدارة</th><th>الحالة</th><th>ملاحظات</th></tr></thead><tbody>${attRows}</tbody></table>
-     ${(m.agenda || []).length ? `<div class="gd-sec">ثانياً: جدول الأعمال المعروض</div><ol style="margin:4px 0 10px;padding-inline-start:20px;font-size:13px">${m.agenda.map(a => `<li>${esc(a)}</li>`).join('')}</ol>` : ''}
-     <div class="gd-sec">${(m.agenda || []).length ? 'ثالثاً' : 'ثانياً'}: القرارات الصادرة عن المجلس (${numAr((m.decisions || []).length)})</div>${decHtml}
-     ${m.notes ? `<div class="gd-sec">ملاحظات ختامية</div><p style="font-size:13px;margin:4px 0">${esc(m.notes)}</p>` : ''}
-     <p style="font-size:12px;margin-top:10px">أُقفل المحضر عقب تلاوته والتصديق عليه في تاريخه وساعته.</p>`, m.signatories);
+    .map((a, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.role || 'عضو مجلس إدارة')}</td><td class="c">${esc(a.status)}</td><td>${esc(a.notes || '')}</td></tr>`).join('');
+  const decHtml = (m.decisions || []).map(d => `<div class="ed-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px">
+      <b style="color:#0f3d5e">قرار رقم (${esc(d.decision_no)}) — [${esc(d.category)}]</b>
+      <small style="font-weight:700;color:#475569">${d.amount != null && +d.amount > 0 ? 'السقف المالي: ' + money(d.amount) + ' ج · ' : ''}${esc(d.status)}</small>
+    </div>
+    <div>${esc(d.text)}</div>
+    ${d.votes_for != null ? `<div style="font-size:11.5px;color:#475569;margin-top:4px;border-top:1px dashed #cbd5e1;padding-top:3px">نتيجة التصويت: موافق (${numAr(d.votes_for)}) · معترض (${numAr(d.votes_against ?? 0)}) · ممتنع (${numAr(d.votes_abstain ?? 0)})</div>` : ''}</div>`).join('')
+    || '<div class="ed-box">لم تصدر قرارات مسجّلة في هذه الجلسة.</div>';
+  return erpDoc({
+    dept: 'أمانة سر مجلس الإدارة', kind: 'وثيقة حوكمة رسمية',
+    refLbl: 'رقم الجلسة', refNo: `MTG-${m.meeting_no}`, date: m.meeting_date,
+    ctrl: [['نوع الجلسة', m.kind]],
+    title: 'محضر اجتماع مجلس الإدارة', sub: `${esc(m.title)} — ${esc(m.term_title || '')}`,
+    status: m.present ? (q ? 'نصاب قانوني مكتمل' : 'أقل من النصاب') : m.status, statusCls: m.present ? (q ? 'ok' : 'bad') : 'warn',
+    sigs: m.signatories,
+    body: edGrid([
+      [3, 'رقم الجلسة', `جلسة رقم (${numAr(m.meeting_no)})`],
+      [3, 'تاريخ الانعقاد', dt(m.meeting_date)],
+      [3, 'وقت الانعقاد', esc(m.meeting_time || '—')],
+      [3, 'النصاب القانوني', m.present ? `${numAr(m.present)} من ${numAr(m.seats)} عضو` : 'غير مسجّل'],
+      [12, 'مقر الانعقاد', esc(m.venue || 'مقر اللجنة النقابية')],
+    ]) + `<div class="ed-sec">أولاً: إثبات حضور أعضاء مجلس الإدارة</div>
+      <table class="ed-tbl"><thead><tr><th style="width:38px" class="c">م</th><th>اسم عضو المجلس</th><th>الصفة بالمجلس</th><th class="c" style="width:95px">حالة الحضور</th><th>ملاحظات</th></tr></thead><tbody>${attRows}</tbody></table>
+      ${(m.agenda || []).length ? `<div class="ed-sec">ثانياً: جدول الأعمال المعروض</div><div class="ed-box gold"><ol style="margin:0;padding-inline-start:20px">${m.agenda.map(a => `<li>${esc(a)}</li>`).join('')}</ol></div>` : ''}
+      <div class="ed-sec">${(m.agenda || []).length ? 'ثالثاً' : 'ثانياً'}: القرارات الصادرة عن المجلس (${numAr((m.decisions || []).length)})</div>${decHtml}
+      ${m.notes ? `<div class="ed-sec">ملاحظات ختامية</div><div class="ed-box">${esc(m.notes)}</div>` : ''}
+      <div style="font-size:12px;color:#334155;margin-top:8px">أُقفل المحضر عقب تلاوته والتصديق عليه من السادة الحاضرين في تاريخه وساعته.</div>`
+  });
 }
 function attendanceSheetHTML(m, blank = false) {
   const list = !blank && m.attendance && m.attendance.length ? m.attendance : (m.board || []);
-  const rows = list.map((a, i) => `<tr><td>${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
-    <td>${blank ? '' : esc(a.status || '')}</td><td style="width:26%"></td></tr>`).join('');
-  return govDocFrame('كشف حضور وتوقيع أعضاء مجلس الإدارة', esc(m.title), 'جلسة رقم', m.meeting_no,
-    [['التاريخ', dt(m.meeting_date)], ['الوقت', esc(m.meeting_time || '—')], ['المقر', esc(m.venue || 'مقر اللجنة')], ['إجمالي المقاعد', numAr(m.seats || list.length)]],
-    `<table class="gd-tbl"><thead><tr><th style="width:36px">م</th><th>الاسم الرباعي</th><th>الرقم الوظيفي</th><th>الصفة</th><th>الحالة</th><th>التوقيع بالحضور</th></tr></thead><tbody>${rows}</tbody></table>`, m.signatories);
+  const rows = list.map((a, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td class="c">${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
+    <td class="c">${blank ? '' : esc(a.status || '')}</td><td style="width:28%"></td></tr>`).join('');
+  return erpDoc({
+    dept: 'أمانة سر مجلس الإدارة', kind: blank ? 'نموذج توقيع حي' : 'كشف حضور رسمي',
+    refLbl: 'رقم الجلسة', refNo: `ATT-${m.meeting_no}`, date: m.meeting_date,
+    title: 'كشف حضور وتوقيع أعضاء مجلس الإدارة', sub: esc(m.title),
+    status: blank ? 'نموذج للتوقيع الحي' : `${numAr(m.present || 0)} حاضر من ${numAr(m.seats || list.length)}`, statusCls: blank ? 'warn' : 'ok',
+    sigs: m.signatories,
+    body: edGrid([
+      [3, 'رقم الجلسة', numAr(m.meeting_no)], [3, 'التاريخ', dt(m.meeting_date)],
+      [3, 'الوقت', esc(m.meeting_time || '—')], [3, 'المقر', esc(m.venue || 'مقر اللجنة')],
+    ]) + `<div class="ed-sec">بيان السادة أعضاء مجلس الإدارة والتوقيع بالحضور</div>
+      <table class="ed-tbl"><thead><tr><th style="width:38px" class="c">م</th><th>الاسم الرباعي</th><th class="c">الرقم الوظيفي</th><th>الصفة بالمجلس</th><th class="c" style="width:85px">الحالة</th><th>التوقيع الحي بالحضور</th></tr></thead><tbody>${rows}</tbody></table>`
+  });
 }
 function allowanceSheetHTML(m, rateOverride) {
   const alw = m.allowance || {}, rate = +(rateOverride || alw.rate || 75);
@@ -949,28 +1061,56 @@ function allowanceSheetHTML(m, rateOverride) {
   const share = att.length ? +(tot / att.length).toFixed(2) : rate;
   const rows = att.map((a, i) => {
     const amt = i === att.length - 1 ? +(tot - share * (att.length - 1)).toFixed(2) : share;
-    return `<tr><td>${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
-      <td><b>${money(amt)} ج</b></td><td style="width:26%"></td></tr>`;
-  }).join('') || '<tr><td colspan="6" style="text-align:center">لم يُسجَّل حاضرون لهذه الجلسة بعد</td></tr>';
-  return govDocFrame('كشف صرف بدل حضور جلسة مجلس الإدارة', `${esc(m.title)} — حساب (5401) بدلات جلسات المجلس`, 'جلسة رقم', m.meeting_no,
-    [['تاريخ الجلسة', dt(m.meeting_date)], ['عدد الحاضرين المستحقين', numAr(att.length) + ' عضو'], ['فئة البدل للعضو', money(rate) + ' جنيه'], ['إجمالي الكشف', money(tot) + ' جنيه']],
-    `<table class="gd-tbl"><thead><tr><th style="width:36px">م</th><th>اسم العضو المستحق</th><th>الرقم الوظيفي</th><th>الصفة بالمجلس</th><th>المبلغ المستحق</th><th>التوقيع بالاستلام</th></tr></thead>
-     <tbody>${rows}</tbody>
-     <tfoot><tr><th colspan="4">إجمالي بدلات الجلسة المنصرفة</th><th colspan="2">${money(tot)} جنيه مصري فقط لا غير</th></tr></tfoot></table>
-     ${alw.paid ? `<p style="font-size:12px;color:#1e8a4c"><b>✓ مسجّل مالياً:</b> صُرف ضمن تسوية الشيك رقم (${esc(alw.cheque_no || 'بدون رقم')}) بتاريخ ${dt(alw.settle_date)}.</p>` : '<p style="font-size:12px">يُرفق هذا الكشف موقعاً ضمن مستندات تسوية العهدة بالخزينة لتغذية القيد وسجل مزايا الأعضاء.</p>'}`, m.signatories);
+    return `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td class="c">${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
+      <td class="n"><b>${money(amt)}</b></td><td style="width:26%"></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="c">لم يُسجَّل حاضرون لهذه الجلسة بعد</td></tr>';
+  return erpDoc({
+    dept: 'الإدارة المالية والخزينة · شئون المجلس', kind: 'كشف صرف مالي',
+    refLbl: 'مرجع الكشف', refNo: `ALW-${m.meeting_no}`, date: m.meeting_date,
+    ctrl: [['الحساب المحاسبي', '5401 بدلات جلسات']],
+    title: 'كشف صرف بدل حضور جلسة مجلس الإدارة', sub: `${esc(m.title)} — المنعقدة بتاريخ ${dt(m.meeting_date)}`,
+    status: alw.paid ? `صُرف ضمن شيك ${alw.cheque_no || ''}` : 'معد للصرف والتسوية', statusCls: alw.paid ? 'ok' : 'warn',
+    sigs: m.signatories,
+    body: edMoney(tot, 'إجمالي بدلات الجلسة') + edGrid([
+      [4, 'رقم وتاريخ الجلسة', `جلسة (${numAr(m.meeting_no)}) — ${dt(m.meeting_date)}`],
+      [4, 'عدد الحاضرين المستحقين', `${numAr(att.length)} عضو مجلس`],
+      [4, 'فئة البدل للعضو الحاضر', `${money(rate)} جنيه مصري`],
+    ]) + `<div class="ed-sec">بيان السادة المستحقين وتوقيع الاستلام</div>
+      <table class="ed-tbl"><thead><tr><th style="width:38px" class="c">م</th><th>اسم العضو المستحق</th><th class="c">الرقم الوظيفي</th><th>الصفة بالمجلس</th><th class="n">المبلغ (ج.م)</th><th>التوقيع بالاستلام</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><th colspan="4">الإجمالي العام للكشف</th><th class="n">${money(tot)}</th><th>${esc(tafqeet(tot))}</th></tr></tfoot></table>
+      <div class="ed-box ${alw.paid ? '' : 'gold'}">${alw.paid
+        ? `<b>✓ إثبات الصرف المالي:</b> تم صرف وتسوية هذا الكشف ضمن تسوية الشيك رقم (${esc(alw.cheque_no || 'بدون رقم')}) بتاريخ ${dt(alw.settle_date)}، وأُدرج في سجل مزايا السادة الأعضاء.`
+        : 'يُعتمد هذا الكشف ويُرفق بأصل التوقيعات ضمن مستندات تسوية العهدة بالخزينة لقيده على حـ/ 5401 (بدلات جلسات المجلس).'}</div>`
+  });
 }
 function decisionExtractHTML(d) {
-  return govDocFrame('مستخرج رسمي من قرار مجلس الإدارة', esc(d.term_title || ''), 'قرار رقم', d.decision_no,
-    [['رقم وتاريخ الجلسة', `جلسة (${numAr(d.meeting_no)}) — ${dt(d.meeting_date)}`], ['تصنيف القرار', esc(d.category)],
-     ['السقف المالي المعتمد', d.amount != null && +d.amount > 0 ? money(d.amount) + ' جنيه' : 'غير محدد بمبلغ'], ['حالة القرار والتنفيذ', `${esc(d.status)} · ${esc(d.exec_status || 'لم يبدأ')}`]],
-    `<div class="gd-sec">منطوق القرار</div>
-     <div class="gd-dec" style="font-size:15px;line-height:1.9;padding:14px"><b>قرّر مجلس إدارة اللجنة النقابية في جلسته رقم (${numAr(d.meeting_no)}) المنعقدة بتاريخ ${dt(d.meeting_date)} ما يلي:</b>
-       <div style="margin-top:8px">${esc(d.text)}</div></div>
-     <table class="gd-tbl" style="margin-top:10px"><tr><th>نتيجة التصويت</th><td>${d.votes_for != null ? `موافق: ${numAr(d.votes_for)} · معترض: ${numAr(d.votes_against ?? 0)} · ممتنع: ${numAr(d.votes_abstain ?? 0)}` : 'بالإجماع / معتمد'}</td>
-       <th>المسئول عن التنفيذ</th><td>${esc(d.assignee_display || '—')}</td></tr>
-       <tr><th>موعد التنفيذ المستهدف</th><td>${d.due_date ? dt(d.due_date) : '—'}</td><th>المنصرف الفعلي حتى تاريخه</th><td>${+d.spent > 0 ? money(d.spent) + ' جنيه' : '—'}</td></tr>
-       ${d.follow_up ? `<tr><th>بيان المتابعة</th><td colspan="3">${esc(d.follow_up)}</td></tr>` : ''}</table>
-     <p style="font-size:12px;margin-top:8px">تحريراً للعمل بموجبه وإرفاقه بالمستندات الرسمية والمالية ذات الصلة.</p>`, d.signatories);
+  const hasCeil = d.amount != null && +d.amount > 0;
+  return erpDoc({
+    dept: 'أمانة سر مجلس الإدارة', kind: 'مستخرج قرار رسمي',
+    refLbl: 'رقم القرار', refNo: d.decision_no, date: d.meeting_date,
+    ctrl: [['رقم الجلسة', `جلسة (${numAr(d.meeting_no)})`], ['التصنيف', d.category]],
+    title: 'مستخرج رسمي من قرار مجلس الإدارة', sub: esc(d.term_title || 'الدورة النقابية الجارية'),
+    status: `${d.status} · ${d.exec_status || 'لم يبدأ'}`, statusCls: d.status === 'معتمد' ? 'ok' : 'bad',
+    sigs: d.signatories,
+    body: (hasCeil ? edMoney(d.amount, 'السقف المالي المعتمد للقرار') : '') + edGrid([
+      [3, 'رقم القرار', `(${esc(d.decision_no)})`],
+      [3, 'تاريخ صدور القرار', dt(d.meeting_date)],
+      [3, 'الجلسة الصادر عنها', `${esc(d.meeting_title || 'جلسة ' + d.meeting_no)} (${esc(d.meeting_kind || 'عادي')})`],
+      [3, 'نتيجة التصويت', d.votes_for != null ? `موافق ${numAr(d.votes_for)} / معترض ${numAr(d.votes_against ?? 0)} / ممتنع ${numAr(d.votes_abstain ?? 0)}` : 'معتمد بالإجماع'],
+    ]) + `<div class="ed-sec">منطوق القرار المعتمد</div>
+      <div class="ed-box gold" style="font-size:14.5px;padding:14px 16px">
+        <div style="font-weight:800;color:#0f3d5e;margin-bottom:6px">بعد الاطلاع على لائحة النظام الأساسي واللائحة المالية، قرّر مجلس إدارة اللجنة النقابية في جلسته رقم (${numAr(d.meeting_no)}) المنعقدة بتاريخ ${dt(d.meeting_date)} ما يلي:</div>
+        <div style="font-weight:700;color:#0f172a">${esc(d.text)}</div>
+      </div>
+      <div class="ed-sec">بيانات التنفيذ والمتابعة المالية</div>` + edGrid([
+      [4, 'حالة التنفيذ الحالية', esc(d.exec_status || 'لم يبدأ')],
+      [4, 'المسئول عن التنفيذ', esc(d.assignee_display || 'الإدارة المختصة')],
+      [4, 'الموعد المستهدف / تاريخ التنفيذ', d.executed_at ? 'نُفّذ في ' + dt(d.executed_at) : d.due_date ? 'مستهدف ' + dt(d.due_date) : '—'],
+      [6, 'صافي المنصرف الفعلي المرتبط بالقرار', +d.spent > 0 ? `${money(d.spent)} ج.م (${numAr((d.cheques || []).length)} شيك)` : 'لا يوجد منصرف مسجّل بعد'],
+      [6, 'ملاحظات المتابعة', esc(d.follow_up || '—')],
+    ]) + `<div style="font-size:12px;color:#334155;margin-top:8px">أُعطي هذا المستخرج الرسمي طبق الأصل من سجل قرارات مجلس الإدارة للعمل بموجبه وإرفاقه بالمستندات المالية والإدارية.</div>`
+  });
 }
 
 function decisionCardHTML(d, showMeet = true) {
@@ -1680,6 +1820,30 @@ function gridRows(id) {
   return rows.map(r => `<tr ${g.o.attr ? g.o.attr(r) : ''}>${g.cols.map(c => `<td data-l="${esc(c.t)}" class="${c.num ? 'n' : ''}">${c.v(r) ?? ''}</td>`).join('')}</tr>`).join('')
     || `<tr class="ge"><td colspan="${g.cols.length}"><div class="empty">${g.o.empty || 'لا بيانات'}</div></td></tr>`;
 }
+function gridReportHTML(id) {
+  const g = G[id]; if (!g) return '';
+  const st = (S.grid && S.grid[id]) || { q: '' }, rows = gridView(id);
+  const cols = g.cols.filter(c => !['سند', 'إجراء', 'إجراءات', ''].includes(c.t));
+  const cleanTitle = plain(g.o.title || 'كشف رسمي').replace(/^[\p{Extended_Pictographic}\s]+/u, '').trim() || 'كشف بيانات رسمي';
+  const cleanCell = html => String(html ?? '').replace(/<button[\s\S]*?<\/button>/gi, '').replace(/<a [^>]*>([\s\S]*?)<\/a>/gi, '$1');
+  const isMoneyCol = c => c.num && rows.some(r => String(c.v(r) || '').includes('class="dt"'));
+  const hasMoney = cols.some(isMoneyCol);
+  const activeRows = rows.filter(r => r.status !== 'ملغى' && r.status !== 'مسترجعة');
+  const foot = hasMoney && rows.length ? `<tfoot><tr><th></th>${cols.map((c, idx) => idx === 0
+    ? `<th>الإجمالي المعتمد${activeRows.length !== rows.length ? ' (بدون الملغى)' : ''}</th>`
+    : isMoneyCol(c) ? `<th class="n">${money(activeRows.reduce((s, r) => s + (+cellRaw(c, r) || 0), 0))}</th>` : '<th></th>').join('')}</tr></tfoot>` : '';
+  const bodyRows = rows.map((r, i) => `<tr><td class="c">${numAr(i + 1)}</td>${cols.map(c => `<td class="${c.num ? 'n' : ''}">${cleanCell(c.v(r))}</td>`).join('')}</tr>`).join('')
+    || `<tr><td colspan="${cols.length + 1}" class="c">${esc(g.o.empty || 'لا توجد سجلات مطابقة')}</td></tr>`;
+  return erpDoc({
+    dept: 'مركز المعلومات والتقارير المؤسسية', kind: 'كشف رسمي مستخرج', code: 'GRID',
+    refLbl: 'كود الكشف', refNo: String(g.o.file || id).toUpperCase(),
+    ctrl: [['عدد السجلات', `${numAr(rows.length)} سجل`]],
+    title: cleanTitle,
+    sub: st.q ? `فلتر البحث المطبّق: «${esc(st.q)}» — معروض ${numAr(rows.length)} من إجمالي ${numAr(g.rows.length)} سجل` : `بيان تفصيلي مستخرج من سجلات المنظومة (${numAr(rows.length)} سجل)`,
+    status: `${numAr(rows.length)} سجل`, statusCls: 'ok',
+    body: `<table class="ed-tbl"><thead><tr><th class="c" style="width:36px">م</th>${cols.map(c => `<th class="${c.num ? 'n' : ''}">${esc(c.t)}</th>`).join('')}</tr></thead><tbody>${bodyRows}</tbody>${foot}</table>`
+  });
+}
 function bindGrids() {
   document.querySelectorAll('[data-gq]').forEach(i => i.oninput = () => { const id = i.dataset.gq; S.grid[id].q = i.value;
     document.querySelector(`[data-gb="${id}"]`).innerHTML = gridRows(id); bindPage(true); });
@@ -1688,9 +1852,9 @@ function bindGrids() {
   document.querySelectorAll('[data-gx]').forEach(b => b.onclick = () => { const id = b.dataset.gx, g = G[id];
     const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     const csv = [g.cols.map(c => q(c.t)).join(','), ...gridView(id).map(r => g.cols.map(c => q(cellRaw(c, r))).join(','))].join('\r\n');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
     a.download = (g.o.file || id) + '-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
-  document.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => { document.body.dataset.printGrid = b.dataset.gp; window.print(); delete document.body.dataset.printGrid; });
+  document.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => printDoc(gridReportHTML(b.dataset.gp)));
 }
 
 // ───────── المالية والخزينة ─────────
@@ -1887,66 +2051,327 @@ function booksView() {
         <button class="btn sm bad" data-spoil="${b.id}">تسجيل كورقة تالفة</button>${b.status === 'نشط' ? `<button class="btn sm sec" data-bookclose="${b.id}">إقفال الدفتر</button>` : ''}</div>` : ''}</div>`).join('')
       || '<div class="card empty">لا دفاتر مسجّلة بعد — سجّل الدفتر الحالي بأول وآخر رقم.</div>'}`;
 }
-function voucherHTML(c) {
-  const today = new Date().toISOString().slice(0, 10);
-  return `<div class="voucher"><div class="vh"><img src="img/logo-union.png" alt=""><div><b>${esc(C.ORG_NAME)}</b><h2>سند صرف بشيك</h2></div><div class="vno">رقم الشيك<br><b class="dt">${esc(c.cheque_no || '—')}</b></div></div>
-    <table class="vt"><tr><th>التاريخ</th><td>${dt(c.issue_date)}</td><th>المبلغ</th><td><b>${money(c.amount)} جنيه</b></td></tr>
-      <tr><th>يُصرف للسيد/ة</th><td colspan="3"><b>${esc(c.payee_name)}</b></td></tr>
-      <tr><th>الغرض</th><td>${esc(c.purpose)}</td><th>البنك</th><td>الحساب الجاري (1102)</td></tr>
-      <tr><th>وذلك قيمة</th><td colspan="3">${esc(c.notes || '—')}</td></tr>
-      <tr><th>بموجب قرار</th><td colspan="3">${c.decision ? esc(c.decision.decision_no + ' — ' + c.decision.text) : '—'}</td></tr>
-      ${c.status === 'ملغى' ? `<tr><th>الحالة</th><td colspan="3"><b style="color:var(--bad)">ملغى — ${esc(c.void_reason || '')}</b></td></tr>` : ''}</table>
-    <div class="vs"><div>أمين الصندوق<br><br>........................</div><div>المراجع<br><br>........................</div><div>رئيس مجلس الإدارة<br><br>........................</div><div>توقيع المستلم<br><br>........................</div></div>
-    <div class="muted" style="font-size:11px;margin-top:8px">طُبع من منصة النقابة في ${today}</div></div>`;
-}
-
-
-// ───────── المستندات المطبوعة والتسويات ─────────
-const docHead = (title, noLbl, no) => `<div class="vh"><img src="img/logo-union.png" alt=""><div><b>${esc(C.ORG_NAME)}</b><h2>${title}</h2></div><div class="vno">${noLbl}<br><b class="dt">${esc(no || '—')}</b></div></div>`;
-const docFoot = sigs => `<div class="vs" style="grid-template-columns:repeat(${sigs.length},1fr)">${sigs.map(x => `<div>${x}<br><br>........................</div>`).join('')}</div>
-  <div class="muted" style="font-size:11px;margin-top:8px">طُبع من منصة النقابة في ${new Date().toISOString().slice(0, 16).replace('T', ' ')}</div>`;
+// ───────── استوديو المستندات والسندات والتقارير الرسمية المعتمدة (A4 Document Studio) ─────────
 function printDoc(html) {
-  openModal(`<div class="voucher">${html}</div><div class="acts noprint"><button class="btn" data-vprint>🖨️ طباعة / PDF</button><button class="btn sec" data-close>إغلاق</button></div>`, m => {
-    m.querySelector('[data-close]').onclick = closeModal;
-    m.querySelector('[data-vprint]').onclick = () => { document.body.dataset.printVoucher = 1; window.print(); delete document.body.dataset.printVoucher; }; });
+  const m = $('#modal');
+  m.className = 'modal doc-studio';
+  m.innerHTML = `<div class="sheet"><div class="ds-bar noprint">
+      <div class="ds-ttl">📄 <b>مستند رسمي (A4)</b><small>معاينة الطباعة المعتمدة</small></div>
+      <button class="btn sm sec" type="button" data-dszoom>🔍 ١٠٠٪</button>
+      <button class="btn sm gold" type="button" data-vprint>🖨️ طباعة / PDF</button>
+      <button class="btn sm sec" type="button" data-close>✕ إغلاق</button>
+    </div>
+    <div class="ds-stage"><div class="erp-paper">${html}</div></div></div>`;
+  m.hidden = false;
+  const fitScale = window.innerWidth < 830 ? Math.min(1, Math.max(0.42, (window.innerWidth - 24) / 794)) : 0.8;
+  let fitted = window.innerWidth < 830;
+  const syncZoom = () => {
+    m.style.setProperty('--ds-zoom', fitted ? fitScale.toFixed(3) : '1');
+    m.classList.toggle('ds-fit', fitted);
+    const zb = m.querySelector('[data-dszoom]');
+    if (zb) zb.textContent = fitted ? '🔍 حجم ١٠٠٪' : '📐 ملاءمة الصفحة';
+  };
+  syncZoom();
+  m.querySelector('[data-dszoom]').onclick = () => { fitted = !fitted; syncZoom(); };
+  m.querySelector('[data-close]').onclick = closeModal;
+  m.querySelector('[data-vprint]').onclick = () => { document.body.dataset.printVoucher = 1; window.print(); delete document.body.dataset.printVoucher; };
+  loadQR().then(Q => {
+    m.querySelectorAll('[data-dqr]').forEach(el => {
+      try { const q = Q(0, 'M'); q.addData(el.dataset.dqr); q.make(); el.innerHTML = q.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); } catch (_) {}
+    });
+  }).catch(() => {});
+  if (isStaff() && !S.gov && (can('governance.view') || can('governance.manage'))) {
+    loadGov().then(() => {
+      const s = getOfficialSigs(), map = { 'أمين الصندوق': s.treasurer, 'الأمين العام': s.secretary, 'رئيس اللجنة النقابية': s.chair };
+      m.querySelectorAll('[data-sigrole]').forEach(el => { if (!el.textContent.trim() && map[el.dataset.sigrole]) el.textContent = map[el.dataset.sigrole]; });
+    });
+  }
 }
+
+function voucherHTML(c) {
+  const stTxt = c.status === 'ملغى' ? 'شيك ملغى' : c.cleared_date ? 'منصرف من البنك' : c.status;
+  const stCls = c.status === 'ملغى' ? 'bad' : ['مسوّى'].includes(c.status) || c.cleared_date ? 'ok' : 'warn';
+  return erpDoc({
+    dept: 'الإدارة المالية والخزينة', kind: 'سند صرف مالي', code: 'CHQ',
+    refLbl: 'رقم الشيك', refNo: c.cheque_no || 'بدون رقم', date: c.issue_date,
+    ctrl: [['حساب البنك', '1102 — الجاري'], ['طبيعة الصرف', c.purpose]],
+    title: 'سند صرف بشيك بنكي', sub: 'أمر دفع رسمي مسحوب على الحساب الجاري للجنة النقابية بالبنك',
+    status: stTxt, statusCls: stCls,
+    sigCols: s => [['توقيع المستلم', c.payee_name], ['أمين الصندوق', s.treasurer], ['الأمين العام', s.secretary], ['رئيس اللجنة النقابية', s.chair]],
+    body: edMoney(c.amount, 'صافي قيمة الشيك المنصرف') + edGrid([
+      [6, 'يُصرف لأمر السيد / الجهة المستفيدة', `<b>${esc(c.payee_name)}</b>`],
+      [3, 'رقم الشيك البنكي', `<span class="dt">${esc(c.cheque_no || 'بدون رقم')}</span>`],
+      [3, 'تاريخ الإصدار', dt(c.issue_date)],
+      [4, 'الغرض / طبيعة الصرف', esc(c.purpose)],
+      [4, 'الحساب المسحوب عليه', '1102 — البنك (الحساب الجاري)'],
+      [4, 'موقف التسوية والصرف البنكي', esc(c.status) + (c.cleared_date ? ' · صُرف ' + dt(c.cleared_date) : '')],
+      [12, 'وذلك قيمة / البيان التفصيلي للصرف', esc(c.notes || c.purpose)],
+      [12, 'سند الاعتماد (قرار مجلس الإدارة)', c.decision ? `قرار مجلس الإدارة رقم (${esc(c.decision.decision_no)}) — ${esc(c.decision.text)}` : 'وفق الصلاحيات المعتمدة باللائحة المالية'],
+    ]) + (c.status === 'ملغى' ? `<div class="ed-box" style="border-color:#dc2626;background:#fef2f2;color:#991b1b"><b>✗ تنبيه إلغاء:</b> أُلغي هذا الشيك بقيد عكسي — السبب: ${esc(c.void_reason || '—')}</div>` : '')
+      + `<div class="ed-box gold"><b>إقرار استلام:</b> أقر أنا الموقّع أدناه باستلام الشيك البنكي المبيّن رقمه وقيمته أعلاه على سبيل (${esc(c.purpose)})${c.requires_settlement ? '، وأتعهد بتقديم الفواتير ومستندات التسوية المعتمدة في الموعد المقرر باللائحة المالية.' : ' خالصاً ومبرئاً لذمة اللجنة النقابية عن البيان المذكور.'}</div>`
+  });
+}
+
 function receiptVoucherHTML(r) {
-  return docHead('سند قبض', 'رقم الإيصال', r.receipt_no) + `<table class="vt">
-    <tr><th>التاريخ</th><td>${dt(r.receipt_date)}</td><th>المبلغ</th><td><b>${money(r.amount)} جنيه</b></td></tr>
-    <tr><th>استلمنا من</th><td colspan="3"><b>${esc(r.party || '—')}</b></td></tr>
-    <tr><th>نوع القبض</th><td>${esc(r.kind)}</td><th>أُودع في</th><td>${r.cash_account === '1101' ? 'الخزينة' : 'البنك — الحساب الجاري'}</td></tr>
-    <tr><th>وذلك قيمة</th><td colspan="3">${esc(r.notes || r.kind)}</td></tr></table>` + docFoot(['المُسلِّم', 'أمين الصندوق', 'المراجع']);
+  const dest = r.cash_account === '1101' ? '1101 — خزينة اللجنة النقابية' : '1102 — البنك (الحساب الجاري)';
+  return erpDoc({
+    dept: 'الإدارة المالية والخزينة', kind: 'سند قبض وتوريد', code: 'RCPT',
+    refLbl: 'رقم الإيصال', refNo: r.receipt_no, date: r.receipt_date,
+    ctrl: [['جهة الإيداع', r.cash_account === '1101' ? '1101 الخزينة' : '1102 البنك']],
+    title: 'سند قبض وتوريد مالي', sub: 'إيصال استلام وتوريد مبالغ مالية بحسابات اللجنة النقابية',
+    status: 'مرحّل بالدفاتر', statusCls: 'ok',
+    sigCols: s => [['المُسلِّم / المورِّد', r.party || ''], ['أمين الصندوق', s.treasurer], ['الأمين العام', s.secretary], ['رئيس اللجنة النقابية', s.chair]],
+    body: edMoney(r.amount, 'المبلغ المقبوض والمورَّد') + edGrid([
+      [6, 'استلمنا من السيد / الجهة', `<b>${esc(r.party || '—')}</b>`],
+      [3, 'رقم سند القبض', `<span class="dt">${esc(r.receipt_no)}</span>`],
+      [3, 'تاريخ التحصيل', dt(r.receipt_date)],
+      [6, 'بند الإيراد / نوع التحصيل', esc(r.kind)],
+      [6, 'أُودع في حساب', dest],
+      [12, 'وذلك قيمة / البيان التفصيلي', esc(r.notes || r.kind)],
+    ]) + `<div class="ed-box">قُيّد المبلغ بالحسابات المالية للجنة النقابية بموجب قيد يومية آلي مرحّل، ويُعد هذا السند إيصالاً رسمياً بالاستلام بعد توقيعه وختمه بخاتم اللجنة.</div>`
+  });
 }
+
 function grantRequestHTML(g) {
   const p = g.person || (S.me.profile && S.me.profile.person) || {};
-  return docHead('طلب منحة — ' + esc(g.type_name), 'رقم الطلب', g.req_no) + `<table class="vt">
-    <tr><th>اسم العضو</th><td><b>${esc(p.full_name || '')}</b></td><th>الرقم الوظيفي</th><td>${esc(p.job_id || '')}</td></tr>
-    <tr><th>نوع المنحة</th><td>${esc(g.type_name)}</td><th>تاريخ الواقعة</th><td>${dt(g.event_date)}</td></tr>
-    <tr><th>المستفيد</th><td>${esc(g.subject_name || '')}</td><th>صلته بالعضو</th><td>${esc(g.subject_relation || '')}</td></tr>
-    <tr><th>المبلغ</th><td>${g.amount ? money(g.amount) + ' جنيه' : 'يحدده المجلس'}</td><th>حالة الطلب</th><td><b>${esc(g.status)}</b></td></tr>
-    <tr><th>تاريخ التقديم</th><td>${dt(String(g.created_at || '').slice(0, 10))}</td><th>القرار</th><td>${g.decision ? esc(g.decision.decision_no) : '—'}</td></tr>
-    <tr><th>المستندات</th><td colspan="3">${(g.docs || []).map(d => `${d.received ? '☑' : '☐'} ${esc(d.name)}`).join(' &nbsp; ') || '—'}</td></tr>
-    ${g.cheque ? `<tr><th>صُرفت بشيك</th><td colspan="3">${esc(g.cheque.cheque_no || '')} — ${dt(g.cheque.issue_date)}</td></tr>` : ''}
-    ${g.reject_reason ? `<tr><th>سبب الرفض</th><td colspan="3">${esc(g.reject_reason)}</td></tr>` : ''}</table>
-    <p style="font-size:13px;margin-top:10px">أقر أنا الموقّع أدناه بصحة البيانات والمستندات المقدمة، وأتحمل المسئولية عن أي بيانات غير صحيحة.</p>` + docFoot(['مقدّم الطلب', 'مراجع المستندات', 'المعتمِد', 'أمين الصندوق']);
+  const docsRows = (g.docs || []).map((d, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(d.name)}</b></td><td class="c">${d.received ? '☑ مستوفى ومطابق' : '☐ قيد الاستيفاء'}</td></tr>`).join('')
+    || '<tr><td colspan="3" class="c">لا توجد مرفقات إلزامية محددة</td></tr>';
+  return erpDoc({
+    dept: 'لجنة الرعاية الاجتماعية والمنح', kind: 'استمارة منحة اجتماعية', code: 'GRT',
+    refLbl: 'رقم الطلب', refNo: g.req_no, date: String(g.created_at || '').slice(0, 10) || g.event_date,
+    ctrl: [['نوع المنحة', g.type_name]],
+    title: `استمارة طلب وصرف منحة — ${esc(g.type_name)}`, sub: 'صندوق الرعاية الاجتماعية ومزايا السادة أعضاء اللجنة النقابية',
+    status: g.status, statusCls: ['مصروف', 'معتمد'].includes(g.status) ? 'ok' : ['مرفوض', 'ملغى'].includes(g.status) ? 'bad' : 'warn',
+    sigCols: s => [['مقدّم الطلب', p.full_name || ''], ['أمين الصندوق', s.treasurer], ['الأمين العام', s.secretary], ['رئيس اللجنة النقابية', s.chair]],
+    body: (g.amount ? edMoney(g.amount, 'قيمة المنحة المقررة / المعتمدة') : '') + edGrid([
+      [5, 'اسم العضو الرباعي', `<b>${esc(p.full_name || '')}</b>`],
+      [3, 'الرقم الوظيفي', `<span class="dt">${esc(p.job_id || '—')}</span>`],
+      [4, 'جهة العمل والتنظيم', esc([p.workplace, p.union_org].filter(Boolean).join(' · ') || '—')],
+      [4, 'نوع المنحة الاجتماعية', esc(g.type_name)],
+      [4, 'تاريخ الواقعة', dt(g.event_date)],
+      [4, 'المستفيد وصلته بالعضو', esc((g.subject_name || p.full_name || '') + (g.subject_relation ? ` (${g.subject_relation})` : ''))],
+      [4, 'تاريخ قيد الطلب', dt(String(g.created_at || '').slice(0, 10))],
+      [4, 'سند الاعتماد', g.decision ? `قرار رقم (${esc(g.decision.decision_no)})` : esc(g.exception_note || 'وفق اللائحة المالية')],
+      [4, 'بيانات الصرف البنكي', g.cheque ? `شيك رقم ${esc(g.cheque.cheque_no || '—')} بتاريخ ${dt(g.cheque.issue_date)}` : 'لم يُصرف بعد'],
+    ]) + `<div class="ed-sec">قائمة فحص ومراجعة المستندات المسوّغة للصرف</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:38px">م</th><th>بيان المستند المطلوب</th><th class="c" style="width:150px">موقف الاستيفاء</th></tr></thead><tbody>${docsRows}</tbody></table>`
+      + (g.reject_reason ? `<div class="ed-box" style="border-color:#dc2626;background:#fef2f2;color:#991b1b"><b>سبب رفض الطلب:</b> ${esc(g.reject_reason)}</div>` : '')
+      + `<div class="ed-box gold"><b>إقرار مقدّم الطلب:</b> أقر أنا العضو الموقّع أدناه بصحة كافة البيانات والمستندات المقدمة، وعدم سبق صرف ذات المنحة عن نفس الواقعة، وأتحمل المسئولية القانونية الكاملة حال ثبوت خلاف ذلك.</div>`
+  });
 }
 
 function bookingHTML(b, a, p) {
-  return docHead('إيصال حجز — ' + esc(a.title), 'رقم الحجز', b.booking_no) + `<table class="vt">
-    <tr><th>العضو</th><td><b>${esc(p.full_name || '')}</b></td><th>الرقم الوظيفي</th><td>${esc(p.job_id || '')}</td></tr>
-    <tr><th>النشاط</th><td>${esc(a.title)}</td><th>التاريخ</th><td>${dt(a.start_date)}${a.end_date && a.end_date !== a.start_date ? ' ← ' + dt(a.end_date) : ''}</td></tr>
-    <tr><th>المكان</th><td>${esc(a.location || '—')}</td><th>حالة الحجز</th><td><b>${esc(b.status)}</b></td></tr></table>
-    <table class="vt" style="margin-top:8px"><tr><th>#</th><th>الاسم</th><th>الصلة</th><th>الكرسي</th><th>القيمة</th></tr>
-    ${b.people.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.full_name)}</td><td>${esc(x.relation)}</td><td>${x.seat_no || '—'}</td><td>${money(x.price)}</td></tr>`).join('')}
-    <tr><th colspan="4">الإجمالي</th><th>${money(b.total)}</th></tr>${+b.subsidy ? `<tr><td colspan="4">دعم النقابة</td><td>${money(b.subsidy)}</td></tr>` : ''}
-    <tr><td colspan="4">المدفوع</td><td>${money(b.paid)}</td></tr><tr><th colspan="4">المتبقي</th><th>${money(+b.total - +b.paid)}</th></tr></table>` + docFoot(['العضو', 'مسئول النشاط', 'أمين الصندوق']);
+  const rest = Math.max(0, +b.total - +b.paid);
+  const pRows = (b.people || []).map((x, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(x.full_name)}</b></td><td class="c">${esc(x.relation || '—')}</td><td class="c">${esc(x.seat_no || '—')}</td><td class="n">${money(x.price)}</td></tr>`).join('');
+  return erpDoc({
+    dept: 'لجنة الأنشطة والرحلات والخدمات', kind: 'إيصال حجز نشاط', code: 'BKG',
+    refLbl: 'رقم الحجز', refNo: b.booking_no, date: String(b.created_at || '').slice(0, 10) || a.start_date,
+    ctrl: [['عدد الأفراد', `${numAr((b.people || []).length)} مشارك`]],
+    title: `إيصال حجز واشتراك نشاط — ${esc(a.title)}`, sub: `${esc(a.location || 'رحلة / فعالية نقابية')} · تاريخ التنفيذ: ${dt(a.start_date)}${a.end_date && a.end_date !== a.start_date ? ' ← ' + dt(a.end_date) : ''}`,
+    status: b.status, statusCls: b.status === 'مؤكد' ? 'ok' : b.status === 'ملغى' ? 'bad' : 'warn',
+    sigCols: s => [['العضو الحاجز', p.full_name || ''], ['مسئول النشاط', ''], ['أمين الصندوق', s.treasurer]],
+    body: edMoney(+b.paid || +b.total, +b.paid ? 'المبلغ المسدّد من الاشتراك' : 'إجمالي قيمة الحجز المطلوب') + edGrid([
+      [5, 'اسم العضو الحاجز', `<b>${esc(p.full_name || '')}</b>`],
+      [3, 'الرقم الوظيفي', `<span class="dt">${esc(p.job_id || '—')}</span>`],
+      [4, 'وجهة / مقر النشاط', esc(a.location || '—')],
+    ]) + `<div class="ed-sec">بيان السادة المشاركين والمقاعد المخصّصة</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:38px">م</th><th>اسم المشارك</th><th class="c">صلة القرابة</th><th class="c">رقم المقعد</th><th class="n">الاشتراك (ج.م)</th></tr></thead>
+      <tbody>${pRows}</tbody>
+      <tfoot>
+        <tr><th colspan="4">إجمالي قيمة الاشتراك بعد الدعم</th><th class="n">${money(b.total)}</th></tr>
+        ${+b.subsidy ? `<tr><th colspan="4">دعم اللجنة النقابية الممنوح للعضو وأسرته</th><th class="n">${money(b.subsidy)}</th></tr>` : ''}
+        <tr><th colspan="4">المسدّد الفعلي · المتبقي للسداد: ${money(rest)} ج.م</th><th class="n">${money(b.paid)}</th></tr>
+      </tfoot></table>`
+  });
 }
+
 function changeReqHTML(items, person) {
-  return docHead('طلب تعديل بيانات', 'التاريخ', new Date().toISOString().slice(0, 10)) + `<table class="vt">
-    <tr><th>الاسم</th><td><b>${esc(person.full_name || '')}</b></td><th>الرقم الوظيفي</th><td>${esc(person.job_id || '')}</td></tr></table>
-    <table class="vt" style="margin-top:8px"><tr><th>البيان</th><th>القيمة الحالية</th><th>القيمة المطلوبة</th><th>السبب</th><th>الحالة</th></tr>
-    ${items.map(r => `<tr><td>${esc(FIELD_LBL[r.field] || r.field)}</td><td>${esc(r.old_value || '—')}</td><td><b>${esc(r.new_value)}</b></td><td>${esc(r.reason || '')}</td><td>${esc(r.status || 'معلّق')}</td></tr>`).join('')}</table>
-    <p style="font-size:13px;margin-top:10px">أقر بصحة البيانات المطلوب تعديلها، ومرفق ما يثبتها.</p>` + docFoot(['مقدّم الطلب', 'مسئول البيانات', 'المعتمِد']);
+  const rows = (items || []).map((r, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(FIELD_LBL[r.field] || r.field)}</b></td><td>${esc(r.old_value || '—')}</td><td><b>${esc(r.new_value)}</b></td><td>${esc(r.reason || '—')}</td><td class="c">${esc(r.status || 'معلّق')}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="c">لا توجد طلبات تعديل معلّقة</td></tr>';
+  return erpDoc({
+    dept: 'شئون العضوية وسجلات الأعضاء', kind: 'نموذج تحديث بيانات', code: 'CHG',
+    refLbl: 'الرقم الوظيفي', refNo: person.job_id || '—',
+    title: 'استمارة طلب تعديل وتحديث بيانات عضو', sub: 'تُرفق بصور المستندات الرسمية المؤيدة للتعديل لاعتمادها في ملف العضو',
+    status: items.length && items.every(r => r.status === 'معتمد') ? 'معتمد' : 'قيد المراجعة والاعتماد',
+    statusCls: items.length && items.every(r => r.status === 'معتمد') ? 'ok' : 'warn',
+    sigCols: s => [['مقدّم الطلب', person.full_name || ''], ['مراجع شئون العضوية', ''], ['الأمين العام', s.secretary]],
+    body: edGrid([
+      [6, 'اسم العضو الرباعي', `<b>${esc(person.full_name || '')}</b>`],
+      [3, 'الرقم الوظيفي', `<span class="dt">${esc(person.job_id || '—')}</span>`],
+      [3, 'عدد البنود المطلوب تعديلها', `${numAr(items.length)} بند`],
+    ]) + `<div class="ed-sec">تفاصيل التعديلات المطلوبة على سجل العضوية</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:36px">م</th><th>البيان</th><th>القيمة المسجّلة حالياً</th><th>القيمة الصحيحة المطلوبة</th><th>السبب / السند</th><th class="c">الحالة</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="ed-box gold"><b>إقرار:</b> أقر أنا العضو الموقّع أدناه بصحة البيانات المطلوب إثباتها في سجلات اللجنة النقابية، ومرفق طيّه صور المستندات الرسمية الدالة عليها.</div>`
+  });
+}
+
+function openAdvancesReportHTML(items) {
+  const list = items || [], today = new Date(), age = c => Math.floor((today - new Date(c.issue_date)) / 864e5);
+  const tot = list.reduce((a, c) => a + +c.amount, 0);
+  const over30 = list.filter(c => age(c) > 30).length, over90 = list.filter(c => age(c) > 90).length;
+  const rows = list.map((c, i) => `<tr><td class="c">${numAr(i + 1)}</td><td>${dt(c.issue_date)}</td><td class="c"><span class="dt">${esc(c.cheque_no || '—')}</span></td>
+    <td><b>${esc(c.payee_name)}</b></td><td>${esc(c.notes || c.purpose)}</td><td class="c">${numAr(age(c))} يوم</td><td class="n"><b>${money(c.amount)}</b></td></tr>`).join('')
+    || '<tr><td colspan="7" class="c">لا توجد عُهد أو سلف مفتوحة تحت التسوية حالياً</td></tr>';
+  return erpDoc({
+    dept: 'الإدارة المالية والخزينة · الرقابة على العُهد', kind: 'تقرير رقابي مالي', code: 'ADV',
+    refLbl: 'حساب المراقبة', refNo: '1103 — عُهد مفتوحة',
+    title: 'بيان العُهد والسلف المفتوحة تحت التسوية', sub: 'حصر تفصيلي بالشيكات المنصرفة كعُهد أو دعم أنشطة ولم تُقفل بتسوية معتمدة حتى تاريخه',
+    status: list.length ? `${numAr(list.length)} عهدة مفتوحة` : 'رصيد صفري منطبق', statusCls: list.length ? 'warn' : 'ok',
+    body: edMoney(tot, 'إجمالي رصيد العُهد المفتوحة (حـ/ 1103)') + edGrid([
+      [4, 'إجمالي عدد الشيكات المفتوحة', `${numAr(list.length)} شيك`],
+      [4, 'عُهد تجاوزت ٣٠ يوماً', `${numAr(over30)} عهدة`],
+      [4, 'عُهد متقادمة (+٩٠ يوماً)', `${numAr(over90)} عهدة`],
+    ]) + `<div class="ed-sec">بيان الشيكات وأصحاب العُهد وأعمارها الزمنية</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:36px">م</th><th>تاريخ الصرف</th><th class="c">رقم الشيك</th><th>صاحب العهدة</th><th>الغرض والبيان</th><th class="c">العمر</th><th class="n">المبلغ (ج.م)</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><th colspan="6">الإجمالي العام للعُهد تحت التسوية</th><th class="n">${money(tot)}</th></tr></tfoot></table>`
+  });
+}
+
+function partyStatementHTML(x, items) {
+  const list = items || [], validTot = list.filter(i => i.status !== 'ملغى').reduce((a, i) => a + +i.amount, 0);
+  const rows = list.map((it, i) => `<tr><td class="c">${numAr(i + 1)}</td><td>${dt(it.date)}</td><td class="c">${esc(it.doc || '—')}</td>
+    <td>${esc(it.notes || '—')}</td><td class="c">${esc(it.status || '')}</td><td class="n"><b>${money(it.amount)}</b></td></tr>`).join('')
+    || '<tr><td colspan="6" class="c">لا توجد معاملات مسجّلة لهذا الطرف</td></tr>';
+  return erpDoc({
+    dept: 'الإدارة المالية والخزينة · حسابات الموردين والأطراف', kind: 'كشف حساب رسمي', code: 'PRTY',
+    refLbl: 'تصنيف الطرف', refNo: x.kind || 'طرف خارجي',
+    title: `كشف حساب مالي لطرف خارجي — ${esc(x.name)}`, sub: 'حصر شامل لجميع الشيكات والمدفوعات المسجّلة بالدفاتر المالية للجنة النقابية',
+    status: x.active !== false ? 'طرف نشط' : 'موقوف', statusCls: x.active !== false ? 'ok' : 'bad',
+    body: edMoney(validTot, 'صافي إجمالي المنصرف المعتمد (بدون الملغى)') + edGrid([
+      [5, 'اسم المورد / الجهة', `<b>${esc(x.name)}</b>`],
+      [3, 'التصنيف', esc(x.kind || '—')],
+      [4, 'رقم التليفون', `<span class="dt">${esc(x.phone || '—')}</span>`],
+      [5, 'البطاقة الضريبية / السجل التجاري', esc(x.tax_id || '—')],
+      [5, 'العنوان', esc(x.address || '—')],
+      [2, 'عدد المعاملات', numAr(list.length)],
+    ]) + `<div class="ed-sec">سجل المعاملات والمدفوعات الزمنية</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:36px">م</th><th>التاريخ</th><th class="c">المستند / الشيك</th><th>البيان التفصيلي</th><th class="c">الحالة</th><th class="n">المبلغ (ج.م)</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><th colspan="5">صافي الإجمالي المعتمد (مستبعداً الملغى)</th><th class="n">${money(validTot)}</th></tr></tfoot></table>`
+  });
+}
+
+function financialStatementsReportHTML() {
+  const t = S.trial || {}, items = t.items || [], names = Object.fromEntries((S.accts || []).map(a => [a.code, a.name])), parents = Object.fromEntries((S.accts || []).map(a => [a.code, a.parent]));
+  const grp = (type, val) => {
+    const g = {};
+    items.filter(x => x.type === type).forEach(x => {
+      const k = parents[x.code] || x.code.slice(0, 2), v = val(x);
+      if (Math.abs(v) < 0.005) return;
+      (g[k] = g[k] || { name: names[k] || k, total: 0, rows: [] }).total += v;
+      g[k].rows.push([x.code, x.name, v]);
+    });
+    return Object.entries(g).sort();
+  };
+  const tot = gs => gs.reduce((a, [, g]) => a + g.total, 0);
+  const renderSec = (gs, emptyMsg) => gs.map(([k, g]) =>
+    `<tr style="background:#f1f5f9;font-weight:800"><td class="c">${esc(k)}</td><td>${esc(g.name)}</td><td class="n">${money(g.total)}</td></tr>` +
+    g.rows.map(([c, n, v]) => `<tr><td class="c">${esc(c)}</td><td style="padding-inline-start:20px">${esc(n)}</td><td class="n">${money(v)}</td></tr>`).join('')
+  ).join('') || `<tr><td colspan="3" class="c">${emptyMsg}</td></tr>`;
+  const rev = grp('إيرادات', x => +x.credit - +x.debit), exp = grp('مصروفات', x => +x.debit - +x.credit);
+  const revTot = tot(rev), expTot = tot(exp), surplus = revTot - expTot;
+  const ast = grp('أصول', x => +x.closing), lia = grp('خصوم', x => -x.closing), fnd = grp('أرصدة', x => -x.closing);
+  const accum = -items.filter(x => x.type === 'إيرادات' || x.type === 'مصروفات').reduce((a, x) => a + +x.closing, 0);
+  const astTot = tot(ast), rightTot = tot(lia) + tot(fnd) + accum, ok = Math.abs(astTot - rightTot) < 0.01;
+  return erpDoc({
+    dept: 'الإدارة المالية والحسابات الختامية', kind: 'قوائم مالية معتمدة', code: 'FS',
+    refLbl: 'نهاية الفترة', refNo: t.to || new Date().toISOString().slice(0, 10), date: t.to,
+    ctrl: [['بداية الفترة', dt(t.from)]],
+    title: 'القوائم المالية الرسمية (الإيرادات والمصروفات · المركز المالي)',
+    sub: `مستخرجة من القيود المحاسبية المرحّلة عن الفترة من ${dt(t.from)} حتى ${dt(t.to)}`,
+    status: ok ? 'متوازنة ومطابقة ✓' : 'تحتاج مراجعة توازن', statusCls: ok ? 'ok' : 'bad',
+    body: edGrid([
+      [3, 'إجمالي الإيرادات', `<b>${money(revTot)} ج.م</b>`],
+      [3, 'إجمالي المصروفات', `<b>${money(expTot)} ج.م</b>`],
+      [3, surplus >= 0 ? 'فائض الفترة' : 'عجز الفترة', `<b>${money(Math.abs(surplus))} ج.م</b>`],
+      [3, 'إجمالي الأصول والمركز المالي', `<b>${money(astTot)} ج.م</b>`],
+    ]) + `<div class="ed-sec">أولاً: قائمة الإيرادات والمصروفات عن الفترة (${dt(t.from)} ← ${dt(t.to)})</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:76px">رقم الحساب</th><th>بيان الحساب / المجموعة</th><th class="n" style="width:145px">المبلغ (ج.م)</th></tr></thead>
+      <tbody>
+        <tr style="background:#e8eff7;font-weight:800;color:#0f3d5e"><td colspan="2">١. الإيرادات المحققة</td><td class="n">${money(revTot)}</td></tr>
+        ${renderSec(rev, 'لا توجد إيرادات مسجّلة في الفترة')}
+        <tr style="background:#e8eff7;font-weight:800;color:#0f3d5e"><td colspan="2">٢. المصروفات والأعباء</td><td class="n">${money(expTot)}</td></tr>
+        ${renderSec(exp, 'لا توجد مصروفات مسجّلة في الفترة')}
+      </tbody>
+      <tfoot><tr><th colspan="2">${surplus >= 0 ? 'صافي فائض الإيرادات عن المصروفات للفترة' : 'صافي عجز الفترة'}</th><th class="n">${money(Math.abs(surplus))}</th></tr></tfoot></table>
+      <div class="ed-sec">ثانياً: قائمة المركز المالي (الميزانية) كما في ${dt(t.to)}</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:76px">رقم الحساب</th><th>بيان الأصول والالتزامات وصافي الأرصدة</th><th class="n" style="width:145px">الرصيد (ج.م)</th></tr></thead>
+      <tbody>
+        <tr style="background:#e8eff7;font-weight:800;color:#0f3d5e"><td colspan="2">١. الأصول (النقدية والبنوك والعُهد والمدينون)</td><td class="n">${money(astTot)}</td></tr>
+        ${renderSec(ast, 'لا توجد أرصدة أصول')}
+        <tr style="background:#e8eff7;font-weight:800;color:#0f3d5e"><td colspan="2">٢. الخصوم والالتزامات</td><td class="n">${money(tot(lia))}</td></tr>
+        ${renderSec(lia, 'لا توجد التزامات قائمة')}
+        <tr style="background:#e8eff7;font-weight:800;color:#0f3d5e"><td colspan="2">٣. الأرصدة والصناديق والفائض المتراكم</td><td class="n">${money(tot(fnd) + accum)}</td></tr>
+        ${renderSec(fnd, '—')}
+        <tr><td class="c">—</td><td>الفائض / (العجز) المتراكم للنشاط</td><td class="n"><b>${money(accum)}</b></td></tr>
+      </tbody>
+      <tfoot><tr><th colspan="2">إجمالي الخصوم وصافي الأرصدة المتراكمة (${ok ? 'مطابق لإجمالي الأصول ✓' : 'غير مطابق'})</th><th class="n">${money(rightTot)}</th></tr></tfoot></table>`
+  });
+}
+
+function budgetReportHTML() {
+  const b = S.bud || {}, items = b.items || [], yr = b.year || new Date().getFullYear();
+  const buildPart = type => {
+    const rows = items.filter(x => x.type === type), bt = rows.reduce((a, x) => a + +x.budget, 0), at = rows.reduce((a, x) => a + +x.actual, 0);
+    const pct = (a, bd) => +bd ? numAr(Math.round((100 * a) / bd)) + '%' : '—';
+    const trs = rows.filter(x => +x.budget || +x.actual).map(x => `<tr><td class="c">${esc(x.code)}</td><td><b>${esc(x.name)}</b></td>
+      <td class="n">${money(x.budget)}</td><td class="n">${money(x.actual)}</td><td class="n">${money(+x.budget - +x.actual)}</td><td class="c">${pct(+x.actual, +x.budget)}</td></tr>`).join('')
+      || '<tr><td colspan="6" class="c">لا توجد تقديرات أو حركات فعلية مسجّلة</td></tr>';
+    return { bt, at, tbl: `<table class="ed-tbl"><thead><tr><th class="c" style="width:68px">الكود</th><th>اسم الحساب</th><th class="n">المعتمد بالموازنة</th><th class="n">المحقق الفعلي</th><th class="n">الانحراف</th><th class="c" style="width:80px">التنفيذ</th></tr></thead>
+      <tbody>${trs}</tbody><tfoot><tr><th colspan="2">إجمالي ${type}</th><th class="n">${money(bt)}</th><th class="n">${money(at)}</th><th class="n">${money(bt - at)}</th><th class="c">${pct(at, bt)}</th></tr></tfoot></table>` };
+  };
+  const rv = buildPart('إيرادات'), ex = buildPart('مصروفات');
+  return erpDoc({
+    dept: 'الإدارة المالية والتخطيط والموازنة', kind: 'تقرير متابعة الموازنة', code: 'BUD',
+    refLbl: 'السنة المالية', refNo: String(yr),
+    title: `تقرير الموازنة التقديرية ومقارنة الأداء الفعلي لعام ${esc(yr)}`,
+    sub: 'مقارنة الاعتمادات التقديرية بالمحقق الفعلي من واقع القيود المحاسبية المرحّلة',
+    status: `موازنة ${yr}`, statusCls: 'ok',
+    body: edGrid([
+      [4, 'الإيرادات المقدّرة / الفعلية', `${money(rv.bt)} / <b>${money(rv.at)}</b>`],
+      [4, 'المصروفات المقدّرة / الفعلية', `${money(ex.bt)} / <b>${money(ex.at)}</b>`],
+      [4, 'الفائض المقدّر / الفعلي', `${money(rv.bt - ex.bt)} / <b>${money(rv.at - ex.at)}</b>`],
+    ]) + `<div class="ed-sec">أولاً: متابعة تنفيذ موازنة الإيرادات</div>${rv.tbl}
+      <div class="ed-sec">ثانياً: متابعة تنفيذ موازنة المصروفات</div>${ex.tbl}`
+  });
+}
+
+function comprehensiveReportHTML() {
+  const r = S.rep || {}, m = r.members || {}, b = r.benefits || {}, f = r.finance || {};
+  const yrLbl = r.year ? `سنة ${r.year}` : 'تراكمي شامل لجميع السنوات';
+  const memRows = Object.entries(m.byState || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n"><b>${numAr(v)}</b></td></tr>`).join('');
+  const orgRows = Object.entries(m.byOrg || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n"><b>${numAr(v)}</b></td></tr>`).join('');
+  const accRows = (f.byAccount || []).map(a => `<tr><td class="c">${esc(a.code)}</td><td>${esc(a.name)}</td><td class="c">${esc(a.type)}</td><td class="n">${money(a.amount)}</td></tr>`).join('')
+    || '<tr><td colspan="4" class="c">لا توجد حركات مالية</td></tr>';
+  const benRows = (b.byCategory || []).map(c => `<tr><td><b>${esc(c.category)}</b></td><td class="c">${numAr(c.people)}</td><td class="n">${money(c.total)}</td></tr>`).join('')
+    || '<tr><td colspan="3" class="c">لا توجد مزايا مسجّلة</td></tr>';
+  const actRows = (r.activities || []).map(a => `<tr><td><b>${esc(a.title)}</b></td><td class="c">${dt(a.date)}</td><td class="c">${numAr(a.people)}</td><td class="n">${money(a.collected)}</td><td class="n">${money(a.subsidy)}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="c">لا توجد أنشطة مسجّلة</td></tr>';
+  return erpDoc({
+    dept: 'الأمانة العامة والإدارة المالية', kind: 'تقرير تنفيذي شامل', code: 'EXEC',
+    refLbl: 'نطاق التقرير', refNo: r.year || 'ALL',
+    title: `التقرير التنفيذي والمالي الشامل للجنة النقابية (${esc(yrLbl)})`,
+    sub: 'ملخص مؤشرات العضوية والموقف المالي والمزايا والمنح والأنشطة النقابية',
+    status: yrLbl, statusCls: 'ok',
+    body: edGrid([
+      [3, 'إجمالي الأعضاء المسجّلين', `<b>${numAr(m.total)} عضو</b>`],
+      [3, 'إجمالي الإيرادات', `<b>${money(f.revenue)} ج.م</b>`],
+      [3, 'إجمالي المصروفات', `<b>${money(f.expense)} ج.م</b>`],
+      [3, 'رصيد البنك الدفتري الحالي', `<b>${money(f.bank)} ج.م</b>`],
+      [4, 'صافي الفائض / (العجز)', `<b>${money(+f.revenue - +f.expense)} ج.م</b>`],
+      [4, 'إجمالي المزايا الممنوحة للأعضاء', `<b>${money(b.total)} ج.م (${numAr(b.people)} مستفيد)</b>`],
+      [4, 'عُهد تحت التسوية حالياً', `<b>${money(f.custody)} ج.م</b>`],
+    ]) + `<div class="ed-sec">أولاً: هيكل العضوية حسب التنظيم النقابي والحالة</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <table class="ed-tbl"><thead><tr><th>التنظيم النقابي</th><th class="n">العدد</th></tr></thead><tbody>${orgRows}</tbody></table>
+        <table class="ed-tbl"><thead><tr><th>حالة العضوية</th><th class="n">العدد</th></tr></thead><tbody>${memRows}</tbody></table>
+      </div>
+      <div class="ed-sec">ثانياً: بيان الإيرادات والمصروفات حسب الحساب</div>
+      <table class="ed-tbl"><thead><tr><th class="c" style="width:68px">الكود</th><th>اسم الحساب</th><th class="c" style="width:90px">النوع</th><th class="n">المبلغ (ج.م)</th></tr></thead><tbody>${accRows}</tbody></table>
+      <div class="ed-sec">ثالثاً: المزايا والمنح والخدمات الاجتماعية</div>
+      <table class="ed-tbl"><thead><tr><th>بند الميزة / المنحة</th><th class="c">عدد المستفيدين</th><th class="n">الإجمالي (ج.م)</th></tr></thead><tbody>${benRows}</tbody></table>
+      <div class="ed-sec">رابعاً: الأنشطة والرحلات والفعاليات (${numAr((r.activities || []).length)})</div>
+      <table class="ed-tbl"><thead><tr><th>اسم النشاط</th><th class="c">التاريخ</th><th class="c">المشاركون</th><th class="n">المحصّل</th><th class="n">دعم النقابة</th></tr></thead><tbody>${actRows}</tbody></table>`
+  });
 }
 function settlementsView() {
   const items = S.openAdv || [], drafts = S.stlDrafts || [], carries = S.stlCarries || [], hist = S.stlItems || [];
@@ -2352,7 +2777,8 @@ async function boot() {
   if (!S.token) { location.hash = '#/login'; return render(); }
   const r = await call('GET_ME');
   if (!r.success) return;
-  S.me = r; await loadLists();
+  S.me = r;
+  await Promise.all([loadLists(), isStaff() && (can('governance.view') || can('governance.manage')) ? loadGov() : null]);
   refreshNtf(); if (!S.ntfTimer) S.ntfTimer = setInterval(() => { if (S.token && !document.hidden) refreshNtf(); }, 120000);
   if (isStaff() && r.mustChange) location.hash = '#/account';
   else if (!location.hash || location.hash === '#/login') location.hash = isStaff() ? '#/dash' : '#/home';
@@ -2600,7 +3026,7 @@ function bindPage(gridOnly) {
   const app = $('#app');
   if (!gridOnly) bindGrids();
   const byr = $('#byr'); if (byr) byr.onsubmit = e => { e.preventDefault(); S.budYear = formData(byr).year; render(); };
-  app.querySelectorAll('[data-act=budPrint]').forEach(b => b.onclick = () => window.print());
+  app.querySelectorAll('[data-act=budPrint]').forEach(b => b.onclick = () => printDoc(budgetReportHTML()));
   app.querySelectorAll('[data-act=budSave]').forEach(b => b.onclick = async () => {
     const items = [...app.querySelectorAll('[data-bacc]')].map(i => ({ account: i.dataset.bacc, amount: i.value === '' ? 0 : +i.value }))
       .filter(x => { const o = (S.bud.items || []).find(y => y.code === x.account); return o && +o.budget !== x.amount; });
@@ -2608,7 +3034,7 @@ function bindPage(gridOnly) {
     const r = await busy(b, () => call('REP_BUDGET_SAVE', { year: S.bud.year, items }));
     if (!r.success) { $('#buderr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
     S.bud = r.report; toast(`اتحفظ ${r.saved} بند ✓`); render(); });
-  app.querySelectorAll('[data-act=stPrint]').forEach(b => b.onclick = () => { document.body.dataset.printFs = 1; window.print(); delete document.body.dataset.printFs; });
+  app.querySelectorAll('[data-act=stPrint]').forEach(b => b.onclick = () => printDoc(financialStatementsReportHTML()));
   app.querySelectorAll('[data-act=userNew]').forEach(b => b.onclick = () => openModal(userForm(null), () => bindUserForm(null)));
   app.querySelectorAll('[data-user]').forEach(tr => tr.onclick = () => { const u = S.sys.users.find(x => x.username === tr.dataset.user); openModal(userForm(u), () => bindUserForm(u)); });
   const auf = $('#auf'); if (auf) auf.onsubmit = e => { e.preventDefault(); S.audF = Object.fromEntries(Object.entries(formData(auf)).filter(([, v]) => v)); render(); };
@@ -2651,10 +3077,7 @@ function bindPage(gridOnly) {
     const r = await busy(b, () => call('BANK_VOID', { id: S.cheque.id, reason })); if (!r.success) return toast(r.message, true); toast('اتلغى الشيك بقيد عكسي ✓'); render(); });
   app.querySelectorAll('[data-rcptv]').forEach(b => b.onclick = ev => { ev.stopPropagation(); const r = (S.receipts || []).find(x => x.id === b.dataset.rcptv); if (r) printDoc(receiptVoucherHTML(r)); });
   app.querySelectorAll('[data-grtprint]').forEach(b => b.onclick = () => { const g = [...(S.grtList || []), ...(S.grtMy || [])].find(x => x.id === b.dataset.grtprint); if (g) printDoc(grantRequestHTML(g)); });
-  app.querySelectorAll('[data-act=advPrint]').forEach(b => b.onclick = () => { const it = S.openAdv || [];
-    printDoc(docHead('كشف العُهد والسلف المفتوحة', 'في تاريخ', new Date().toISOString().slice(0, 10)) + `<table class="vt"><tr><th>التاريخ</th><th>الشيك</th><th>صاحب العهدة</th><th>البيان</th><th>المبلغ</th></tr>
-      ${it.map(c => `<tr><td>${dt(c.issue_date)}</td><td>${esc(c.cheque_no || '')}</td><td>${esc(c.payee_name)}</td><td>${esc(c.notes || c.purpose)}</td><td>${money(c.amount)}</td></tr>`).join('')}
-      <tr><th colspan="4">الإجمالي</th><th>${money(it.reduce((a, c) => a + +c.amount, 0))}</th></tr></table>` + docFoot(['أمين الصندوق', 'المراجع', 'رئيس مجلس الإدارة'])); });
+  app.querySelectorAll('[data-act=advPrint]').forEach(b => b.onclick = () => printDoc(openAdvancesReportHTML(S.openAdv || [])));
   app.querySelectorAll('[data-act=bkPrint]').forEach(b => b.onclick = () => { const a = S.trip, mb = a && a.myBooking; if (mb) printDoc(bookingHTML(mb, a, (S.me.profile || {}).person || {})); });
   app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
   app.querySelectorAll('[data-act=myCrPrint]').forEach(b => b.onclick = () => { const pr = S.me.profile; printDoc(changeReqHTML((pr.requests || []).filter(r => r.status === 'معلّق'), pr.person)); });
@@ -2711,13 +3134,11 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-act=partyNew],[data-party]').forEach(b => b.onclick = () => { const x = b.dataset.party ? S.parties.find(p => p.id === b.dataset.party) : null;
     openModal(partyForm(x), m => { m.querySelector('[data-close]').onclick = closeModal;
       const st = m.querySelector('[data-act=partyStmt]'); if (st) st.onclick = async () => { const r = await call('POL_PARTY_STATEMENT', { name: x.name }); if (!r.success) return toast(r.message, true);
-        printDoc(docHead('كشف حساب طرف خارجي — ' + esc(x.name), 'حتى', new Date().toISOString().slice(0, 10)) + `<table class="vt"><tr><th>التاريخ</th><th>المستند</th><th>البيان</th><th>الحالة</th><th>المبلغ</th></tr>
-          ${r.items.map(i => `<tr><td>${dt(i.date)}</td><td>${esc(i.doc)}</td><td>${esc(i.notes || '')}</td><td>${esc(i.status)}</td><td>${money(i.amount)}</td></tr>`).join('')}
-          <tr><th colspan="4">الإجمالي (بدون الملغى)</th><th>${money(r.items.filter(i => i.status !== 'ملغى').reduce((a, i) => a + +i.amount, 0))}</th></tr></table>` + docFoot(['أمين الصندوق', 'المراجع'])); };
+        printDoc(partyStatementHTML(x, r.items)); };
       $('#ptf').onsubmit = async e => { e.preventDefault(); const d = formData(e.target); if (x) d.id = x.id;
         const r = await busy(e.target.querySelector('[type=submit]'), () => call('POL_PARTY_SAVE', d)); if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
         closeModal(); S.partyNames = null; toast('اتحفظ ✓'); render(); }; }); });
-  app.querySelectorAll('[data-act=voucher]').forEach(b => b.onclick = () => printDoc(voucherHTML(S.cheque).replace(/^<div class="voucher">([\s\S]*)<\/div>$/, '$1')));
+  app.querySelectorAll('[data-act=voucher]').forEach(b => b.onclick = () => printDoc(voucherHTML(S.cheque)));
   app.querySelectorAll('[data-act=cardPrint]').forEach(b => b.onclick = () => { document.body.dataset.printCard = 1; window.print(); delete document.body.dataset.printCard; });
   app.querySelectorAll('[data-wff]').forEach(b => b.onclick = () => { S.inboxF = b.dataset.wff; render(); });
   app.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { S.ptab = b.dataset.ptab; render(); });
@@ -3115,7 +3536,7 @@ function bindPage(gridOnly) {
   // ── التقارير ──
   const repf = $('#repf');
   if (repf) repf.onsubmit = e => { e.preventDefault(); S.repYear = repf.year.value; render(); };
-  on('repPrint', () => window.print());
+  on('repPrint', () => printDoc(comprehensiveReportHTML()));
 
   on('install', async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; render(); });
   // ── الأخبار ──
