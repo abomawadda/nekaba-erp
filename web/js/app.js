@@ -53,13 +53,187 @@ const options = (arr, sel, blank = true) => (blank ? '<option value="">— اخ�
 const can = p => !!(S.me && S.me.perms && p in S.me.perms);
 const isStaff = () => S.kind === 'staff';
 
-// ───────── النافذة ─────────
-function openModal(html, onMount) {
-  const m = $('#modal'); m.className = 'modal'; m.innerHTML = `<div class="sheet">${html}</div>`; m.hidden = false;
-  m.onclick = e => { if (e.target === m) closeModal(); };
-  onMount && onMount(m);
+// ───────── النوافذ المؤسسية والتقويم العربي المخصص (ERP Modal & Custom Calendar) ─────────
+let dpState = null;
+function closeDP() {
+  const p = $('#dpPop'), b = $('#dpBack');
+  if (p) p.remove();
+  if (b) b.classList.remove('on');
+  dpState = null;
 }
-function closeModal() { const m = $('#modal'); m.hidden = true; m.className = 'modal'; m.innerHTML = ''; }
+function ensureDPBackdrop() {
+  let b = $('#dpBack');
+  if (!b) { b = document.createElement('div'); b.id = 'dpBack'; b.className = 'dp-backdrop'; b.onclick = closeDP; document.body.appendChild(b); }
+  return b;
+}
+function openDP(el) {
+  closeDP();
+  const mode = el.dataset.dp || 'date', now = new Date();
+  const raw = (el.value || '').trim();
+  const m = raw.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
+  let yr = m ? +m[1] : now.getFullYear(), mo = m ? +m[2] - 1 : now.getMonth();
+  if (mo < 0 || mo > 11) mo = now.getMonth();
+  const minV = el.dataset.dpMin || '', maxV = el.dataset.dpMax || '';
+  const pop = document.createElement('div');
+  pop.id = 'dpPop'; pop.className = 'dp-pop';
+  document.body.appendChild(pop);
+  ensureDPBackdrop().classList.add('on');
+  dpState = { el, pop };
+
+  const setVal = v => {
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    closeDP();
+  };
+  const pad = n => String(n).padStart(2, '0');
+  const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const AR_MO = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+  const draw = () => {
+    const yStart = Math.min(1950, yr - 5), yEnd = Math.max(now.getFullYear() + 10, yr + 5);
+    const yOpts = []; for (let y = yEnd; y >= yStart; y--) yOpts.push(`<option value="${y}" ${y === yr ? 'selected' : ''}>${y}</option>`);
+    if (mode === 'month') {
+      const curYm = `${yr}-${pad(mo + 1)}`;
+      pop.innerHTML = `<div class="dp-hd">
+          <button type="button" class="dp-nav" data-dpn="-1" title="السنة السابقة">‹</button>
+          <select class="dp-sel" data-dpy>${yOpts.join('')}</select>
+          <button type="button" class="dp-nav" data-dpn="1" title="السنة التالية">›</button>
+        </div>
+        <div class="dp-bd"><div class="dp-months">${AR_MO.map((nm, i) => {
+          const ym = `${yr}-${pad(i + 1)}`;
+          return `<button type="button" class="dp-m ${raw === ym ? 'on' : ''}" data-dpval="${ym}">${pad(i + 1)} · ${nm}</button>`;
+        }).join('')}</div></div>
+        <div class="dp-ft">
+          <button type="button" data-dpval="${now.getFullYear()}-${pad(now.getMonth() + 1)}">الشهر الحالي</button>
+          <button type="button" data-dpval="${yr}-01">يناير ${yr}</button>
+          ${!el.required ? '<button type="button" class="dp-clr" data-dpval="">مسح</button>' : ''}
+        </div>`;
+      pop.querySelectorAll('[data-dpn]').forEach(b => (b.onclick = () => { yr += +b.dataset.dpn; draw(); }));
+      pop.querySelector('[data-dpy]').onchange = e => { yr = +e.target.value; draw(); };
+      pop.querySelectorAll('[data-dpval]').forEach(b => (b.onclick = () => setVal(b.dataset.dpval)));
+      return;
+    }
+    const first = new Date(yr, mo, 1), start = new Date(first);
+    start.setDate(1 - ((first.getDay() + 1) % 7)); // يبدأ الأسبوع يوم السبت
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const isoD = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const out = d.getMonth() !== mo;
+      const dis = (minV && isoD < minV) || (maxV && isoD > maxV);
+      cells.push(`<button type="button" class="dp-d ${out ? 'out' : ''} ${isoD === todayIso ? 'today' : ''} ${isoD === raw ? 'on' : ''}" ${dis ? 'disabled' : ''} data-dpval="${isoD}">${d.getDate()}</button>`);
+    }
+    pop.innerHTML = `<div class="dp-hd">
+        <button type="button" class="dp-nav" data-dpm="-1" title="الشهر السابق">‹</button>
+        <select class="dp-sel" data-dpmsel>${AR_MO.map((nm, i) => `<option value="${i}" ${i === mo ? 'selected' : ''}>${pad(i + 1)} — ${nm}</option>`).join('')}</select>
+        <select class="dp-sel" data-dpy style="max-width:86px">${yOpts.join('')}</select>
+        <button type="button" class="dp-nav" data-dpm="1" title="الشهر التالي">›</button>
+      </div>
+      <div class="dp-bd">
+        <div class="dp-dow">${['سبت', 'أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة'].map(w => `<span>${w}</span>`).join('')}</div>
+        <div class="dp-days">${cells.join('')}</div>
+      </div>
+      <div class="dp-ft">
+        <button type="button" data-dpval="${todayIso}">اليوم</button>
+        <button type="button" data-dpval="${yr}-${pad(mo + 1)}-01">أول الشهر</button>
+        <button type="button" data-dpval="${yr}-01-01">أول السنة</button>
+        ${!el.required ? '<button type="button" class="dp-clr" data-dpval="">مسح</button>' : ''}
+      </div>`;
+    pop.querySelectorAll('[data-dpm]').forEach(b => (b.onclick = () => {
+      mo += +b.dataset.dpm;
+      if (mo < 0) { mo = 11; yr--; } else if (mo > 11) { mo = 0; yr++; }
+      draw();
+    }));
+    pop.querySelector('[data-dpmsel]').onchange = e => { mo = +e.target.value; draw(); };
+    pop.querySelector('[data-dpy]').onchange = e => { yr = +e.target.value; draw(); };
+    pop.querySelectorAll('[data-dpval]').forEach(b => (b.onclick = () => setVal(b.dataset.dpval)));
+  };
+  draw();
+
+  if (window.innerWidth > 520) {
+    const r = el.getBoundingClientRect(), pw = 308, ph = pop.offsetHeight || 340;
+    let left = Math.min(window.innerWidth - pw - 10, Math.max(10, r.right - pw));
+    let top = r.bottom + 6;
+    if (top + ph > window.innerHeight - 10 && r.top > ph + 10) top = r.top - ph - 6;
+    else if (top + ph > window.innerHeight - 10) top = Math.max(10, window.innerHeight - ph - 10);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+}
+
+document.addEventListener('mousedown', e => {
+  if (!dpState) return;
+  if (dpState.pop.contains(e.target) || dpState.el === e.target || e.target.closest('.dp-field')?.contains(dpState.el)) return;
+  closeDP();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (dpState) closeDP();
+    else if (!$('#modal').hidden) closeModal();
+    else document.body.classList.remove('drawer-open');
+  }
+});
+
+function enhanceUI(root = document) {
+  root.querySelectorAll('input[type="date"], input[type="month"]').forEach(el => {
+    const mode = el.type;
+    el.dataset.dp = mode;
+    if (el.min) el.dataset.dpMin = el.min;
+    if (el.max) el.dataset.dpMax = el.max;
+    el.type = 'text';
+    el.dir = 'ltr';
+    el.autocomplete = 'off';
+    if (!el.placeholder) el.placeholder = mode === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD';
+    const wrap = document.createElement('div');
+    wrap.className = 'dp-field';
+    if (el.style.flex) { wrap.style.flex = el.style.flex; el.style.flex = ''; }
+    if (el.style.maxWidth) { wrap.style.maxWidth = el.style.maxWidth; el.style.maxWidth = ''; }
+    if (el.style.minWidth) { wrap.style.minWidth = el.style.minWidth; el.style.minWidth = ''; }
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'dp-btn'; btn.tabIndex = -1; btn.textContent = '📅'; btn.title = 'فتح التقويم';
+    wrap.appendChild(btn);
+    btn.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); openDP(el); };
+    el.addEventListener('click', () => openDP(el));
+    el.addEventListener('blur', () => {
+      const v = el.value.trim(); if (!v) return;
+      if (mode === 'date' && typeof parseAnyDate === 'function') { const isoD = parseAnyDate(v); if (isoD) el.value = isoD; }
+    });
+  });
+  root.querySelectorAll('input[name="amount"]:not([data-tfq]), input[data-tafqeet]:not([data-tfq])').forEach(el => {
+    if (['hidden', 'checkbox', 'radio'].includes(el.type)) return;
+    el.dataset.tfq = '1';
+    const box = document.createElement('div');
+    box.className = 'amt-words';
+    el.insertAdjacentElement('afterend', box);
+    const sync = () => {
+      const n = +String(el.value || '').replace(/,/g, '');
+      box.textContent = n > 0 && typeof tafqeet === 'function' ? '💰 ' + tafqeet(n) : '';
+    };
+    el.addEventListener('input', sync);
+    sync();
+  });
+}
+
+function openModal(html, onMount, cls = '') {
+  closeDP();
+  const m = $('#modal');
+  m.className = ('modal ' + cls).trim();
+  let title = 'نافذة إجرائية', rest = html;
+  const hm = String(html).match(/^\s*<h3>([\s\S]*?)<\/h3>([\s\S]*)$/i);
+  if (hm) { title = hm[1]; rest = hm[2]; }
+  m.innerHTML = `<div class="sheet">
+    <div class="m-head"><h3>${title}</h3><button type="button" class="m-x" data-mclose title="إغلاق">✕</button></div>
+    <div class="m-body">${rest}</div></div>`;
+  m.hidden = false;
+  m.onclick = e => { if (e.target === m) closeModal(); };
+  m.querySelector('[data-mclose]').onclick = closeModal;
+  onMount && onMount(m);
+  enhanceUI(m);
+}
+function closeModal() { closeDP(); const m = $('#modal'); m.hidden = true; m.className = 'modal'; m.innerHTML = ''; }
 const formData = el => Object.fromEntries([...el.querySelectorAll('[name]')].map(i =>
   [i.name, i.type === 'checkbox' ? i.checked : i.value.trim()]));
 async function busy(btn, fn) { btn.disabled = true; try { return await fn(); } finally { btn.disabled = false; } }
@@ -93,15 +267,16 @@ function bindLogin() {
   };
 }
 
-// ───────── الهيكل (ERP: قائمة جانبية بالوحدات على الكمبيوتر، شريط سفلي على الموبايل) ─────────
+// ───────── الهيكل (ERP: قائمة جانبية على سطح المكتب ودرج ذكي على التابلت والموبايل) ─────────
 function navModel() {
   const gov = can('governance.view') || can('governance.manage');
   const fin = can('finance.view');
+  const pay = fin || can('treasury.payment.request') || can('treasury.payment.approve') || can('treasury.cheque.issue');
   if (isStaff()) return [
     ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/memberlists', '📋', 'كشوف الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
-    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin], ['#/dues', '🧮', 'حصة الاشتراكات', fin], ['#/policy', '📜', 'اللائحة المالية', fin], ['#/journal', '✍️', 'عملية مالية / قيد', can('finance.journal')], ['#/parties', '🏢', 'الأطراف الخارجية', fin]]],
+    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/payreqs', '📝', 'طلبات الصرف والشيكات', pay], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin], ['#/dues', '🧮', 'حصة الاشتراكات', fin], ['#/policy', '📜', 'اللائحة المالية', fin], ['#/journal', '✍️', 'عملية مالية / قيد', can('finance.journal')], ['#/parties', '🏢', 'الأطراف الخارجية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
     ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/annual', '📘', 'التقرير السنوي', (can('reports.view') || fin) && fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
     ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/archive', '🗂️', 'الأرشيف الإلكتروني', can('finance.view') || can('audit.view') || can('governance.view')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/help', '❓', 'المساعدة', true], ['#/account', '⚙️', 'حسابي', true]]],
@@ -122,20 +297,22 @@ function shell(title, body) {
   const all = groups.flatMap(g => g[1]);
   const cur = all.filter(n => h.startsWith(n[0])).sort((x, y) => y[0].length - x[0].length)[0];
   const grp = cur && groups.find(g => g[1].includes(cur));
-  // شريط الموبايل: نفس الروابط السابقة (بدون التكرار داخل المالية والحوكمة)
-  const mob = all.filter(n => !['#/notifications', '#/journal', '#/parties', '#/dues', '#/policy', '#/annual', '#/help', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
+  const mob = all.filter(n => !['#/notifications', '#/payreqs', '#/journal', '#/parties', '#/dues', '#/policy', '#/annual', '#/help', '#/archive', '#/calendar', '#/memberlists', '#/card', '#/bank', '#/chqbooks', '#/settlements', '#/myrequests', '#/statements', '#/budget', '#/users', '#/audit', '#/meetings', '#/decisions', '#/cheques', '#/receipts', '#/entries', '#/trial', '#/mytrips', '#/umrah', '#/mybenefits'].includes(n[0])
     && !(!isStaff() && ['#/devices', '#/summer', '#/grants', '#/trips'].includes(n[0])));
   return `<div class="erp">
+    <div class="side-backdrop" data-act="drawerClose"></div>
     <aside class="side"><div class="brand"><img src="img/logo-union.png" alt=""><div><b>منصة النقابة</b><small>${esc(C.ORG_NAME)}</small></div></div>
       ${groups.map(([g, items]) => `<div class="sg"><div class="sgt">${esc(g)}</div>${items.map(n => `<a href="${n[0]}" class="${n === cur ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}</div>`).join('')}
       <div class="sfoot"><div class="who"><span class="av">${esc((name || '؟').trim()[0] || '؟')}</span><div><b>${esc(name)}</b><small>${isStaff() ? 'الإدارة' : 'عضو'}</small></div></div></div>
     </aside>
-    <div class="main"><div class="top"><img src="img/logo-union.png" alt=""><div class="t"><small class="crumb">${grp ? esc(grp[0]) + ' ‹ ' : ''}</small><b>${esc(title)}</b><small class="nm">${esc(name)}</small></div>
+    <div class="main"><div class="top">
+      <button type="button" class="menu-btn" data-act="drawerToggle" title="القائمة الكاملة">☰</button>
+      <img src="img/logo-union.png" alt=""><div class="t"><small class="crumb">${grp ? esc(grp[0]) + ' ‹ ' : ''}</small><b>${esc(title)}</b><small class="nm">${esc(name)}</small></div>
       ${isStaff() && can('profile.view') ? `<form class="gs" id="gs"><input name="q" placeholder="🔎 بحث عن عضو: اسم، رقم وظيفي، موبايل…" value="${esc(S.q || '')}"></form>` : ''}
       <a href="#/notifications" class="bell" title="الإشعارات">🔔${S.ntfCount ? `<span class="badge">${S.ntfCount > 9 ? '9+' : S.ntfCount}</span>` : ''}</a>
       <button data-act="logout">خروج</button></div>
     <div class="wrap">${body}</div></div></div>
-    <nav class="nav">${mob.map(n => `<a href="${n[0]}" class="${h.startsWith(n[0]) ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}</nav>`;
+    <nav class="nav">${(mob.length > 5 ? mob.slice(0, 4) : mob).map(n => `<a href="${n[0]}" class="${h.startsWith(n[0]) ? 'on' : ''}"><i>${n[1]}</i>${n[2]}</a>`).join('')}${mob.length > 5 ? '<button type="button" data-act="drawerToggle"><i>☰</i>الأقسام</button>' : ''}</nav>`;
 }
 
 // ───────── لوحة القيادة (الإدارة) ─────────
@@ -146,18 +323,25 @@ function dashView() {
   const d = S.dash || {}, r = d.rep || {}, f = d.fin || {}, n = S.ntf || {}, m = r.members || {}, b = r.benefits || {}, rf = r.finance || {};
   const tasks = n.tasks || [], y = new Date().getFullYear();
   const kpi = (i, v, l, href, cls = '') => `<a class="kpi ${cls}" ${href ? `href="${href}"` : ''}><i>${i}</i><div><b>${v}</b><small>${l}</small></div></a>`;
-  const qa = [['#/admin', '👤', 'بحث عن عضو', can('profile.view')], ['chqNew', '🧾', 'صرف شيك', can('treasury.cheque.issue')], ['rcptNew', '📥', 'إيداع / تحصيل', can('treasury.receipt')],
-    ['#/trips', '🚌', 'نشاط جديد', can('activities.manage')], ['#/grantsadmin', '🎁', 'مراجعة المنح', canGrtAdmin()], ['#/meetings', '🗓️', 'الاجتماعات', can('governance.view') || can('governance.manage')],
-    ['#/news', '📰', 'نشر خبر', can('news.manage')], ['#/reports', '📈', 'التقارير', can('reports.view') || can('finance.view')]].filter(x => x[3]);
+  const qa = [
+    ['#/admin', '👤', 'بحث عن عضو', can('profile.view')],
+    ['payReqNew', '📝', 'طلب استخراج شيك', can('treasury.payment.request') || can('treasury.cheque.issue')],
+    ['grtStaffNew', '🎁', 'طلب استخراج منحة', can('grants.review')],
+    ['#/payreqs', '🧾', 'طابور الصرف والشيكات', can('finance.view') || can('treasury.cheque.issue') || can('treasury.payment.approve')],
+    ['rcptNew', '📥', 'إيداع / تحصيل', can('treasury.receipt')],
+    ['#/meetings', '🗓️', 'الاجتماعات والقرارات', can('governance.view') || can('governance.manage')],
+    ['#/trips', '🚌', 'الأنشطة والرحلات', can('activities.manage')],
+    ['#/reports', '📈', 'التقارير الشاملة', can('reports.view') || can('finance.view')],
+  ].filter(x => x[3]);
   const surplus = +rf.revenue - +rf.expense;
   return `<div class="hello"><div><h1>أهلاً${S.me.username ? '، ' + esc(S.me.username) : ''} 👋</h1><div class="muted">ملخص المنظومة لسنة ${y} — ${dt(new Date().toISOString().slice(0, 10))}</div></div></div>
     <div class="kpis">
       ${r.members ? kpi('👥', numAr(m.total), 'عضو مسجّل', '#/admin') : ''}
       ${f.bank !== undefined ? kpi('🏦', money(f.bank), 'رصيد البنك الدفتري', '#/ledger/1102') : ''}
-      ${f.custody !== undefined ? kpi('🧾', money(f.custody), `عُهد تحت التسوية (${numAr(f.unsettled)} شيك)`, '#/cheques', +f.custody ? 'warn' : '') : ''}
+      ${f.custody !== undefined ? kpi('🧾', money(f.custody), `عُهد تحت التسوية (${numAr(f.unsettled)} شيك)`, '#/settlements', +f.custody ? 'warn' : '') : ''}
       ${r.finance ? kpi(surplus >= 0 ? '📈' : '📉', money(surplus), `فائض / (عجز) ${r.year || y}`, '#/reports', surplus >= 0 ? 'ok' : 'bad') : ''}
       ${r.benefits ? kpi('🏅', money(b.total), `مزايا ${r.year || y} لـ ${numAr(b.people)} مستفيد`, '#/benefits') : ''}
-      ${kpi('📌', numAr(tasks.reduce((a, t) => a + +t.count, 0)), 'مهام تنتظر إجراءك', '#/notifications', tasks.length ? 'warn' : 'ok')}
+      ${kpi('📌', numAr(tasks.reduce((a, t) => a + +t.count, 0)), 'مهام تنتظر إجراءك', '#/inbox', tasks.length ? 'warn' : 'ok')}
     </div>
     <div class="dgrid">
       <div class="card"><h2>📌 صندوق المهام<span class="sp"></span><a class="pill" href="#/inbox" style="text-decoration:none">الكل</a></h2>
@@ -198,7 +382,7 @@ function inboxView() {
   const list = items.filter(x => !f || x.module === f);
   return `<div class="kpis">${[['📥', items.length, 'طلب ينتظر إجراءك'], ...mods.map(m => [items.find(x => x.module === m).icon, items.filter(x => x.module === m).length, m])]
       .map(([i, v, l]) => `<div class="kpi"><i>${i}</i><div><b>${numAr(v)}</b><small>${esc(l)}</small></div></div>`).join('')}</div>
-    ${mods.length > 1 ? `<div class="tabs ptabs"><button data-wff="" class="${!f ? 'on' : ''}">الكل</button>${mods.map(m => `<button data-wff="${esc(m)}" class="${f === m ? 'on' : ''}">${esc(m)}</button>`).join('')}</div>` : ''}
+    ${mods.length > 1 ? `<div class="subtabs"><button data-wff="" class="${!f ? 'on' : ''}">📂 الكل<span class="st-cnt">${numAr(items.length)}</span></button>${mods.map(m => `<button data-wff="${esc(m)}" class="${f === m ? 'on' : ''}">${esc(m)}<span class="st-cnt">${numAr(items.filter(x => x.module === m).length)}</span></button>`).join('')}</div>` : ''}
     ${list.map(x => wfCard(x, true)).join('') || '<div class="card empty">✅ لا طلبات تنتظر إجراءك — كل شيء تمام</div>'}`;
 }
 function myReqView() {
@@ -434,7 +618,7 @@ async function loadDocBoxes() {
       } catch (_) { toast('تعذّر قراءة الملف', true); } };
   }
 }
-const ENT_DOC = { cheque: ['🧾 شيك', id => '#/cheque/' + id], receipt: ['📥 مقبوضات', () => '#/receipts'], entry: ['📒 قيد', () => '#/entries'], grant: ['🎁 منحة', () => '#/grantsadmin'],
+const ENT_DOC = { cheque: ['🧾 شيك', id => '#/cheque/' + id], payreq: ['📝 طلب صرف', () => '#/payreqs'], receipt: ['📥 مقبوضات', () => '#/receipts'], entry: ['📒 قيد', () => '#/entries'], grant: ['🎁 منحة', () => '#/grantsadmin'],
   meeting: ['🗓️ اجتماع', id => '#/meeting/' + id], decision: ['⚖️ قرار', () => '#/decisions'], person: ['👤 عضو', id => '#/person/' + id], activity: ['🚌 نشاط', id => '#/actadmin/' + id], general: ['🗂️ عام', () => '#/archive'] };
 function archiveView() {
   const f = S.arcF || {};
@@ -808,7 +992,7 @@ function personView() {
     <div class="kpis">${b ? kpi('🏅', money(b.total), 'إجمالي ما استفاد به', 'ben') : ''}${kpi('👨‍👩‍👧', numAr(fam.length), 'أفراد الأسرة', 'family')}
       ${kpi('📋', c.percent + '%', 'اكتمال الملف' + (c.missing.length ? ' — ناقص ' + c.missing.length : ''), 'data')}${kpi('🕓', numAr((pr.movements || []).length), 'حركة مسجّلة', 'career')}</div>
     ${c.missing.length ? `<div class="alert warn">بيانات ناقصة: ${c.missing.map(esc).join('، ')}</div>` : ''}
-    <div class="tabs ptabs">${tabs.map(([k, t]) => `<button data-ptab="${k}" class="${tab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+    <div class="subtabs">${tabs.map(([k, t]) => `<button data-ptab="${k}" class="${tab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
     ${body}`;
 }
 function movementForm(pr) {
@@ -874,7 +1058,7 @@ function listsView() {
 // ───────── المجلس (الحوكمة) ─────────
 const ROLES = ['رئيس المجلس', 'نائب الرئيس', 'الأمين العام', 'أمين الصندوق', 'عضو مجلس إدارة'];
 const DEC_CATS = ['صرف', 'دعم نشاط', 'منحة', 'إعفاء', 'تكليف', 'موازنة', 'لائحة', 'إداري', 'أخرى'];
-const govTabs = act => `<div class="tabs" style="margin-bottom:12px">${[['#/board', 'الدورة والمقاعد'], ['#/meetings', 'الاجتماعات'], ['#/decisions', 'القرارات']]
+const govTabs = act => `<div class="subtabs">${[['#/board', '🏛️ تشكيل المجلس والمقاعد'], ['#/meetings', '🗓️ الجلسات والمحاضر'], ['#/decisions', '⚖️ سجل ومتابعة القرارات']]
   .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}">${t}</button>`).join('')}</div>`;
 function boardView() {
   const g = S.gov, t = g && g.term;
@@ -1670,12 +1854,16 @@ function grantsView() {
 }
 function grantsAdminView() {
   const c = S.grtCounts || {}, f = S.grtF || {};
-  return `<div class="tabs" style="margin-bottom:10px;overflow-x:auto">${[['', 'المفتوحة'], ['مقدَّم', 'جديد'], ['ناقص مستندات', 'ناقص'], ['مستوفى', 'للاعتماد'], ['معتمد', 'للصرف'], ['مصروف', 'مصروف'], ['مرفوض', 'مرفوض']]
-      .map(([s, t]) => `<button data-gst="${s}" class="${(f.status || '') === s ? 'on' : ''}" style="white-space:nowrap">${t}${s && c[s] ? ' ' + c[s] : ''}</button>`).join('')}</div>
-    ${can('grants.review') ? '<div class="card"><button class="btn sec" data-act="grtProxy">+ طلب نيابة عن عضو (مثلاً وفاة العضو)</button></div>' : ''}
-    ${(S.grtList || []).map(g => grantCard(g, true)).join('') || '<div class="card empty">لا طلبات</div>'}
-    ${can('grants.approve') ? `<div class="card"><h2>💰 المبالغ المقررة</h2>${(S.grtTypes || []).map(t => kvh(esc(t.name), t.amount ? money(t.amount) : '<span class="muted">غير محدد</span>')).join('')}
-      <button class="btn sm sec" data-act="grtRate" style="margin-top:8px">تعديل مبلغ بقرار</button></div>` : ''}`;
+  return `<div class="subtabs">${[['', '📂 المفتوحة'], ['مقدَّم', '🆕 جديد'], ['ناقص مستندات', '⚠️ ناقص مستندات'], ['مستوفى', '📋 جاهز للاعتماد'], ['معتمد', '🧾 معتمد للصرف'], ['مصروف', '✅ مصروف'], ['مرفوض', '✕ مرفوض']]
+      .map(([s, t]) => `<button data-gst="${s}" class="${(f.status || '') === s ? 'on' : ''}">${t}${s && c[s] ? `<span class="st-cnt">${numAr(c[s])}</span>` : ''}</button>`).join('')}</div>
+    <div class="card row">
+      <div style="flex:1;min-width:200px"><b>🎁 إدارة طلبات واستخراج المنح الاجتماعية</b><div class="muted">تسجيل طلب منحة لعضو أو أسرته مع مطابقة المستندات وإحالتها للاعتماد ثم استخراج الشيك البنكي.</div></div>
+      ${can('grants.review') ? '<button class="btn gold" data-act="grtStaffNew">+ إنشاء طلب استخراج منحة</button>' : ''}
+      ${can('treasury.cheque.issue') || can('finance.view') ? '<a class="btn sec" href="#/payreqs" style="text-decoration:none">🧾 طابور الشيكات</a>' : ''}
+    </div>
+    ${(S.grtList || []).map(g => grantCard(g, true)).join('') || '<div class="card empty">لا توجد طلبات منح في هذا التصنيف حالياً</div>'}
+    ${can('grants.approve') ? `<div class="card"><h2>💰 فئات المنح المقررة باللائحة</h2>${(S.grtTypes || []).map(t => kvh(esc(t.name), t.amount ? money(t.amount) + ' ج.م' : '<span class="muted">غير محدد</span>')).join('')}
+      <button class="btn sm sec" data-act="grtRate" style="margin-top:8px">⚙️ تعديل فئة منحة بقرار</button></div>` : ''}`;
 }
 
 // ───────── الأجهزة (خدمة إعلان وحجز فقط — التقسيط والسداد مع المورد) ─────────
@@ -1857,38 +2045,189 @@ function bindGrids() {
   document.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => printDoc(gridReportHTML(b.dataset.gp)));
 }
 
-// ───────── المالية والخزينة ─────────
+// ───────── المالية والخزينة (بوابة التنقّل المؤسسية الموحّدة + دورة طلبات الصرف والشيكات) ─────────
 const money = v => `<span class="dt">${Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>`;
 const PURPOSES = ['منحة', 'عهدة', 'دعم نشاط', 'مصروف', 'أخرى'];
+const PAY_PURPOSES = ['مصروف', 'عهدة', 'دعم نشاط', 'أخرى'];
 const RCPT_KINDS = ['حصة الاشتراكات', 'تحويل النقابة العامة', 'اشتراكات', 'رد عهدة', 'إيرادات أخرى', 'رسوم بنكية'];
-const finTabs = act => `<div class="tabs" style="margin-bottom:12px;overflow-x:auto">${[['#/finance', 'الملخص'], ['#/cheques', 'الشيكات'], ['#/settlements', 'التسويات'],
-  ['#/receipts', 'المقبوضات'], ['#/trial', 'الميزان'], ['#/bank', 'البنك والمطابقة'], ['#/chqbooks', 'دفاتر الشيكات'], ['#/statements', 'القوائم المالية'], ['#/budget', 'الموازنة'], ['#/dues', 'حصة الاشتراكات'], ['#/policy', 'اللائحة المالية'], ['#/journal', 'عملية مالية'], ['#/parties', 'الأطراف الخارجية'], ['#/entries', 'القيود']]
-  .map(([h, t]) => `<button data-go="${h}" class="${act === h ? 'on' : ''}" style="white-space:nowrap">${t}</button>`).join('')}</div>`;
+const FIN_GROUPS = [
+  ['ops', '💰', 'العمليات والصرف', [
+    ['#/finance', '📊', 'ملخص المالية', () => can('finance.view')],
+    ['#/payreqs', '📝', 'طلبات الصرف والشيكات', () => can('finance.view') || can('treasury.payment.request') || can('treasury.payment.approve') || can('treasury.cheque.issue')],
+    ['#/cheques', '🧾', 'سجل الشيكات', () => can('finance.view')],
+    ['#/settlements', '🧮', 'التسويات والعُهد', () => can('finance.view')],
+    ['#/receipts', '📥', 'المقبوضات', () => can('finance.view')],
+  ]],
+  ['bank', '🏦', 'البنك والأطراف', [
+    ['#/bank', '🏦', 'البنك والمطابقة', () => can('finance.view')],
+    ['#/chqbooks', '📗', 'دفاتر الشيكات', () => can('finance.view')],
+    ['#/parties', '🏢', 'الأطراف والموردون', () => can('finance.view')],
+  ]],
+  ['acct', '📒', 'القيود والدفاتر', [
+    ['#/journal', '✍️', 'عملية مالية / قيد', () => can('finance.journal')],
+    ['#/entries', '📒', 'دفتر القيود', () => can('finance.view')],
+    ['#/trial', '⚖️', 'ميزان المراجعة', () => can('finance.view')],
+  ]],
+  ['rep', '📊', 'القوائم والرقابة', [
+    ['#/statements', '📑', 'القوائم المالية', () => can('finance.view')],
+    ['#/budget', '🎯', 'الموازنة التقديرية', () => can('finance.view')],
+    ['#/dues', '🧮', 'حصة الاشتراكات', () => can('finance.view')],
+    ['#/policy', '📜', 'اللائحة المالية', () => can('finance.view')],
+  ]],
+];
+function finTabs(act) {
+  const groups = FIN_GROUPS.map(([k, ic, lbl, items]) => [k, ic, lbl, items.filter(x => x[3]())]).filter(g => g[3].length);
+  if (!groups.length) return '';
+  const owner = (groups.find(g => g[3].some(i => i[0] === act)) || groups[0])[0];
+  const curGrp = S.finGrp && groups.some(g => g[0] === S.finGrp) ? S.finGrp : owner;
+  const activeGrp = groups.find(g => g[0] === curGrp) || groups[0];
+  return `<div class="mod-nav noprint">
+    <div class="mn-groups">
+      ${groups.map(([k, ic, lbl]) => `<button type="button" class="mn-grp ${!S.finAll && curGrp === k ? 'on' : ''}" data-fgrp="${k}"><i>${ic}</i>${lbl}</button>`).join('')}
+      <button type="button" class="mn-grp mn-all-btn ${S.finAll ? 'on' : ''}" data-fgrp="all">⊞ كل الأقسام</button>
+    </div>
+    ${S.finAll
+      ? `<div class="mn-mega">${groups.map(([, ic, lbl, items]) => `<div class="mn-col"><div class="mn-col-hd"><span>${ic}</span>${lbl}</div>
+          ${items.map(([h, ii, t]) => `<button type="button" class="mn-item ${act === h ? 'on' : ''}" data-go="${h}"><i>${ii}</i>${t}</button>`).join('')}</div>`).join('')}</div>`
+      : `<div class="mn-items">${activeGrp[3].map(([h, ii, t]) => `<button type="button" class="mn-item ${act === h ? 'on' : ''}" data-go="${h}"><i>${ii}</i>${t}</button>`).join('')}</div>`}
+  </div>`;
+}
 const periodForm = f => `<form id="pf" class="row" style="margin-bottom:10px"><input class="input" style="flex:1" type="date" name="from" value="${esc(f.from || '')}">
-  <input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}"><button class="btn sm">عرض</button></form>`;
+  <input class="input" style="flex:1" type="date" name="to" value="${esc(f.to || '')}"><button class="btn sm">عرض الفترة</button></form>`;
 function finSummaryView() {
   const s = S.fin || {}, y = s.year || {};
   return finTabs('#/finance') + `<div class="card">${periodForm(S.finP || { from: s.from, to: s.to })}
-    <div class="tiles" style="grid-template-columns:repeat(2,1fr)">
-      <div class="tile" data-ledger="1102"><i>🏦</i><b>${money(s.bank)}</b><small>رصيد البنك الدفتري</small></div>
+    <div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+      <div class="tile" data-ledger="1102"><i>🏦</i><b>${money(s.bank)}</b><small>رصيد البنك الدفتري (1102)</small></div>
       <div class="tile" data-ledger="1103"><i>🧾</i><b>${money(s.custody)}</b><small>عُهد تحت التسوية (${s.unsettled || 0} شيك مفتوح)</small></div>
       <div class="tile"><i>⬆️</i><b>${money(y.revenue)}</b><small>إيرادات الفترة</small></div>
       <div class="tile"><i>⬇️</i><b>${money(y.expense)}</b><small>مصروفات الفترة</small></div></div></div>
-  ${can('treasury.cheque.issue') || can('treasury.receipt') ? `<div class="card row">${can('treasury.cheque.issue') ? '<button class="btn" data-act="chqNew">+ صرف شيك</button>' : ''}
-    ${can('treasury.receipt') ? '<button class="btn sec" data-act="rcptNew">+ إيداع / تحصيل</button>' : ''}</div>` : ''}
-  <div class="card"><h2>📊 المصروفات حسب المجموعة</h2>${(s.byGroup || []).map(g => kvh(g.name, money(g.amount))).join('') || '<div class="empty">لا مصروفات</div>'}</div>
-  <div class="card"><h2>🧾 العُهد المفتوحة</h2>${(s.openCustody || []).map(o => kvh(esc(o.party), money(o.balance))).join('') || '<div class="empty">لا عُهد مفتوحة 👌</div>'}</div>`;
+  <div class="card row">
+    ${can('treasury.payment.request') || can('treasury.cheque.issue') ? '<button class="btn gold" data-act="payReqNew">📝 + طلب صرف واستخراج شيك</button>' : ''}
+    ${can('grants.review') ? '<button class="btn sec" data-act="grtStaffNew">🎁 + طلب استخراج منحة</button>' : ''}
+    ${can('treasury.cheque.issue') ? '<button class="btn sec" data-act="chqNew">⚡ إصدار شيك مباشر</button>' : ''}
+    ${can('treasury.receipt') ? '<button class="btn sec" data-act="rcptNew">📥 + إيداع / تحصيل</button>' : ''}
+  </div>
+  <div class="dgrid">
+    <div class="card"><h2>📊 المصروفات حسب المجموعة</h2>${(s.byGroup || []).map(g => kvh(g.name, money(g.amount))).join('') || '<div class="empty">لا مصروفات في الفترة</div>'}</div>
+    <div class="card"><h2>🧾 العُهد المفتوحة</h2>${(s.openCustody || []).map(o => kvh(esc(o.party), money(o.balance))).join('') || '<div class="empty">لا عُهد مفتوحة 👌</div>'}</div>
+  </div>`;
 }
 const kvh = (k, vHtml) => `<div class="kv"><span>${k}</span><span>${vHtml}</span></div>`;
-const stPill = st => `<span class="pill ${['مسوّى', 'معتمدة'].includes(st) ? 'ok' : ['صادر', 'مسودة', 'مرحّل الرصيد'].includes(st) ? 'warn' : ['ملغى', 'مسترجعة'].includes(st) ? 'bad' : ''}">${esc(st)}</span>`;
+const stPill = st => `<span class="pill ${['مسوّى', 'معتمدة', 'مصروف', 'معتمد'].includes(st) ? 'ok' : ['صادر', 'مسودة', 'مرحّل الرصيد', 'مقدَّم'].includes(st) ? 'warn' : ['ملغى', 'مسترجعة', 'مرفوض'].includes(st) ? 'bad' : ''}">${esc(st)}</span>`;
+
+function paymentRequestHTML(r) {
+  const accTxt = r.requires_settlement ? '1103 — عُهد تحت التسوية (بذمة المستلم لحين التسوية)' : `${esc(r.expense_account || '')} — ${esc(r.account_name || '')}`;
+  return erpDoc({
+    dept: 'الإدارة المالية والخزينة · الرقابة على الصرف', kind: 'إذن وطلب استخراج شيك', code: 'PAYREQ',
+    refLbl: 'رقم طلب الصرف', refNo: r.req_no, date: r.req_date,
+    ctrl: [['سند الصرف', r.auth_basis], ['طبيعة الصرف', r.purpose]],
+    title: 'استمارة طلب صرف واستخراج شيك بنكي (إذن صرف)',
+    sub: 'مستند رقابة داخلية ومراجعة واعتماد مالي سابق لإصدار الشيك البنكي',
+    status: r.status, statusCls: ['مصروف', 'معتمد'].includes(r.status) ? 'ok' : r.status === 'مقدَّم' ? 'warn' : 'bad',
+    sigCols: s => [['مقدّم الطلب', r.requested_by_name || ''], ['أمين الصندوق', s.treasurer], ['الأمين العام', s.secretary], ['رئيس اللجنة النقابية', s.chair]],
+    body: edMoney(r.amount, 'المبلغ المطلوب استخراج شيك به') + edGrid([
+      [6, 'يُحرر الشيك لأمر السيد / الجهة', `<b>${esc(r.payee_name)}</b>${r.person?.job_id ? ` <small>(رقم وظيفي: ${esc(r.person.job_id)})</small>` : ''}`],
+      [3, 'تاريخ الطلب', dt(r.req_date)],
+      [3, 'طبيعة الصرف', esc(r.purpose)],
+      [6, 'التوجيه المحاسبي عند الإصدار', accTxt],
+      [6, 'سند الصلاحية الإدارية', r.decision ? `قرار مجلس رقم (${esc(r.decision.decision_no)}) — ${esc(r.decision.text)}` : `${esc(r.auth_basis)} (لا يشترط قرار مجلس)`],
+      [12, 'البيان التفصيلي والغرض من الصرف', `<b>${esc(r.description)}</b>`],
+      [12, 'المستندات والفواتير المؤيدة للصرف', esc(r.supporting_docs || 'مرفق بأصل المستندات المؤيدة')],
+      [4, 'مقدّم الطلب', esc(r.requested_by_name || '—')],
+      [4, 'معتمِد الصرف', esc(r.approved_by_name || 'قيد الاعتماد') + (r.approval_note ? ` (${esc(r.approval_note)})` : '')],
+      [4, 'بيانات الشيك المستخرج', r.cheque ? `شيك رقم ${esc(r.cheque.cheque_no || 'بدون رقم')} بتاريخ ${dt(r.cheque.issue_date)}` : 'لم يُستخرج الشيك بعد'],
+    ]) + (r.reject_reason ? `<div class="ed-box" style="border-color:#dc2626;background:#fef2f2;color:#991b1b"><b>سبب الرفض / الإلغاء:</b> ${esc(r.reject_reason)}</div>` : '')
+      + `<div class="ed-box gold"><b>ضوابط الرقابة الداخلية والمحاسبية:</b> لا يترتب على هذا الطلب أي قيد محاسبي بالدفاتر إلا عند الإصدار الفعلي للشيك البنكي واستلامه، ويُحفظ هذا الإذن مرفقاً بأصل الفواتير ومستند الصرف في الأرشيف المالي.</div>`
+  });
+}
+
+function payReqsView() {
+  const d = S.payReqs || {}, items = d.items || [], grants = d.approvedGrants || [], c = d.counts || {}, f = S.payF || {};
+  const canReq = can('treasury.payment.request') || can('treasury.cheque.issue');
+  const canApp = can('treasury.payment.approve');
+  const canChq = can('treasury.cheque.issue');
+  const kpi = (i, v, l, cls = '') => `<div class="kpi ${cls}"><i>${i}</i><div><b>${numAr(v)}</b><small>${l}</small></div></div>`;
+  return finTabs('#/payreqs')
+    + `<div class="kpis">
+        ${kpi('⏳', c.pending || 0, 'طلبات صرف بانتظار الاعتماد', c.pending ? 'warn' : 'ok')}
+        ${kpi('🧾', c.approved || 0, 'أوامر صرف جاهزة لاستخراج شيك', c.approved ? 'warn' : 'ok')}
+        ${kpi('🎁', c.grantsReady || 0, 'منح معتمدة جاهزة لاستخراج شيك', c.grantsReady ? 'warn' : 'ok')}
+        ${kpi('✅', c.paid || 0, 'طلبات صُرفت بشيكات بنكية', 'ok')}
+      </div>
+      <div class="card row">
+        <div style="flex:1;min-width:220px">
+          <b>📝 دورة طلبات الصرف واستخراج الشيكات والمنح</b>
+          <div class="muted">الدورة الإدارية والمحاسبية السليمة: تقديم طلب الصرف بالمستندات ⇐ اعتماد الصرف (مع فصل المهام) ⇐ استخراج الشيك البنكي وترحيل القيد آلياً. قرار المجلس اختياري.</div>
+        </div>
+        ${canReq ? '<button class="btn gold" data-act="payReqNew">+ طلب صرف واستخراج شيك</button>' : ''}
+        ${can('grants.review') ? '<button class="btn sec" data-act="grtStaffNew">🎁 + طلب استخراج منحة</button>' : ''}
+      </div>
+      ${grants.length ? `<div class="card" style="border-inline-start:5px solid var(--gold);background:#fffdf8">
+        <h2>🎁 منح اجتماعية معتمدة جاهزة لاستخراج الشيك (${numAr(grants.length)})</h2>
+        ${grants.map(g => `<div class="kv" style="align-items:center;flex-wrap:wrap">
+          <div><b>${esc(g.type_name)} — ${esc(g.person?.full_name || '')}</b> <small class="muted">(${esc(g.req_no)} · رقم وظيفي ${esc(g.person?.job_id || '—')})</small>
+            <div class="muted">المستفيد: ${esc(g.subject_name || '')} (${esc(g.subject_relation || '')}) · الواقعة: ${dt(g.event_date)}${g.decision ? ' · قرار ' + esc(g.decision.decision_no) : ' · صرف لائحي'}</div></div>
+          <div class="row" style="gap:8px">
+            <b style="font-size:16px;color:var(--brand)">${money(g.amount)} ج.م</b>
+            <button class="btn sm sec" data-grtprint="${g.id}">🖨️ الاستمارة</button>
+            ${canChq ? `<button class="btn sm gold" data-grtissue="${g.id}">🧾 استخراج الشيك</button>` : ''}
+          </div></div>`).join('')}
+      </div>` : ''}
+      <div class="subtabs">
+        ${[['', '📂 الكل'], ['مقدَّم', '⏳ بانتظار الاعتماد', c.pending], ['معتمد', '🧾 جاهز لاستخراج شيك', c.approved], ['مصروف', '✅ مصروف بشيك', c.paid], ['مرفوض', '✕ مرفوض', c.rejected]]
+          .map(([s, t, n]) => `<button data-payf="${s}" class="${(f.status || '') === s ? 'on' : ''}">${t}${n ? `<span class="st-cnt">${numAr(n)}</span>` : ''}</button>`).join('')}
+      </div>
+      <div class="card"><form id="prf" class="row">
+        <input class="input" style="flex:1;min-width:180px" name="q" value="${esc(f.q || '')}" placeholder="🔎 بحث برقم الطلب، اسم المستفيد، أو البيان…">
+        <button class="btn">بحث</button>
+      </form></div>
+      ${items.map(r => {
+        const cls = r.status === 'مصروف' ? 'st-ok' : ['مقدَّم', 'معتمد'].includes(r.status) ? 'st-warn' : 'st-bad';
+        const stageIdx = r.status === 'مقدَّم' ? 1 : r.status === 'معتمد' ? 2 : r.status === 'مصروف' ? 3 : -1;
+        return `<div class="req-card ${cls}">
+          <div class="row">
+            <span class="dec-no">${esc(r.req_no)}</span>
+            <span class="pill">${esc(r.purpose)}</span>
+            <span class="pill ${r.decision ? 'ok' : ''}">${r.decision ? '⚖️ قرار ' + esc(r.decision.decision_no) : '📜 ' + esc(r.auth_basis)}</span>
+            <span class="sp" style="flex:1"></span>
+            <b style="font-size:18px;color:var(--brand)">${money(r.amount)} ج.م</b>
+            ${stPill(r.status)}
+          </div>
+          <div style="margin-top:6px;font-size:15px"><b>المستفيد: ${esc(r.payee_name)}</b>${r.person?.job_id ? ` <small class="muted">(${esc(r.person.job_id)})</small>` : ''} — ${esc(r.description)}</div>
+          <div class="req-meta">
+            <span>📅 تاريخ الطلب: ${dt(r.req_date)}</span>
+            <span>📒 الحساب: <b>${r.requires_settlement ? '1103 عُهد تحت التسوية' : esc((r.expense_account || '') + ' ' + (r.account_name || ''))}</b></span>
+            ${r.supporting_docs ? `<span>📎 المسوّغات: ${esc(r.supporting_docs)}</span>` : ''}
+            <span>👤 قدّمه: ${esc(r.requested_by_name || '—')}</span>
+            ${r.approved_by_name ? `<span>✓ المعتمِد: ${esc(r.approved_by_name)}</span>` : ''}
+            ${r.cheque ? `<span>🧾 الشيك: <a href="#/cheque/${r.cheque.id}"><b>${esc(r.cheque.cheque_no || 'بدون رقم')}</b></a> (${dt(r.cheque.issue_date)})</span>` : ''}
+          </div>
+          ${r.reject_reason ? `<div class="alert bad" style="margin:6px 0">${esc(r.reject_reason)}</div>` : ''}
+          ${stepper({ stages: ['تقديم الطلب', 'اعتماد الصرف', 'استخراج الشيك', 'تم الصرف'], idx: stageIdx })}
+          <div class="row" style="margin-top:8px">
+            ${r.status === 'مقدَّم' && canApp ? `<button class="btn sm" data-payapp="${r.id}">✓ اعتماد الصرف</button><button class="btn sm bad" data-payrej="${r.id}">✕ رفض</button>` : ''}
+            ${r.status === 'معتمد' && canChq ? `<button class="btn sm gold" data-payissue="${r.id}">🧾 استخراج وإصدار الشيك</button>` : ''}
+            ${r.cheque ? `<a class="btn sm sec" href="#/cheque/${r.cheque.id}" style="text-decoration:none">فتح الشيك وسند الصرف</a>` : ''}
+            <button class="btn sm sec" data-payprt="${r.id}">🖨️ إذن الصرف (A4)</button>
+            <button class="btn sm sec" data-paydocs="${r.id}">📎 المرفقات${r.docs_count ? ` (${numAr(r.docs_count)})` : ''}</button>
+            ${r.status === 'مقدَّم' ? `<button class="btn sm bad" data-paycan="${r.id}">إلغاء الطلب</button>` : ''}
+          </div>
+          <div data-paydocbox="${r.id}"></div>
+        </div>`;
+      }).join('') || '<div class="card empty">لا توجد طلبات صرف مطابقة — اضغط «+ طلب صرف واستخراج شيك» لإنشاء طلب جديد</div>'}`;
+}
+
 function chequesView() {
   const f = S.chqF || {};
-  return finTabs('#/cheques') + `<div class="card"><form id="cf" class="row"><input class="input" style="flex:2;min-width:120px" name="q" value="${esc(f.q || '')}" placeholder="مستفيد / رقم / بيان">
-      <select class="input" style="flex:1;min-width:100px" name="purpose"><option value="">كل الأغراض</option>${options(PURPOSES, f.purpose, false)}</select>
-      <select class="input" style="flex:1;min-width:100px" name="status"><option value="">كل الحالات</option>${options(['صادر', 'مسوّى', 'مرحّل الرصيد'], f.status, false)}</select>
-      <button class="btn">بحث</button></form>
-    <div class="muted" style="margin-top:6px">الفترة: ${dt(f.from || '2000-01-01')} ← ${dt(f.to || 'اليوم')}</div></div>
-  ${grid('chq', [
+  return finTabs('#/cheques') + `<div class="card row">
+      <form id="cf" class="row" style="flex:1"><input class="input" style="flex:2;min-width:140px" name="q" value="${esc(f.q || '')}" placeholder="🔎 مستفيد / رقم شيك / بيان">
+        <select class="input" style="flex:1;min-width:105px" name="purpose"><option value="">كل الأغراض</option>${options(PURPOSES, f.purpose, false)}</select>
+        <select class="input" style="flex:1;min-width:105px" name="status"><option value="">كل الحالات</option>${options(['صادر', 'مسوّى', 'مرحّل الرصيد'], f.status, false)}</select>
+        <button class="btn">بحث</button></form>
+      ${can('treasury.payment.request') || can('treasury.cheque.issue') ? '<button class="btn gold" data-act="payReqNew">📝 + طلب استخراج شيك</button>' : ''}
+      ${can('treasury.cheque.issue') ? '<button class="btn sec" data-act="chqNew">⚡ شيك مباشر</button>' : ''}
+    </div>` + grid('chq', [
     { t: 'التاريخ', v: c => dt(c.issue_date), raw: c => c.issue_date },
     { t: 'رقم الشيك', v: c => esc(c.cheque_no || '—'), raw: c => c.cheque_no || '' },
     { t: 'المستفيد', v: c => `<b>${esc(c.payee_name)}</b>`, raw: c => c.payee_name },
@@ -1898,7 +2237,7 @@ function chequesView() {
     { t: 'الحالة', v: c => stPill(c.status), raw: c => c.status },
     { t: 'الصرف من البنك', v: c => c.status === 'ملغى' ? '<span class="pill bad">ملغى</span>' : c.cleared_date ? `<span class="pill ok">منصرف ${dt(c.cleared_date)}</span>` : '<span class="pill warn">لم يُصرف</span>', raw: c => c.status === 'ملغى' ? 'ملغى' : c.cleared_date ? 'منصرف' : 'لم يُصرف' },
   ], S.cheques, { title: '🧾 الشيكات', file: 'cheques', attr: c => `data-chq="${c.id}"`, empty: 'لا شيكات',
-    foot: `<tr><td colspan="5"><b>الإجمالي (بدون الملغى)</b></td><td class="n"><b>${money((S.cheques || []).filter(c => c.status !== 'ملغى').reduce((x, c) => x + +c.amount, 0))}</b></td><td></td><td></td></tr>` })}`;
+    foot: `<tr><td colspan="5"><b>الإجمالي (بدون الملغى)</b></td><td class="n"><b>${money((S.cheques || []).filter(c => c.status !== 'ملغى').reduce((x, c) => x + +c.amount, 0))}</b></td><td></td><td></td></tr>` });
 }
 function chequeView() {
   const c = S.cheque; if (!c) return '';
@@ -2465,7 +2804,7 @@ function policyView() {
     ${ed ? '<div class="muted card">اضغط على أي بند لتعديل حدوده.</div>' : ''}`;
 }
 function policyForm(x) {
-  const p = x.policy || { requires_decision: true, enforce: 'منع', active: true };
+  const p = x.policy || { requires_decision: false, enforce: 'منع', active: true };
   return `<h3>${esc(x.account)} — ${esc(x.name)}</h3><form id="polf">
     <div class="grid2"><label class="f"><span>حد الصرف الواحد (فاضي = بلا حد)</span><input class="input" name="max_per_txn" inputmode="decimal" value="${esc(p.max_per_txn || '')}"></label>
       <label class="f"><span>السقف السنوي (فاضي = بلا سقف)</span><input class="input" name="annual_cap" inputmode="decimal" value="${esc(p.annual_cap || '')}"></label></div>
@@ -2637,20 +2976,160 @@ function entryModal(e) {
     <div class="acts">${e.status === 'مرحّل' && can('finance.journal') ? '<button class="btn bad" data-act="revEntry">قيد عكسي</button>' : ''}
       <button class="btn sec" type="button" data-close>إغلاق</button></div>`;
 }
-function chequeForm() {
-  const decs = (S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(d.text.slice(0, 60))}</option>`).join('');
-  return `<h3>صرف شيك</h3><form id="chf">
-    <div class="grid2"><label class="f"><span>الغرض</span><select class="input" name="purpose" id="chPurpose">${options(PURPOSES, 'عهدة', false)}</select></label>
-      <label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" required></label></div>
-    <label class="f"><span>المستفيد (الاسم كما في الشيك — عضو أو طرف خارجي)</span><input class="input" name="payee_name" required list="partyList2"><datalist id="partyList2">${(S.partyNames || []).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
-    <div class="grid2"><label class="f"><span>الرقم الوظيفي (لو عضو)</span><input class="input" name="person_job" inputmode="numeric"></label>
-      <label class="f"><span>رقم الشيك</span><input class="input" name="cheque_no" inputmode="numeric"></label></div>
-    <div class="grid2"><label class="f"><span>التاريخ</span><input class="input" type="date" name="date" required></label>
-      <label class="f" id="chAcc"><span>حساب المصروف</span><select class="input" name="expense_account">${(S.accounts || []).filter(a => a.postable && a.type === 'مصروفات')
-        .map(a => `<option value="${a.code}">${a.code} — ${esc(a.name)}</option>`).join('')}</select></label></div>
-    <label class="f"><span>قرار المجلس</span><select class="input" name="decision_id"><option value="">— اختر —</option>${decs}</select></label>
-    <label class="f"><span>البيان</span><input class="input" name="notes"></label>
-    <div id="polMsg"></div><div id="ferr"></div><div class="acts"><button class="btn" type="submit">صرف</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+function chequeForm(nextNo = '') {
+  const today = new Date().toISOString().slice(0, 10);
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(String(d.text || '').slice(0, 65))}</option>`).join('');
+  return `<h3>⚡ إصدار شيك بنكي مباشر</h3>
+    <div class="alert warn" style="margin-bottom:10px;font-size:12.5px">💡 <b>تنبيه رقابي:</b> يُفضَّل استخدام «طلب صرف واستخراج شيك» لتوثيق دورة المراجعة وفصل المهام. يُستخدم الإصدار المباشر للحالات العاجلة المعتمدة فقط ويُرحِّل القيد فوراً.</div>
+    <form id="chf">
+    <div class="form-sec"><div class="form-sec-hd"><span>🧾 بيانات الشيك والمستفيد</span>${nextNo ? `<small class="muted">الرقم المقترح من الدفتر النشط: <b class="dt">${esc(nextNo)}</b></small>` : ''}</div>
+      <div class="grid3">
+        <label class="f"><span>طبيعة الصرف</span><select class="input" name="purpose" id="chPurpose">${options(PURPOSES, 'عهدة', false)}</select></label>
+        <label class="f"><span>المبلغ (ج.م)</span><input class="input" name="amount" inputmode="decimal" required placeholder="0.00"></label>
+        <label class="f"><span>تاريخ الإصدار</span><input class="input" type="date" name="date" value="${today}" required></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>المستفيد (الاسم كما يُحرر في الشيك)</span><input class="input" name="payee_name" required list="partyList2" placeholder="اسم العضو أو المورد أو الجهة"><datalist id="partyList2">${(S.partyNames || []).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
+        <label class="f"><span>رقم الشيك البنكي</span><input class="input" name="cheque_no" inputmode="numeric" dir="ltr" value="${esc(nextNo || '')}" placeholder="من دفتر الشيكات النشط"></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>الرقم الوظيفي (اختياري — إن كان عضواً)</span><input class="input" name="person_job" inputmode="numeric" dir="ltr" placeholder="مثال: 97117"></label>
+        <label class="f" id="chAcc"><span>بند / حساب المصروف</span><select class="input" name="expense_account">${(S.accounts || []).filter(a => a.postable && a.type === 'مصروفات')
+          .map(a => `<option value="${a.code}">${a.code} — ${esc(a.name)}</option>`).join('')}</select></label>
+      </div>
+    </div>
+    <div class="form-sec"><div class="form-sec-hd"><span>⚖️ السند الإداري والبيان</span></div>
+      <label class="f"><span>قرار مجلس الإدارة (اختياري — للصرف غير اللائحي أو الاستثنائي فقط)</span><select class="input" name="decision_id"><option value="">— بدون قرار (صرف لائحي / ضمن الصلاحية المعتمدة) —</option>${decs}</select></label>
+      <label class="f"><span>البيان التفصيلي للصرف</span><input class="input" name="notes" placeholder="وذلك قيمة…"></label>
+    </div>
+    <div id="polMsg"></div><div id="ferr"></div>
+    <div class="acts"><button class="btn gold" type="submit">🧾 إصدار الشيك وترحيل القيد</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+}
+
+function payReqForm() {
+  const today = new Date().toISOString().slice(0, 10);
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(String(d.text || '').slice(0, 65))}</option>`).join('');
+  const accs = (S.accounts || []).filter(a => a.postable && a.type === 'مصروفات')
+    .map(a => `<option value="${a.code}">${a.code} — ${esc(a.name)}</option>`).join('');
+  return `<h3>📝 طلب صرف واستخراج شيك بنكي (إذن صرف)</h3>
+    <div class="alert" style="margin-bottom:10px;font-size:12.5px">🛡️ <b>الدورة المالية والمحاسبية السليمة:</b> يُسجَّل الطلب للمراجعة والاعتماد مع فصل المهام، <b>ولا يُرحَّل أي قيد محاسبي</b> إلا عند استخراج الشيك الفعلي بعد الاعتماد.</div>
+    <form id="prqf">
+      <div class="form-sec"><div class="form-sec-hd"><span>👤 الجهة / المستفيد وطبيعة الصرف</span></div>
+        <div class="grid3">
+          <label class="f"><span>طبيعة الصرف</span><select class="input" name="purpose" id="prqPurpose">${options(PAY_PURPOSES, 'مصروف', false)}</select></label>
+          <label class="f"><span>المبلغ المطلوب (ج.م)</span><input class="input" name="amount" inputmode="decimal" required placeholder="0.00"></label>
+          <label class="f"><span>تاريخ الطلب</span><input class="input" type="date" name="date" value="${today}" required></label>
+        </div>
+        <label class="f" id="prqSettleWrap" hidden style="flex-direction:row;align-items:center;gap:8px;margin-top:6px"><input type="checkbox" name="requires_settlement" id="prqSettle"> <span>يُصرف كسلفة / عهدة نشاط تحت التسوية (يُقيد على حساب 1103 لحين تقديم الفواتير)</span></label>
+        <div class="grid2" style="margin-top:6px">
+          <div class="f"><span>بحث سريع عن عضو (اختياري — بالاسم أو الرقم الوظيفي)</span>
+            <div class="mlookup"><input class="input" id="prqMemQ" autocomplete="off" placeholder="🔎 اكتب اسم العضو أو رقمه الوظيفي…"><div class="mlookup-list" id="prqMemList" hidden></div></div>
+            <input type="hidden" name="person_id" id="prqPid">
+            <div id="prqPicked"></div>
+          </div>
+          <label class="f"><span>اسم المستفيد كما يُكتب في الشيك (عضو / مورد / جهة)</span>
+            <input class="input" name="payee_name" id="prqPayee" required list="partyListReq" placeholder="اسم المستفيد أو الشركة الموردة">
+            <datalist id="partyListReq">${(S.partyNames || []).map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+          </label>
+        </div>
+      </div>
+      <div class="form-sec"><div class="form-sec-hd"><span>📒 التوجيه المحاسبي والمستندات المؤيدة</span></div>
+        <div class="grid2">
+          <label class="f" id="prqAcc"><span>بند المصروف بالموازنة ودليل الحسابات</span><select class="input" name="expense_account">${accs}</select></label>
+          <label class="f"><span>المستندات المؤيدة المرفقة</span><input class="input" name="supporting_docs" placeholder="مثال: فاتورة ضريبية رقم … / ٣ عروض أسعار / مذكرة عرض"></label>
+        </div>
+        <label class="f"><span>البيان التفصيلي والغرض من استخراج الشيك</span><textarea class="input" name="description" rows="2" required placeholder="اكتب تفاصيل العملية والغرض من الصرف بوضوح…"></textarea></label>
+        <label class="f"><span>قرار مجلس الإدارة (اختياري — للصرف غير اللائحي أو لتجاوز حد الاعتماد المباشر)</span>
+          <select class="input" name="decision_id"><option value="">— بدون قرار مجلس (صرف لائحي / ضمن الصلاحية المالية) —</option>${decs}</select></label>
+      </div>
+      <div id="polMsg"></div><div id="ferr"></div>
+      <div class="acts"><button class="btn gold" type="submit">📤 تقديم طلب الصرف للاعتماد</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`;
+}
+
+function payApproveModalHTML(r) {
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}" ${r.decision_id === d.id ? 'selected' : ''}>${esc(d.decision_no)} — ${esc(String(d.text || '').slice(0, 65))}</option>`).join('');
+  return `<h3>✓ اعتماد إذن الصرف (${esc(r.req_no)})</h3>
+    <div class="form-sec" style="background:#f8fafc">
+      ${kvh('المستفيد', `<b>${esc(r.payee_name)}</b>`)}${kvh('المبلغ المطلوب', `<b style="font-size:16px;color:var(--brand)">${money(r.amount)} ج.م</b>`)}
+      ${kvh('التوجيه المحاسبي', r.requires_settlement ? '1103 — عُهد تحت التسوية' : esc((r.expense_account || '') + ' — ' + (r.account_name || '')))}
+      ${kvh('البيان', esc(r.description))}${kvh('مقدّم الطلب', esc(r.requested_by_name || '—'))}
+    </div>
+    <form id="papf">
+      <label class="f"><span>ربط بقرار مجلس إدارة (اختياري — مطلوب فقط إن تجاوز المبلغ حد صلاحيتك المباشر)</span>
+        <select class="input" name="decision_id"><option value="">— بدون قرار (اعتماد ضمن الصلاحية اللائحية) —</option>${decs}</select></label>
+      <label class="f"><span>ملاحظة الاعتماد / التوجيه لأمين الصندوق (اختياري)</span><input class="input" name="note" placeholder="مثال: راجعت الفاتورة الضريبية ويُصرف بشيك…"></label>
+      <div id="ferr"></div>
+      <div class="acts"><button class="btn" type="submit">✓ اعتماد وإحالة لاستخراج الشيك</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`;
+}
+
+function issueChequeModalHTML(o) {
+  const today = new Date().toISOString().slice(0, 10);
+  const decs = o.allowDecision ? (S.decOpts || []).map(d => `<option value="${d.id}" ${o.decision_id === d.id ? 'selected' : ''}>${esc(d.decision_no)} — ${esc(String(d.text || '').slice(0, 60))}</option>`).join('') : '';
+  return `<h3>🧾 استخراج وإصدار الشيك البنكي (${esc(o.refNo)})</h3>
+    <div class="form-sec" style="background:#fffdf7;border-color:#ead89c">
+      ${kvh('يُحرر الشيك لأمر', `<b>${esc(o.payee)}</b>`)}${kvh('صافي مبلغ الشيك', `<b style="font-size:17px;color:var(--brand)">${money(o.amount)} ج.م</b>`)}
+      ${kvh('تفقيط المبلغ', `<span style="font-size:12.5px;font-weight:700;color:var(--brand)">${esc(typeof tafqeet === 'function' ? tafqeet(o.amount) : '')}</span>`)}
+      ${kvh('القيد الآلي عند الإصدار', `مدين: <b>${esc(o.debitLabel)}</b> ⇐ دائن: <b>1102 البنك (الحساب الجاري)</b>`)}
+    </div>
+    <form id="ichqf">
+      <div class="grid2">
+        <label class="f"><span>رقم الشيك البنكي ${o.nextNo ? '<small class="muted">(مقترح تلقائياً من الدفتر)</small>' : ''}</span>
+          <input class="input" name="cheque_no" inputmode="numeric" dir="ltr" value="${esc(o.nextNo || '')}" placeholder="رقم الورقة من الدفتر النشط"></label>
+        <label class="f"><span>تاريخ تحرير وإصدار الشيك</span>
+          <input class="input" type="date" name="date" value="${today}" required></label>
+      </div>
+      ${o.allowDecision ? `<label class="f"><span>قرار مجلس الإدارة (اختياري)</span><select class="input" name="decision_id"><option value="">— بدون قرار (معتمد لائحياً) —</option>${decs}</select></label>` : ''}
+      <div id="ferr"></div>
+      <div class="acts"><button class="btn gold" type="submit">🧾 تأكيد إصدار الشيك وترحيل القيد</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`;
+}
+
+function staffGrantForm() {
+  const today = new Date().toISOString().slice(0, 10);
+  const types = S.grtTypes || [];
+  const decs = (S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)} — ${esc(String(d.text || '').slice(0, 60))}</option>`).join('');
+  return `<h3>🎁 إنشاء طلب استخراج منحة اجتماعية</h3>
+    <div class="alert" style="margin-bottom:10px;font-size:12.5px">📋 ابحث عن العضو للتحقق الآلي من عضوية النقابة العامة وأفراد أسرته المسجّلين، وطابق المستندات لإحالة الطلب مباشرة للاعتماد واستخراج الشيك.</div>
+    <form id="sgf">
+      <div class="form-sec"><div class="form-sec-hd"><span>👤 ١. بيانات العضو والتحقق من الاستحقاق</span></div>
+        <div class="f"><span>ابحث بالاسم أو الرقم الوظيفي أو رقم الموبايل</span>
+          <div class="mlookup"><input class="input" id="sgMemQ" autocomplete="off" placeholder="🔎 مثال: اسم العضو أو الرقم الوظيفي…"><div class="mlookup-list" id="sgMemList" hidden></div></div>
+        </div>
+        <input type="hidden" name="personId" id="sgPid"><input type="hidden" name="jobId" id="sgJob">
+        <div id="sgPicked"></div>
+      </div>
+      <div class="form-sec"><div class="form-sec-hd"><span>🎁 ٢. نوع المنحة والواقعة والمستفيد</span><span id="sgRateHint" class="pill gold"></span></div>
+        <div class="grid2">
+          <label class="f"><span>نوع المنحة الاجتماعية</span><select class="input" name="type" id="sgType">${types.map(t => `<option value="${t.code}">${esc(t.name)}${t.amount ? ' — ' + Number(t.amount).toLocaleString('ar-EG') + ' ج.م' : ''}</option>`).join('')}</select></label>
+          <label class="f"><span>تاريخ الواقعة الفعلي</span><input class="input" type="date" name="event_date" id="sgDate" value="${today}" required></label>
+        </div>
+        <label class="f"><span>المستفيد / صاحب الواقعة</span>
+          <select class="input" name="who" id="sgWho">
+            <option value="self">العضو نفسه (أو وفاة العضو)</option>
+            <option value="other">فرد أسرة (إدخال الاسم والصلة يدوياً)</option>
+          </select>
+        </label>
+        <div class="grid2" id="sgOther" hidden style="margin-top:6px">
+          <label class="f"><span>اسم فرد الأسرة رباعياً</span><input class="input" name="subject_name" placeholder="الاسم كما في شهادة الواقعة"></label>
+          <label class="f"><span>صلة القرابة بالعضو</span><select class="input" name="subject_relation">${options(['أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], 'ابن', false)}</select></label>
+        </div>
+      </div>
+      <div class="form-sec"><div class="form-sec-hd"><span>📎 ٣. مطابقة المسوّغات والسند الإداري</span></div>
+        <div id="sgDocsBox" style="margin-bottom:8px"></div>
+        <label class="f" style="flex-direction:row;align-items:center;gap:8px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;cursor:pointer">
+          <input type="checkbox" name="staff_verified" id="sgVerified" checked>
+          <span><b>تم استلام ومطابقة المستندات المعلَّمة أعلاه</b> (ينتقل الطلب فوراً لحالة «مستوفى» جاهزاً للاعتماد)</span>
+        </label>
+        <div class="grid2" style="margin-top:8px">
+          <label class="f"><span>قرار مجلس الإدارة (اختياري — للاستثناء من المهلة فقط)</span><select class="input" name="decision_id"><option value="">— بدون قرار (صرف لائحي) —</option>${decs}</select></label>
+          <label class="f"><span>ملاحظات المراجعة (اختياري)</span><input class="input" name="notes" placeholder="رقم شهادة الواقعة / اسم مستلم الشيك في حالة الوفاة…"></label>
+        </div>
+      </div>
+      <div id="ferr"></div>
+      <div class="acts"><button class="btn gold" type="submit">📥 تسجيل طلب استخراج المنحة</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`;
 }
 // «1234, 5678:200» ⇒ [{job_id:'1234'},{job_id:'5678',amount:200}] — كل مستفيد يتسجّل له ميزة بنصيبه على الخادم
 function parseBens(v) {
@@ -2953,10 +3432,12 @@ async function render() {
     const r = await call('BEN_REPORT', { year: S.benYear || '' }); if (!r.success) return toast(r.message, true);
     S.benRep = r; body = benefitsReportView();
   }
-  else if (['#/finance', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/settlements', '#/dues', '#/policy', '#/journal', '#/parties', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
-    title = 'المالية'; app.innerHTML = shell(title, '<div class="spin"></div>');
+  else if (['#/finance', '#/payreqs', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/settlements', '#/dues', '#/policy', '#/journal', '#/parties', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
+    title = h.startsWith('#/payreqs') ? 'طلبات الصرف والشيكات' : 'المالية';
+    app.innerHTML = shell(title, '<div class="spin"></div>');
     const P = S.finP || {};
     if (h.startsWith('#/finance')) { const r = await call('FIN_SUMMARY', P); if (!r.success) return toast(r.message, true); S.fin = r; body = finSummaryView(); }
+    else if (h.startsWith('#/payreqs')) { const r = await call('FIN_PAY_LIST', S.payF || {}); if (!r.success) return toast(r.message, true); S.payReqs = r; body = payReqsView(); }
     else if (h.startsWith('#/cheques')) { const r = await call('FIN_CHEQUES', { from: '2000-01-01', ...(S.chqF || {}) }); S.cheques = r.success ? r.items : []; body = chequesView(); }
     else if (h.startsWith('#/cheque/')) { const r = await call('FIN_CHEQUE', { id: h.split('/')[2] }); if (!r.success) return toast(r.message, true); S.cheque = r.cheque; body = chequeView(); }
     else if (h.startsWith('#/receipts')) { const r = await call('FIN_RECEIPTS', { from: '2000-01-01', ...P }); S.receipts = r.success ? r.items : []; body = receiptsView(); }
@@ -3017,14 +3498,23 @@ async function render() {
     }
   }
   else { location.hash = isStaff() ? '#/dash' : '#/home'; return; }
+  closeDP();
   app.innerHTML = shell(title, body);
   bindPage();
+  enhanceUI(app);
 }
 
 // ───────── الأحداث ─────────
 function bindPage(gridOnly) {
   const app = $('#app');
   if (!gridOnly) bindGrids();
+  app.querySelectorAll('[data-act=drawerToggle]').forEach(b => b.onclick = () => document.body.classList.toggle('drawer-open'));
+  app.querySelectorAll('[data-act=drawerClose]').forEach(b => b.onclick = () => document.body.classList.remove('drawer-open'));
+  app.querySelectorAll('[data-fgrp]').forEach(b => b.onclick = () => {
+    if (b.dataset.fgrp === 'all') S.finAll = !S.finAll;
+    else { S.finAll = false; S.finGrp = b.dataset.fgrp; }
+    render();
+  });
   const byr = $('#byr'); if (byr) byr.onsubmit = e => { e.preventDefault(); S.budYear = formData(byr).year; render(); };
   app.querySelectorAll('[data-act=budPrint]').forEach(b => b.onclick = () => printDoc(budgetReportHTML()));
   app.querySelectorAll('[data-act=budSave]').forEach(b => b.onclick = async () => {
@@ -3073,10 +3563,13 @@ function bindPage(gridOnly) {
     const r = await call('BANK_CLEAR', { kind: 'cheque', ids: [c.id], date: d }); if (!r.success || !r.updated) return toast(r.message || 'التاريخ قبل تاريخ الإصدار', true);
     toast('اتحدّث ✓'); render(); });
   app.querySelectorAll('[data-act=chqVoid]').forEach(b => b.onclick = async () => { const reason = prompt('سبب إلغاء الشيك (مثلاً: المستفيد لم يصرفه / خطأ في البيانات):'); if (!reason) return;
-    if (!confirm('هيتعمل قيد عكسي للشيك، ولو كان منحة هترجع «معتمد» للصرف من جديد. متأكد؟')) return;
+    if (!confirm('هيتعمل قيد عكسي للشيك، ولو كان مرتبطاً بطلب صرف أو منحة هيرجع الطلب لحالة «معتمد» لإصدار شيك بديل. متأكد؟')) return;
     const r = await busy(b, () => call('BANK_VOID', { id: S.cheque.id, reason })); if (!r.success) return toast(r.message, true); toast('اتلغى الشيك بقيد عكسي ✓'); render(); });
   app.querySelectorAll('[data-rcptv]').forEach(b => b.onclick = ev => { ev.stopPropagation(); const r = (S.receipts || []).find(x => x.id === b.dataset.rcptv); if (r) printDoc(receiptVoucherHTML(r)); });
-  app.querySelectorAll('[data-grtprint]').forEach(b => b.onclick = () => { const g = [...(S.grtList || []), ...(S.grtMy || [])].find(x => x.id === b.dataset.grtprint); if (g) printDoc(grantRequestHTML(g)); });
+  app.querySelectorAll('[data-grtprint]').forEach(b => b.onclick = () => {
+    const g = [...(S.grtList || []), ...(S.grtMy || []), ...((S.payReqs && S.payReqs.approvedGrants) || [])].find(x => x.id === b.dataset.grtprint);
+    if (g) printDoc(grantRequestHTML(g));
+  });
   app.querySelectorAll('[data-act=advPrint]').forEach(b => b.onclick = () => printDoc(openAdvancesReportHTML(S.openAdv || [])));
   app.querySelectorAll('[data-act=bkPrint]').forEach(b => b.onclick = () => { const a = S.trip, mb = a && a.myBooking; if (mb) printDoc(bookingHTML(mb, a, (S.me.profile || {}).person || {})); });
   app.querySelectorAll('[data-crprint]').forEach(b => b.onclick = () => { const r = (S.requests || []).find(x => x.id === b.dataset.crprint); if (r) printDoc(changeReqHTML([r], { full_name: r.full_name, job_id: r.job_id })); });
@@ -3201,7 +3694,7 @@ function bindPage(gridOnly) {
     if (!r.success) return toast(r.message, true); await loadLists(); render(); });
 
   // ── المجلس ──
-  app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { location.hash = b.dataset.go; });
+  app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { S.finAll = false; S.finGrp = null; location.hash = b.dataset.go; });
   app.querySelectorAll('[data-meet]').forEach(li => li.onclick = () => { location.hash = '#/meeting/' + li.dataset.meet; });
   const govDone = r => { S.gov = { ...S.gov, term: r.term || S.gov.term }; closeModal(); toast('اتحفظ ✓'); render(); };
   const govForm = (html, formId, build, action, after) => openModal(html, () => {
@@ -3275,7 +3768,7 @@ function bindPage(gridOnly) {
     bindAttBox($('#mtf [data-seats]'), $('#mtfQuorum'));
     const b = $('#modal [data-act=decAdd]'); if (b) b.onclick = () => {
       const box = $('#decs'), n = box.querySelectorAll('[data-dec]').length, tmp = document.createElement('div');
-      tmp.innerHTML = decRow({}, n); box.appendChild(tmp.firstElementChild); };
+      tmp.innerHTML = decRow({}, n); box.appendChild(tmp.firstElementChild); enhanceUI(box); };
   };
   on('meetNew', () => { govForm(meetingForm(null), '#mtf', f => meetBuild(f), 'GOV_SAVE_MEETING', meetAfter); bindMeetModal(); });
   on('meetEdit', () => { govForm(meetingForm(S.meeting), '#mtf', f => meetBuild(f, S.meeting.id), 'GOV_SAVE_MEETING', meetAfter); bindMeetModal(); });
@@ -3485,18 +3978,136 @@ function bindPage(gridOnly) {
         if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
         closeModal(); toast('اتعتمد ✓ — جاهز للصرف من أمين الصندوق'); render(); }; }); });
   on('grtReject', b => { const reason = prompt('سبب الرفض (إجباري):'); if (!reason) return; grtDo(b, 'GRT_DECIDE', { requestId: b.dataset.id, approve: false, reason }, 'اترفض'); });
-  on('grtPay', b => { const no = prompt('رقم الشيك:'); if (no === null) return;
-    grtDo(b, 'GRT_PAY', { requestId: b.dataset.id, cheque_no: no }, 'اتصرف الشيك ✓ واتسجل في المزايا'); });
-  on('grtProxy', () => { openModal(`<h3>طلب نيابة عن عضو</h3><form id="gpf"><label class="f"><span>الرقم الوظيفي</span><input class="input" name="jobId" required></label>
-      <label class="f"><span>النوع</span><select class="input" name="type">${(S.grtTypes || []).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
-      <label class="f"><span>تاريخ الواقعة</span><input class="input" type="date" name="event_date" required></label>
-      <div class="grid2"><input class="input" name="subject_name" placeholder="اسم المستفيد/المتوفى (فارغ = العضو)"><select class="input" name="subject_relation">${options(['العضو', 'أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], 'العضو', false)}</select></div>
-      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تقديم</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
-      $('#modal [data-close]').onclick = closeModal;
-      $('#gpf').onsubmit = async e => { e.preventDefault();
-        const r = await busy(e.target.querySelector('[type=submit]'), () => call('GRT_APPLY', formData(e.target)));
-        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
-        closeModal(); toast('اتسجل الطلب ' + r.request.req_no); render(); }; }); });
+  const openGrantChequeModal = async gid => {
+    const g = [...(S.grtList || []), ...((S.payReqs && S.payReqs.approvedGrants) || [])].find(x => x.id === gid);
+    if (!g) return;
+    let nextNo = S.payReqs && S.payReqs.nextChequeNo;
+    if (!nextNo) { const nx = await call('FIN_NEXT_CHEQUE'); if (nx.success) nextNo = nx.next_no; }
+    openModal(issueChequeModalHTML({
+      refNo: g.req_no, payee: g.person?.full_name || g.subject_name || '—', amount: g.amount,
+      debitLabel: `${g.expense_account || '5200'} — ${g.type_name}`, nextNo, allowDecision: false
+    }), m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      m.querySelector('#ichqf').onsubmit = async e => {
+        e.preventDefault();
+        const d = formData(e.target);
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('GRT_PAY', { requestId: g.id, cheque_no: d.cheque_no, date: d.date }));
+        if (!r.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal();
+        const cid = r.request && r.request.cheque && r.request.cheque.id;
+        toast('اتستخرج الشيك واترحّل القيد واتسجّل في المزايا ✓');
+        if (cid) location.hash = '#/cheque/' + cid; else render();
+      };
+    });
+  };
+  on('grtPay', b => openGrantChequeModal(b.dataset.id));
+  app.querySelectorAll('[data-grtissue]').forEach(b => b.onclick = () => openGrantChequeModal(b.dataset.grtissue));
+
+  const openStaffGrantModal = async () => {
+    if (!S.grtTypes) { const r = await call('GRT_TYPES'); if (r.success) S.grtTypes = r.items; }
+    await loadDecs();
+    openModal(staffGrantForm(), m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      const f = m.querySelector('#sgf'), qIn = m.querySelector('#sgMemQ'), lst = m.querySelector('#sgMemList');
+      const pidIn = m.querySelector('#sgPid'), jobIn = m.querySelector('#sgJob'), picked = m.querySelector('#sgPicked');
+      const whoSel = m.querySelector('#sgWho'), otherBox = m.querySelector('#sgOther');
+      const typeSel = m.querySelector('#sgType'), docsBoxEl = m.querySelector('#sgDocsBox'), rateHint = m.querySelector('#sgRateHint');
+      let curMem = null, tmr = null;
+      const renderMemCard = mem => {
+        curMem = mem;
+        if (!mem) { pidIn.value = ''; jobIn.value = ''; picked.innerHTML = ''; return; }
+        pidIn.value = mem.id; jobIn.value = mem.job_id || '';
+        picked.innerHTML = `<div class="mpicked">
+          <div><b>👤 ${esc(mem.full_name)}</b> <small class="muted">(${esc(mem.job_id || 'بدون رقم وظيفي')})</small>
+            <div class="muted">${esc(mem.workplace || '—')} · ${esc(mem.union_org || '—')} · ${esc(mem.member_state || '—')}</div></div>
+          <span class="pill ${mem.eligible ? 'ok' : 'bad'}">${mem.eligible ? '✓ مستحق للمنح' : '⚠️ غير مستحق حالياً'}</span>
+        </div>`;
+        const famOpts = (mem.family || []).map(fm => `<option value="${fm.id}" data-rel="${esc(fm.relation)}">${esc(fm.full_name)} (${esc(fm.relation)})</option>`).join('');
+        whoSel.innerHTML = `<option value="self">العضو نفسه / وفاة العضو (${esc(mem.full_name)})</option>${famOpts}<option value="other">فرد أسرة آخر (إدخال يدوي)</option>`;
+        syncGrantUI();
+      };
+      const syncGrantUI = () => {
+        const t = (S.grtTypes || []).find(x => x.code === typeSel.value);
+        otherBox.hidden = whoSel.value !== 'other';
+        let rel = 'العضو';
+        if (whoSel.value === 'other') rel = f.subject_relation.value;
+        else if (whoSel.value !== 'self') rel = whoSel.selectedOptions[0]?.dataset.rel || '';
+        let amt = t ? t.amount : null;
+        if (t && Array.isArray(t.rates) && t.rates.length) {
+          const rMatch = t.rates.find(rt => rt.relation === rel) || t.rates.find(rt => !rt.relation);
+          if (rMatch) amt = rMatch.amount;
+        }
+        rateHint.textContent = amt ? `الفئة المقررة: ${Number(amt).toLocaleString('ar-EG')} ج.م` : 'يحدده المجلس';
+        const docs = (t && t.docs) || [];
+        docsBoxEl.innerHTML = docs.length
+          ? `<div class="muted" style="font-size:12px;margin-bottom:4px">المستندات اللائحية المطلوبة${t.deadline_days ? ` (خلال ${numAr(t.deadline_days)} يوماً من الواقعة)` : ''}:</div>`
+            + docs.map((dn, i) => `<label class="row" style="gap:8px;padding:4px 0;cursor:pointer"><input type="checkbox" data-sgdoc="${esc(dn)}" checked> <span>${esc(dn)}</span></label>`).join('')
+          : '<div class="muted">لا توجد مستندات إلزامية محددة باللائحة لهذا النوع.</div>';
+      };
+      qIn.oninput = () => {
+        clearTimeout(tmr);
+        const q = qIn.value.trim();
+        if (q.length < 2) { lst.hidden = true; return; }
+        tmr = setTimeout(async () => {
+          const r = await call('FIN_MEMBER_LOOKUP', { q, date: f.event_date.value });
+          const items = (r.success && r.items) || [];
+          if (!items.length) { lst.innerHTML = '<div class="mlookup-item"><small>لا يوجد عضو مطابق</small></div>'; lst.hidden = false; return; }
+          lst.innerHTML = items.map((x, idx) => `<div class="mlookup-item" data-midx="${idx}">
+            <b>${esc(x.full_name)}</b> <span class="pill ${x.eligible ? 'ok' : 'warn'}" style="float:left">${x.eligible ? 'مستحق' : esc(x.union_org || 'غير مستحق')}</span>
+            <small>رقم وظيفي: ${esc(x.job_id || '—')} · ${esc(x.workplace || '—')} · أسرة مسجّلة: ${numAr((x.family || []).length)}</small>
+          </div>`).join('');
+          lst.hidden = false;
+          lst.querySelectorAll('[data-midx]').forEach(el => el.onclick = () => {
+            const pickedMem = items[+el.dataset.midx];
+            qIn.value = pickedMem.full_name;
+            lst.hidden = true;
+            renderMemCard(pickedMem);
+          });
+        }, 220);
+      };
+      f.event_date.addEventListener('change', async () => {
+        if (curMem && curMem.job_id) {
+          const r = await call('FIN_MEMBER_LOOKUP', { q: curMem.job_id, date: f.event_date.value });
+          const hit = (r.items || []).find(x => x.id === curMem.id);
+          if (hit) renderMemCard(hit);
+        }
+      });
+      typeSel.onchange = syncGrantUI;
+      whoSel.onchange = syncGrantUI;
+      f.subject_relation.onchange = syncGrantUI;
+      syncGrantUI();
+      f.onsubmit = async e => {
+        e.preventDefault();
+        if (!pidIn.value && !qIn.value.trim()) {
+          m.querySelector('#ferr').innerHTML = '<div class="alert bad">اختر العضو أولاً من مربع البحث بالاسم أو الرقم الوظيفي.</div>';
+          return;
+        }
+        const d = formData(f);
+        const docs = [...f.querySelectorAll('[data-sgdoc]')].map(ch => ({ name: ch.dataset.sgdoc, received: ch.checked }));
+        const payload = {
+          personId: pidIn.value || undefined,
+          jobId: !pidIn.value ? qIn.value.trim() : undefined,
+          type: d.type,
+          event_date: d.event_date,
+          decision_id: d.decision_id || undefined,
+          notes: d.notes || undefined,
+          staff_verified: f.staff_verified.checked,
+          docs
+        };
+        if (d.who === 'self') payload.subject_relation = 'العضو';
+        else if (d.who === 'other') { payload.subject_name = d.subject_name; payload.subject_relation = d.subject_relation; }
+        else payload.family_member_id = d.who;
+        const r = await busy(f.querySelector('[type=submit]'), () => call('GRT_APPLY', payload));
+        if (!r.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal();
+        toast(`اتسجّل طلب المنحة ${r.request.req_no} (${r.request.status}) ✓`);
+        if (location.hash.startsWith('#/grantsadmin') || location.hash.startsWith('#/payreqs')) render();
+        else location.hash = '#/grantsadmin';
+      };
+    }, 'lg');
+  };
+  on('grtStaffNew', openStaffGrantModal);
+  on('grtProxy', openStaffGrantModal);
   on('grtRate', async b => { await loadDecs();
     openModal(`<h3>تعديل مبلغ منحة</h3><form id="grf"><label class="f"><span>النوع</span><select class="input" name="type">${(S.grtTypes || []).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
       <div class="grid2"><label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" required></label>
@@ -3572,24 +4183,161 @@ function bindPage(gridOnly) {
   if (cf) cf.onsubmit = e => { e.preventDefault(); S.chqF = formData(cf); render(); };
   const ef = $('#ef');
   if (ef) ef.onsubmit = e => { e.preventDefault(); S.entF = formData(ef); render(); };
-  const finForm = (html, id, build, action, msg, after) => openModal(html, () => {
+  const finForm = (html, id, build, action, msg, after, cls = '') => openModal(html, () => {
     $('#modal [data-close]').onclick = closeModal;
     $(id).onsubmit = async e => { e.preventDefault();
       const r = await busy(e.target.querySelector('[type=submit]'), () => call(action, build(e.target)));
       if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
       closeModal(); toast(msg); after ? after(r) : render(); };
-  });
+  }, cls);
+  const ensureFinMeta = async () => {
+    await Promise.all([
+      !S.accounts ? call('FIN_ACCOUNTS').then(r => { S.accounts = r.success ? r.items : []; }) : null,
+      !S.partyNames ? call('POL_PARTIES').then(r => { S.partyNames = r.success ? r.items.filter(x => x.active).map(x => x.name) : []; }) : null,
+      !S.decOpts ? call('GOV_LIST_DECISIONS').then(r => { S.decOpts = r.success ? r.items.filter(d => ['صرف', 'دعم نشاط', 'منحة', 'إعفاء'].includes(d.category)) : []; }) : null,
+    ]);
+  };
   on('chqNew', async () => {
-    if (!S.accounts) { const r = await call('FIN_ACCOUNTS'); S.accounts = r.success ? r.items : []; }
-    if (!S.partyNames) { const r = await call('POL_PARTIES'); S.partyNames = r.success ? r.items.filter(x => x.active).map(x => x.name) : []; }
-    if (!S.decOpts) { const r = await call('GOV_LIST_DECISIONS'); S.decOpts = r.success ? r.items.filter(d => ['صرف', 'دعم نشاط', 'منحة', 'إعفاء'].includes(d.category)) : []; }
-    finForm(chequeForm(), '#chf', f => formData(f), 'FIN_ISSUE_CHEQUE', 'اتصرف الشيك واترحّل القيد ✓', r => { location.hash = '#/cheque/' + r.id; });
-    const f = $('#chf'), chk = async () => { const d = formData(f); if (!d.expense_account || !+d.amount || f.purpose.value === 'عهدة') { $('#polMsg').innerHTML = ''; return; }
+    const [, nx] = await Promise.all([ensureFinMeta(), call('FIN_NEXT_CHEQUE')]);
+    finForm(chequeForm(nx && nx.success ? nx.next_no : ''), '#chf', f => formData(f), 'FIN_ISSUE_CHEQUE', 'اتصرف الشيك واترحّل القيد ✓', r => { location.hash = '#/cheque/' + r.id; }, 'lg');
+    const f = $('#chf'), chk = async () => {
+      if (!f || !f.isConnected) return;
+      const d = formData(f), pm = f.querySelector('#polMsg');
+      if (!d.expense_account || !+d.amount || f.purpose.value === 'عهدة') { if (pm) pm.innerHTML = ''; return; }
       const r = await call('POL_CHECK', { account: d.expense_account, amount: +d.amount, date: d.date, hasDecision: !!d.decision_id });
-      $('#polMsg').innerHTML = r.success && r.message ? `<div class="alert warn">📜 ${esc(r.message)}</div>` : ''; };
+      if (pm && pm.isConnected) pm.innerHTML = r.success && r.message ? `<div class="alert warn">📜 ${esc(r.message)}</div>` : '';
+    };
     ['amount', 'expense_account', 'decision_id', 'date', 'purpose'].forEach(n => { if (f[n]) f[n].addEventListener('change', chk); });
-    const sync = () => { $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; }; sync(); $('#chPurpose').onchange = sync;
+    const sync = () => { if ($('#chAcc')) $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; }; sync(); $('#chPurpose').onchange = sync;
   });
+
+  // ── طلبات الصرف واستخراج الشيكات (FIN_PAY_*) ──
+  app.querySelectorAll('[data-payf]').forEach(b => b.onclick = () => { S.payF = { ...(S.payF || {}), status: b.dataset.payf || undefined }; render(); });
+  const prf = $('#prf');
+  if (prf) prf.onsubmit = e => { e.preventDefault(); S.payF = { ...(S.payF || {}), q: formData(prf).q || undefined }; render(); };
+  on('payReqNew', async () => {
+    await ensureFinMeta();
+    openModal(payReqForm(), m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      const f = m.querySelector('#prqf'), purp = m.querySelector('#prqPurpose'), stlWrap = m.querySelector('#prqSettleWrap'), stlCb = m.querySelector('#prqSettle'), accWrap = m.querySelector('#prqAcc');
+      const qIn = m.querySelector('#prqMemQ'), lst = m.querySelector('#prqMemList'), pidIn = m.querySelector('#prqPid'), payeeIn = m.querySelector('#prqPayee'), picked = m.querySelector('#prqPicked');
+      let tmr = null;
+      const syncCustody = () => {
+        stlWrap.hidden = purp.value !== 'دعم نشاط';
+        if (purp.value !== 'دعم نشاط') stlCb.checked = false;
+        const isCustody = purp.value === 'عهدة' || (purp.value === 'دعم نشاط' && stlCb.checked);
+        accWrap.style.display = isCustody ? 'none' : '';
+        chkPol();
+      };
+      const chkPol = async () => {
+        if (!f.isConnected) return;
+        const d = formData(f), pm = m.querySelector('#polMsg');
+        const isCustody = purp.value === 'عهدة' || (purp.value === 'دعم نشاط' && stlCb.checked);
+        if (isCustody || !d.expense_account || !+d.amount) { if (pm) pm.innerHTML = ''; return; }
+        const r = await call('POL_CHECK', { account: d.expense_account, amount: +d.amount, date: d.date, hasDecision: !!d.decision_id });
+        if (pm && pm.isConnected) pm.innerHTML = r.success && r.message ? `<div class="alert warn">📜 ${esc(r.message)}</div>` : '';
+      };
+      purp.onchange = syncCustody;
+      stlCb.onchange = syncCustody;
+      ['amount', 'expense_account', 'decision_id', 'date'].forEach(n => { if (f[n]) f[n].addEventListener('change', chkPol); });
+      syncCustody();
+      qIn.oninput = () => {
+        clearTimeout(tmr);
+        const q = qIn.value.trim();
+        if (q.length < 2) { lst.hidden = true; return; }
+        tmr = setTimeout(async () => {
+          const r = await call('FIN_MEMBER_LOOKUP', { q });
+          const items = (r.success && r.items) || [];
+          if (!items.length) { lst.innerHTML = '<div class="mlookup-item"><small>لا يوجد عضو مطابق</small></div>'; lst.hidden = false; return; }
+          lst.innerHTML = items.map((x, idx) => `<div class="mlookup-item" data-pidx="${idx}">
+            <b>${esc(x.full_name)}</b><small>رقم وظيفي: ${esc(x.job_id || '—')} · ${esc(x.workplace || '—')}</small></div>`).join('');
+          lst.hidden = false;
+          lst.querySelectorAll('[data-pidx]').forEach(el => el.onclick = () => {
+            const mem = items[+el.dataset.pidx];
+            pidIn.value = mem.id;
+            payeeIn.value = mem.full_name;
+            qIn.value = '';
+            lst.hidden = true;
+            picked.innerHTML = `<div class="mpicked"><div><b>👤 ${esc(mem.full_name)}</b> <small class="muted">(${esc(mem.job_id || '—')})</small></div>
+              <button type="button" class="btn sm sec" id="prqClearMem">✕ إلغاء الربط</button></div>`;
+            m.querySelector('#prqClearMem').onclick = () => { pidIn.value = ''; picked.innerHTML = ''; };
+          });
+        }, 220);
+      };
+      f.onsubmit = async e => {
+        e.preventDefault();
+        const r = await busy(f.querySelector('[type=submit]'), () => call('FIN_PAY_CREATE', formData(f)));
+        if (!r.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal();
+        toast(`اتسجّل طلب الصرف ${r.request.req_no} بانتظار الاعتماد ✓`);
+        if (location.hash.startsWith('#/payreqs')) render(); else location.hash = '#/payreqs';
+      };
+    }, 'lg');
+  });
+  const findPayReq = id => ((S.payReqs && S.payReqs.items) || []).find(x => x.id === id);
+  app.querySelectorAll('[data-payprt]').forEach(b => b.onclick = () => { const r = findPayReq(b.dataset.payprt); if (r) printDoc(paymentRequestHTML(r)); });
+  app.querySelectorAll('[data-paydocs]').forEach(b => b.onclick = () => {
+    const box = app.querySelector(`[data-paydocbox="${b.dataset.paydocs}"]`);
+    if (box.innerHTML) { box.innerHTML = ''; return; }
+    box.innerHTML = docsBox('payreq', b.dataset.paydocs, '📎 الفواتير وعروض الأسعار والمستندات المؤيدة').replace('class="card docbox"', 'class="docbox inl"');
+    loadDocBoxes();
+  });
+  app.querySelectorAll('[data-paycan]').forEach(b => b.onclick = async () => {
+    if (!confirm('إلغاء طلب الصرف؟')) return;
+    const r = await busy(b, () => call('FIN_PAY_CANCEL', { id: b.dataset.paycan }));
+    if (!r.success) return toast(r.message, true);
+    toast('اتلغى طلب الصرف'); render();
+  });
+  app.querySelectorAll('[data-payrej]').forEach(b => b.onclick = () => {
+    const req = findPayReq(b.dataset.payrej); if (!req) return;
+    openModal(`<h3>✕ رفض طلب الصرف (${esc(req.req_no)})</h3>
+      <form id="prjf"><label class="f"><span>سبب الرفض (إجباري — يُثبت في سجل الطلب)</span><textarea class="input" name="reason" rows="2" required placeholder="مثال: عدم استيفاء عروض الأسعار / تجاوز البند…"></textarea></label>
+      <div id="ferr"></div><div class="acts"><button class="btn bad" type="submit">تأكيد الرفض</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      m.querySelector('#prjf').onsubmit = async e => {
+        e.preventDefault();
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('FIN_PAY_DECIDE', { id: req.id, approve: false, reason: formData(e.target).reason }));
+        if (!r.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اترفض الطلب'); render();
+      };
+    });
+  });
+  app.querySelectorAll('[data-payapp]').forEach(b => b.onclick = async () => {
+    const req = findPayReq(b.dataset.payapp); if (!req) return;
+    await ensureFinMeta();
+    openModal(payApproveModalHTML(req), m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      m.querySelector('#papf').onsubmit = async e => {
+        e.preventDefault();
+        const d = formData(e.target);
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('FIN_PAY_DECIDE', { id: req.id, approve: true, decision_id: d.decision_id || undefined, note: d.note || undefined }));
+        if (!r.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتعتمد إذن الصرف ✓ — جاهز لاستخراج الشيك'); render();
+      };
+    });
+  });
+  app.querySelectorAll('[data-payissue]').forEach(b => b.onclick = async () => {
+    const req = findPayReq(b.dataset.payissue); if (!req) return;
+    await ensureFinMeta();
+    let nextNo = S.payReqs && S.payReqs.nextChequeNo;
+    if (!nextNo) { const nx = await call('FIN_NEXT_CHEQUE'); if (nx.success) nextNo = nx.next_no; }
+    openModal(issueChequeModalHTML({
+      refNo: req.req_no, payee: req.payee_name, amount: req.amount,
+      debitLabel: req.requires_settlement ? '1103 — عُهد تحت التسوية' : `${req.expense_account || ''} — ${req.account_name || ''}`,
+      nextNo, allowDecision: !req.decision_id, decision_id: req.decision_id
+    }), m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      m.querySelector('#ichqf').onsubmit = async e => {
+        e.preventDefault();
+        const d = formData(e.target);
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('FIN_PAY_ISSUE', { id: req.id, cheque_no: d.cheque_no, date: d.date, decision_id: d.decision_id || undefined }));
+        if (!r.success) { m.querySelector('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتستخرج الشيك واترحّل القيد المحاسبي آلياً ✓');
+        location.hash = '#/cheque/' + r.cheque_id;
+      };
+    });
+  });
+
   on('benAdd', async () => {
     if (!S.decAll) { const r = await call('GOV_LIST_DECISIONS'); S.decAll = r.success ? r.items : []; }
     const pid = S.person.person.id;
@@ -3617,7 +4365,7 @@ function bindPage(gridOnly) {
         amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim(),
         meeting_ids: r.dataset.mids ? r.dataset.mids.split(',').filter(Boolean) : undefined,
         beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) });
-    finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => { S.meetings = null; S.meeting = null; render(); });
+    finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => { S.meetings = null; S.meeting = null; render(); }, 'lg');
     $('#modal [data-act=stlDraft]').onclick = async e => {
       const r = await busy(e.target, () => call('FIN_SETTLE', { ...build($('#stf')), draft: true }));
       if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
@@ -3686,7 +4434,12 @@ function bindPage(gridOnly) {
     toast('اتغيرت كلمة المرور ✓'); S.me.mustChange = false; location.hash = '#/admin'; };
 }
 
-window.addEventListener('hashchange', () => { if (!$('#modal').hidden) closeModal(); render(); });
+window.addEventListener('hashchange', () => {
+  document.body.classList.remove('drawer-open');
+  closeDP();
+  if (!$('#modal').hidden) closeModal();
+  render();
+});
 boot();
 window.__erp = { S, call };   // للاختبار الآلي
 })();
