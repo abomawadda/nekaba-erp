@@ -555,8 +555,8 @@ a.kpi:hover,.kpi[data-ptab]:hover{transform:translateY(-1px);box-shadow:0 6px 16
 .dp-field .input{padding-left:42px!important;padding-right:12px!important;font-variant-numeric:tabular-nums;cursor:pointer}
 .dp-btn{position:absolute;left:5px;right:auto;top:50%;transform:translateY(-50%);width:30px;height:30px;border:0;border-radius:8px;background:#eef4fb;color:var(--brand);cursor:pointer;display:grid;place-items:center;font-size:15px;transition:.14s}
 .dp-btn:hover{background:var(--brand);color:#fff}
-.dp-backdrop{position:fixed;inset:0;z-index:89;background:rgba(10,25,42,.38);display:none}
-.dp-pop{position:fixed;z-index:90;width:308px;background:#fff;border:1.5px solid var(--brand);border-radius:15px;box-shadow:0 20px 50px rgba(8,24,44,.32);overflow:hidden;user-select:none;direction:rtl}
+.dp-backdrop{position:fixed;inset:0;z-index:98;background:rgba(10,25,42,.38);display:none}
+.dp-pop{position:fixed;z-index:99;width:308px;background:#fff;border:1.5px solid var(--brand);border-radius:15px;box-shadow:0 20px 50px rgba(8,24,44,.32);overflow:hidden;user-select:none;direction:rtl}
 .dp-hd{background:linear-gradient(135deg,var(--brand) 0%,var(--brand2) 100%);color:#fff;padding:10px;display:flex;align-items:center;gap:6px;border-bottom:2.5px solid var(--gold)}
 .dp-nav{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.14);color:#fff;font-size:16px;font-weight:800;cursor:pointer;display:grid;place-items:center;flex:none}
 .dp-nav:hover{background:rgba(255,255,255,.28)}
@@ -596,3 +596,60 @@ a.kpi:hover,.kpi[data-ptab]:hover{transform:translateY(-1px);box-shadow:0 6px 16
 .mpicked{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#f0f7ff;border:1.5px solid #b9d4ee;border-radius:10px;margin-top:6px}
 .nav button{flex:1;padding:8px 4px;text-align:center;color:var(--mute);background:transparent;border:0;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;font-family:inherit}
 .nav button i{font-style:normal;font-size:18px}
+
+/* ───────── المرحلة 33: طي الشريط الجانبي وطي القوائم الرئيسية ───────── */
+.side .brand{position:relative}
+.side-pin{margin-inline-start:auto;width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);color:#fff;cursor:pointer;display:none;place-items:center;font-size:14px;font-weight:800;flex:none;transition:.14s}
+.side-pin:hover{background:var(--gold);color:#141b24;border-color:var(--gold)}
+.side-tools{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px}
+.side-tools button{border:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.85);padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:.12s}
+.side-tools button:hover{background:rgba(255,255,255,.2);color:#fff}
+.side button.sgt{width:100%;display:flex;align-items:center;gap:6px;background:transparent;border:0;border-radius:8px;color:rgba(255,217,102,.92);padding:6px 10px;font-size:11.5px;font-weight:800;cursor:pointer;text-align:start;font-family:inherit;transition:.12s}
+.side button.sgt:hover{background:rgba(255,255,255,.08);color:#ffe58f}
+.side .sg-cnt{margin-inline-start:auto;background:rgba(255,255,255,.12);color:rgba(255,255,255,.88);font-size:10px;padding:1px 6px;border-radius:99px}
+.side .sg-arr{font-style:normal;font-size:11px;transition:transform .16s;opacity:.85}
+.side .sg.shut .sg-arr{transform:rotate(90deg)}
+.side .sg.shut .sg-items{display:none}
+.side a span.slbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .rail-btn{display:none;width:34px;height:34px;border-radius:9px;border:1px solid #d5e0ec;background:#f7fafd;color:var(--brand);cursor:pointer;place-items:center;font-size:15px;font-weight:800;flex:none;transition:.14s}
+.top .rail-btn:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
+@media(min-width:1024px){
+  .side{transition:width .2s ease}
+  .side-pin,.top .rail-btn{display:grid}
+  body.side-mini .side{width:72px;overflow-x:hidden}
+  body.side-mini .side .brand{flex-direction:column;padding:12px 6px;gap:8px}
+  body.side-mini .side .brand > div,body.side-mini .side-tools,body.side-mini .side button.sgt span,body.side-mini .side .sg-cnt,body.side-mini .side .sg-arr,body.side-mini .side a span.slbl,body.side-mini .side .who > div{display:none}
+  body.side-mini .side button.sgt{justify-content:center;padding:4px 0;pointer-events:none;opacity:.45}
+  body.side-mini .side button.sgt::after{content:"•••";font-size:9px;letter-spacing:1px}
+  body.side-mini .side .sg.shut .sg-items{display:block}
+  body.side-mini .side a{justify-content:center;padding:10px 6px}
+  body.side-mini .side a i{width:auto;font-size:19px}
+  body.side-mini .side .who{justify-content:center}
+}
+
+/* ───────── النوافذ الحوارية المؤسسية المخصصة (بديل كامل لنوافذ المتصفح) ───────── */
+.dlg{position:fixed;inset:0;z-index:96;background:rgba(9,24,40,.58);backdrop-filter:blur(3px);display:grid;place-items:center;padding:16px}
+.dlg-box{width:min(460px,94vw);background:#fff;border-radius:18px;border-top:4px solid var(--brand);box-shadow:0 24px 60px rgba(8,22,38,.38);overflow:hidden;animation:dlgIn .15s ease-out}
+@keyframes dlgIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+.dlg-box.bad{border-top-color:var(--bad)}.dlg-box.warn{border-top-color:var(--gold)}.dlg-box.ok{border-top-color:var(--ok)}
+.dlg-hd{display:flex;align-items:center;gap:11px;padding:15px 18px 11px;border-bottom:1px solid #e6eef6;background:linear-gradient(180deg,#f9fbfd 0%,#fff 100%)}
+.dlg-ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:19px;flex:none;background:#eaf2fb;color:var(--brand)}
+.dlg-box.bad .dlg-ic{background:#fee2e2;color:var(--bad)}.dlg-box.warn .dlg-ic{background:#fef3c7;color:#92400e}.dlg-box.ok .dlg-ic{background:#dcfce7;color:var(--ok)}
+.dlg-hd h4{margin:0;font-size:16px;font-weight:800;color:#0f172a;flex:1;line-height:1.4}
+.dlg-bd{padding:14px 18px;font-size:14px;color:#334155;line-height:1.7}
+.dlg-bd p{margin:0 0 10px}.dlg-bd p:last-child{margin-bottom:0}
+.dlg-err{color:var(--bad);font-size:12.5px;font-weight:700;margin-top:6px}
+.dlg-ft{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;background:#f7fafd;border-top:1px solid #e6eef6}
+.dlg-ft .btn{min-width:105px}
+
+/* ───────── مركز التقارير والكشوف المؤسسية المبتكرة ───────── */
+.rep-hub{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:12px;margin-bottom:16px}
+.rep-card{background:#fff;border:1px solid #dce6f0;border-top:3px solid var(--brand);border-radius:14px;padding:14px 15px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 10px rgba(15,61,94,.05);transition:transform .12s,box-shadow .15s}
+.rep-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,61,94,.11)}
+.rep-card.gold{border-top-color:var(--gold)}.rep-card.ok{border-top-color:var(--ok)}
+.rep-card-hd{display:flex;align-items:flex-start;gap:10px}
+.rep-ic{width:40px;height:40px;border-radius:11px;background:#eef5fc;display:grid;place-items:center;font-size:20px;flex:none}
+.rep-card h3{margin:0;font-size:14.5px;color:var(--brand);line-height:1.4}
+.rep-card p{margin:0;font-size:12.5px;color:#526377;line-height:1.6;flex:1}
+.rep-card-ft{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:1px dashed #e2eaf2;margin-top:auto}
+
