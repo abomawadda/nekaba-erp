@@ -850,7 +850,7 @@ function annualView() {
       <button class="btn" data-act="annGo">عرض</button><button class="btn gold" data-act="annPrint">🖨️ طباعة / PDF</button>
       <span class="muted">تقرير مجمّع تلقائياً من المنظومة — راجعه قبل العرض على الجمعية العمومية.</span></div>
     <div class="annual">
-    <div class="ann-cover"><img src="img/logo-union.png" alt=""><div style="font-size:12px;font-weight:700;color:#64748b;margin-top:6px">الاتحاد العام لنقابات عمال مصر · النقابة العامة للعاملين بالاتصالات</div><h1>${esc(C.ORG_NAME)}</h1><h2>التقرير السنوي لمجلس الإدارة عن عام ${esc(y)}</h2>
+    <div class="ann-cover"><img src="img/logo-union.png" alt=""><div style="font-size:12px;font-weight:700;color:#64748b;margin-top:6px">النقابة العامة للعاملين بالاتصالات</div><h1>${esc(C.ORG_NAME)}</h1><h2>التقرير السنوي لمجلس الإدارة عن عام ${esc(y)}</h2>
       <div class="muted">مقدَّم إلى الجمعية العمومية الموقرة — أُعد آلياً من منظومة النقابة في ${new Date().toISOString().slice(0, 10)}</div></div>
     <section><h3>أولاً: العضوية</h3>
       <p>بلغ إجمالي المسجّلين في المنظومة <b>${numAr(m.total)}</b> عضواً، موزّعين كالتالي:</p>
@@ -1290,14 +1290,13 @@ function erpDoc(o) {
   const qrPayload = o.qrData || `NEKABA-ERP|${o.code || 'DOC'}|${encodeURI(refNo).slice(0, 48)}|${docDate}`;
   const ctrlRows = [[o.refLbl || 'رقم المستند', refNo], ['التاريخ', dt(docDate)], ...(o.ctrl || [])];
   const sigCols = o.sigCols ? o.sigCols(getOfficialSigs(o.sigs)) : null;
-  return `<div class="erp-doc" data-doctitle="${esc(plain(o.title))}">
+  return `<div class="erp-doc${o.compact ? ' compact-a4' : ''}" data-doctitle="${esc(plain(o.title))}">
     <div class="ed-crown"></div>
     <div class="ed-inner">
       <img class="ed-wm" src="img/logo-union.png" alt="">
       <div class="ed-body">
         <div class="ed-mast">
           <div class="ed-org">
-            <div class="ed-sup">الاتحاد العام لنقابات عمال مصر</div>
             <div class="ed-sub">النقابة العامة للعاملين بالاتصالات</div>
             <div class="ed-name">${esc(C.ORG_NAME)}</div>
             <span class="ed-dept">${esc(plain(o.dept || 'الإدارة العامة'))}</span>
@@ -1359,6 +1358,7 @@ function attendanceSheetHTML(m, blank = false) {
   const rows = list.map((a, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td class="c">${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
     <td class="c">${blank ? '' : esc(a.status || '')}</td><td style="width:28%"></td></tr>`).join('');
   return erpDoc({
+    compact: true,
     dept: 'أمانة سر مجلس الإدارة', kind: blank ? 'نموذج توقيع حي' : 'كشف حضور رسمي',
     refLbl: 'رقم الجلسة', refNo: `ATT-${m.meeting_no}`, date: m.meeting_date,
     title: 'كشف حضور وتوقيع أعضاء مجلس الإدارة', sub: esc(m.title),
@@ -1368,7 +1368,7 @@ function attendanceSheetHTML(m, blank = false) {
       [3, 'رقم الجلسة', numAr(m.meeting_no)], [3, 'التاريخ', dt(m.meeting_date)],
       [3, 'الوقت', esc(m.meeting_time || '—')], [3, 'المقر', esc(m.venue || 'مقر اللجنة')],
     ]) + `<div class="ed-sec">بيان السادة أعضاء مجلس الإدارة والتوقيع بالحضور</div>
-      <table class="ed-tbl"><thead><tr><th style="width:38px" class="c">م</th><th>الاسم الرباعي</th><th class="c">الرقم الوظيفي</th><th>الصفة بالمجلس</th><th class="c" style="width:85px">الحالة</th><th>التوقيع الحي بالحضور</th></tr></thead><tbody>${rows}</tbody></table>`
+      <table class="ed-tbl"><thead><tr><th style="width:34px" class="c">م</th><th>الاسم الرباعي</th><th class="c">الرقم الوظيفي</th><th>الصفة بالمجلس</th><th class="c" style="width:76px">الحالة</th><th>التوقيع الحي بالحضور</th></tr></thead><tbody>${rows}</tbody></table>`
   });
 }
 function allowanceSheetHTML(m, rateOverride) {
@@ -1382,6 +1382,7 @@ function allowanceSheetHTML(m, rateOverride) {
       <td class="n"><b>${money(amt)}</b></td><td style="width:26%"></td></tr>`;
   }).join('') || '<tr><td colspan="6" class="c">لم يُسجَّل حاضرون لهذه الجلسة بعد</td></tr>';
   return erpDoc({
+    compact: true,
     dept: 'الإدارة المالية والخزينة · شئون المجلس', kind: 'كشف صرف مالي',
     refLbl: 'مرجع الكشف', refNo: `ALW-${m.meeting_no}`, date: m.meeting_date,
     ctrl: [['الحساب المحاسبي', '5401 بدلات جلسات']],
@@ -1393,7 +1394,7 @@ function allowanceSheetHTML(m, rateOverride) {
       [4, 'عدد الحاضرين المستحقين', `${numAr(att.length)} عضو مجلس`],
       [4, 'فئة البدل للعضو الحاضر', `${money(rate)} جنيه مصري`],
     ]) + `<div class="ed-sec">بيان السادة المستحقين وتوقيع الاستلام</div>
-      <table class="ed-tbl"><thead><tr><th style="width:38px" class="c">م</th><th>اسم العضو المستحق</th><th class="c">الرقم الوظيفي</th><th>الصفة بالمجلس</th><th class="n">المبلغ (ج.م)</th><th>التوقيع بالاستلام</th></tr></thead>
+      <table class="ed-tbl"><thead><tr><th style="width:32px" class="c">م</th><th>اسم العضو المستحق</th><th class="c" style="width:82px">الرقم الوظيفي</th><th>الصفة بالمجلس</th><th class="n" style="width:82px">المبلغ (ج.م)</th><th>التوقيع بالاستلام</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr><th colspan="4">الإجمالي العام للكشف</th><th class="n">${money(tot)}</th><th>${esc(tafqeet(tot))}</th></tr></tfoot></table>
       <div class="ed-box ${alw.paid ? '' : 'gold'}">${alw.paid
@@ -3018,7 +3019,7 @@ function settlementReportHTML(st) {
   const cust = st.custodian || {};
   const chqRows = chqs.map((c, i) => `<tr>
     <td class="c">${numAr(i + 1)}</td>
-    <td class="c"><span class="dt"><b>${esc(c.cheque_no || 'بدون رقم')}</b></span></td>
+    <td class="c"><span class="dt ed-chqno">${esc(c.cheque_no || 'بدون رقم')}</span></td>
     <td class="c">${dt(c.issue_date)}</td>
     <td>${esc(c.purpose || 'عهدة')}${c.notes ? ' — ' + esc(c.notes) : ''}</td>
     <td class="c">${esc(c.decision_no || 'لائحي')}</td>
@@ -3030,8 +3031,8 @@ function settlementReportHTML(st) {
     const bens = (l.beneficiaries_list || []).map(b => `${esc(b.full_name)}${b.job_id ? ' (' + esc(b.job_id) + ')' : ''}${b.amount ? ': ' + money(b.amount) : ''}`).join(' ، ');
     return `<tr>
       <td class="c">${numAr(i + 1)}</td>
-      <td><b>${esc(l.category)}</b></td>
-      <td><span class="dt">${esc(l.account || '')}</span> — ${esc(l.account_name || '')}</td>
+      <td class="c" style="white-space:nowrap">${dt(l.doc_date || st.settle_date)}</td>
+      <td><b>${esc(l.category)}</b><div style="font-size:10px;color:#64748b"><span class="dt">${esc(l.account || '')}</span> ${esc(l.account_name || '')}</div></td>
       <td>${esc(l.notes || '—')}${bens ? `<div style="font-size:10.5px;color:#475569;margin-top:2px">👥 المستفيدون: ${bens}</div>` : ''}</td>
       <td class="n"><b>${money(l.amount)}</b></td>
     </tr>`;
@@ -3045,47 +3046,72 @@ function settlementReportHTML(st) {
   </tr>`).join('');
 
   let dispTxt = 'تسوية متوازنة بالكامل (المتاح يساوي المنصرف الفعلي — رصيد متبقي صفر)';
+  let remTfqLbl = '';
+  let remTfqVal = 0;
   if (unspent > 0.005) {
-    if (ret > 0.005) dispTxt = `توريد ورد مبلغ (${money(ret)} ج.م) بطريقة (${esc(st.return_mode || 'رد نقدي للخزينة')})` + (Math.abs(rem) > 0.005 ? ` · ومتبقي (${money(rem)} ج.م)` : ' — رصيد العهدة مقفل بالكامل ✓');
-    else if (st.return_mode === 'ترحيل' || rem > 0.005) dispTxt = `ترحيل الفائض المتبقي وقدره (${money(unspent)} ج.م) كرصيد مرحّل للعهدة التالية لنفس صاحب العهدة` + (st.carried_to_info ? ` (استُخدم في تسوية شيك ${esc(st.carried_to_info.cheque_no || '')} بتاريخ ${dt(st.carried_to_info.settle_date)})` : ' (جاهز للترحيل الآلي)');
+    if (ret > 0.005) {
+      dispTxt = `توريد ورد مبلغ (${money(ret)} ج.م) بطريقة (${esc(st.return_mode || 'رد نقدي للخزينة')})` + (Math.abs(rem) > 0.005 ? ` · ومتبقي (${money(rem)} ج.م)` : ' — رصيد العهدة مقفل بالكامل ✓');
+      remTfqLbl = 'تفقيط المبلغ المردود / المورّد';
+      remTfqVal = ret;
+    } else if (st.return_mode === 'ترحيل' || rem > 0.005) {
+      dispTxt = `ترحيل الفائض المتبقي وقدره (${money(unspent)} ج.م) كرصيد مرحّل للعهدة التالية لنفس صاحب العهدة` + (st.carried_to_info ? ` (استُخدم في تسوية شيك ${esc(st.carried_to_info.cheque_no || '')} بتاريخ ${dt(st.carried_to_info.settle_date)})` : ' (جاهز للترحيل الآلي)');
+      remTfqLbl = 'تفقيط الفائض المرحّل للعهدة التالية';
+      remTfqVal = unspent;
+    }
   } else if (unspent < -0.005) {
     dispTxt = `زيادة منصرف عن المتاح بمبلغ (${money(Math.abs(unspent))} ج.م) — ${st.decision ? 'معتمدة بقرار رقم ' + esc(st.decision.decision_no) : 'تُعالج وفق الاعتماد المالي'}`;
+    remTfqLbl = 'تفقيط زيادة المنصرف (المستحق لصاحب العهدة)';
+    remTfqVal = Math.abs(unspent);
   }
 
   return erpDoc({
     dept: 'الإدارة المالية والخزينة · الرقابة على العُهد والسلف',
-    kind: isGrp ? 'تقرير تسوية سلفة مجمّعة' : 'كشف وتقرير تسوية عهدة',
+    kind: isGrp ? 'كشف تسوية عهدة مجمّعة' : 'كشف تسوية عهدة مالية',
     code: isGrp ? 'STL-GRP' : 'STL',
     refLbl: 'قيد التسوية', refNo: st.entry_no || (st.status === 'مسودة' ? 'مسودة' : String(st.id || '').slice(0, 8).toUpperCase()),
     date: st.settle_date,
-    ctrl: [['عدد الشيكات المسوّاة', `${numAr(chqs.length)} شيك`], ['عدد بنود الصرف', `${numAr(lines.length)} بند`]],
+    ctrl: [['عدد الشيكات المسوّاة', `${numAr(chqs.length)} شيك`], ['عدد الفواتير والبنود', `${numAr(lines.length)} بند`]],
     title: isGrp
-      ? `تقرير وكشف تسوية سلفة مجمّعة (${numAr(chqs.length)} شيكات) وبنود الصرف والمبالغ المتبقية`
-      : `تقرير وكشف تسوية سلفة / عهدة مؤقتة شاملة البنود المسوّاة`,
-    sub: `صاحب العهدة: ${esc(st.payee_name || '—')} · تاريخ إقفال التسوية: ${dt(st.settle_date)}`,
+      ? `كشف تسوية عهدة مالية مجمّعة (${numAr(chqs.length)} شيكات)`
+      : `كشف تسوية عهدة مالية (سلفة مفردة)`,
+    sub: `تاريخ التسوية والإقفال: ${dt(st.settle_date)} · قيد اليومية: ${st.entry_no ? esc(st.entry_no) : 'مسودة قبل الترحيل'}`,
     status: st.status || 'معتمدة',
     statusCls: st.status === 'معتمدة' ? 'ok' : st.status === 'مسودة' ? 'warn' : 'bad',
-    sigCols: s => [['صاحب العهدة / السلفة', st.payee_name || ''], ['أمين الصندوق', s.treasurer], ['رئيس اللجنة النقابية', s.chair]],
-    body: edMoney(spent, 'إجمالي المصروفات الفعلية المسوّاة والمؤيدة بالمستندات') + edGrid([
-      [5, 'اسم صاحب السلفة / العهدة', `<b>${esc(st.payee_name || '—')}</b>${cust.job_id ? ` <small>(رقم وظيفي: ${esc(cust.job_id)})</small>` : ''}`],
-      [4, 'جهة العمل / الصفة', esc(cust.workplace || 'اللجنة النقابية')],
-      [3, 'نوع التسوية', isGrp ? `<b>تسوية مجمّعة (${numAr(chqs.length)} شيكات)</b>` : 'تسوية سلفة / عهدة مفردة'],
+    sigCols: s => [['صاحب العهدة / مسؤول التسوية', st.payee_name || ''], ['أمين الصندوق', s.treasurer], ['رئيس اللجنة النقابية', s.chair]],
+    body: `<div class="ed-cust-bar">
+        <div><span class="ed-cust-lbl">اسم مسؤول التسوية (صاحب العهدة):</span><span class="ed-cust-nm">${esc(st.payee_name || '—')}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${cust.job_id ? `<span class="ed-cust-meta">الرقم الوظيفي: ${esc(cust.job_id)}</span>` : ''}
+          <span class="ed-cust-meta">${esc(cust.workplace || 'اللجنة النقابية')}</span>
+          <span class="ed-cust-meta">${isGrp ? `تسوية مجمّعة (${numAr(chqs.length)} شيكات)` : 'تسوية عهدة مفردة'}</span>
+        </div>
+      </div>
+      <div class="ed-kpi4">
+        <div class="ed-kpi"><small>${isGrp ? 'إجمالي الشيكات المجمّعة' : 'قيمة شيك العهدة'}</small><b>${money(adv)} ج.م</b></div>
+        <div class="ed-kpi amber"><small>رصيد مرحّل من قبل${subs ? ' + اشتراكات' : ''}</small><b>${money(prev + subs)} ج.م</b></div>
+        <div class="ed-kpi green"><small>إجمالي ميزانية التسوية</small><b>${money(avail)} ج.م</b></div>
+        <div class="ed-kpi rose"><small>المنصرف الفعلي بالفواتير</small><b>${money(spent)} ج.م</b></div>
+      </div>`
+    + edGrid([
       [4, 'رقم قيد اليومية المرحّل', st.entry_no ? `<span class="dt"><b>${esc(st.entry_no)}</b></span>` : 'مسودة (قبل الترحيل)'],
-      [4, 'قرار مجلس الإدارة المرتبط', st.decision ? `قرار (${esc(st.decision.decision_no)}) — ${esc(st.decision.text)}` : 'صرف وتسوية وفق اللائحة المالية'],
-      [4, 'مُعد التسوية بالمنظومة', esc(st.created_by_name || 'الإدارة المالية')],
+      [5, 'قرار مجلس الإدارة المرتبط', st.decision ? `قرار (${esc(st.decision.decision_no)}) — ${esc(st.decision.text)}` : 'صرف وتسوية وفق اللائحة المالية'],
+      [3, 'مُعد التسوية بالمنظومة', esc(st.created_by_name || 'الإدارة المالية')],
     ])
-    + `<div class="ed-sec">أولاً: بيان الشيكات المسوّاة ضمن هذه السلفة (${numAr(chqs.length)} شيك)</div>
+    + `<div class="ed-sec">أولاً: تفاصيل الشيكات ${isGrp ? 'المجمّعة' : 'المسوّاة'} (${numAr(chqs.length)} شيك)</div>
       <table class="ed-tbl">
-        <thead><tr><th class="c" style="width:34px">م</th><th class="c">رقم الشيك</th><th class="c">تاريخ الإصدار</th><th>الغرض والبيان عند الصرف</th><th class="c">القرار</th><th class="c">حالة الشيك</th><th class="n">قيمة الشيك (ج.م)</th></tr></thead>
+        <thead><tr><th class="c" style="width:32px">م</th><th class="c" style="width:92px">رقم الشيك</th><th class="c" style="width:76px">تاريخ الإصدار</th><th>الغرض والبيان عند الصرف</th><th class="c" style="width:78px">القرار</th><th class="c" style="width:94px">حالة الشيك</th><th class="n" style="width:96px">المبلغ (ج.م)</th></tr></thead>
         <tbody>${chqRows}</tbody>
         <tfoot><tr><th colspan="6">إجمالي قيمة الشيكات المشمولة في التسوية (حـ/ 1103 عُهد تحت التسوية)</th><th class="n">${money(adv)}</th></tr></tfoot>
       </table>`
-    + `<div class="ed-sec">ثانياً: كشف البنود المسوّاة وتفاصيل الصرف الفعلي (${numAr(lines.length)} بند)</div>
+    + `<div class="ed-sec">ثانياً: بيان الفواتير والمصروفات المدرجة (${numAr(lines.length)} بند)</div>
       <table class="ed-tbl">
-        <thead><tr><th class="c" style="width:34px">م</th><th style="width:130px">بند الصرف</th><th style="width:175px">التوجيه المحاسبي</th><th>البيان التفصيلي والمستندات والمستفيدون</th><th class="n" style="width:120px">المبلغ المسوّى</th></tr></thead>
+        <thead><tr><th class="c" style="width:30px">م</th><th class="c" style="width:76px">التاريخ</th><th style="width:165px">التصنيف المحاسبي</th><th>البيان والملاحظات والمستفيدون</th><th class="n" style="width:96px">المبلغ (ج.م)</th></tr></thead>
         <tbody>${lineRows}</tbody>
-        <tfoot><tr><th colspan="4">إجمالي البنود والمصروفات الفعلية المعتمدة بالتسوية</th><th class="n">${money(spent)}</th></tr></tfoot>
-      </table>`
+        <tfoot><tr><th colspan="4">إجمالي مبلغ الفواتير والمصروفات الفعلية المعتمدة</th><th class="n">${money(spent)}</th></tr></tfoot>
+      </table>
+      <div class="ed-tfq-strip blue"><small>تفقيط إجمالي الفواتير:</small><span>${esc(tafqeet(spent))}</span></div>
+      <div class="ed-tfq-strip green"><small>تفقيط إجمالي ميزانية التسوية:</small><span>${esc(tafqeet(avail))}</span></div>
+      ${remTfqVal > 0.005 ? `<div class="ed-tfq-strip gold"><small>${remTfqLbl}:</small><span>${esc(tafqeet(remTfqVal))}</span></div>` : ''}`
     + (byAcc.length > 1 ? `<div class="ed-sec">ثالثاً: ملخص التوزيع المحاسبي على حسابات المصروفات</div>
       <table class="ed-tbl"><thead><tr><th class="c" style="width:90px">كود الحساب</th><th>اسم الحساب بدليل الحسابات</th><th class="c" style="width:90px">عدد البنود</th><th class="n" style="width:135px">الإجمالي المحمّل</th></tr></thead>
       <tbody>${accRows}</tbody></table>` : '')
@@ -3095,8 +3121,8 @@ function settlementReportHTML(st) {
           <tr><td>(+) إجمالي الشيكات المنصرفة كعهدة</td><td class="n" style="width:160px"><b>${money(adv)} ج.م</b></td></tr>
           ${prev ? `<tr><td>(+) رصيد فائض مرحّل من عهدة سابقة${st.carried_from_info ? ` (شيك رقم ${esc(st.carried_from_info.cheque_no || '—')} بتاريخ ${dt(st.carried_from_info.settle_date)})` : ''}</td><td class="n"><b>${money(prev)} ج.م</b></td></tr>` : ''}
           ${subs ? `<tr><td>(+) اشتراكات وتحصيلات نقدية مضافة على العهدة (حـ/ 4201)</td><td class="n"><b>${money(subs)} ج.م</b></td></tr>` : ''}
-          <tr style="background:#eef4fa;font-weight:800"><td>(=) إجمالي المبالغ المتاحة تحت يد صاحب العهدة</td><td class="n">${money(avail)} ج.م</td></tr>
-          <tr><td>(−) يُخصم: إجمالي المصروفات الفعلية المسوّاة بالمستندات</td><td class="n">${money(spent)} ج.م</td></tr>
+          <tr style="background:#ecfdf5;font-weight:800"><td>(=) إجمالي ميزانية التسوية المتاحة تحت يد صاحب العهدة</td><td class="n ed-in">${money(avail)} ج.م</td></tr>
+          <tr><td>(−) يُخصم: إجمالي المصروفات الفعلية المسوّاة بالمستندات</td><td class="n ed-out">${money(spent)} ج.م</td></tr>
           <tr style="background:#fffbeb;font-weight:800"><td>(=) الفائض / الرصيد قبل التوريد أو الترحيل</td><td class="n">${money(unspent)} ج.م</td></tr>
           ${ret ? `<tr><td>(−) المبلغ المورّد / المردود فعلياً (${esc(st.return_mode || 'رد نقدي')})</td><td class="n">${money(ret)} ج.م</td></tr>` : ''}
         </tbody>
@@ -3109,47 +3135,60 @@ function settlementReportHTML(st) {
   });
 }
 
-// 3) تقرير كشف حساب العمليات والشيكات
+// 3) تقرير كشف حساب العمليات والشيكات (دفتر الأستاذ والبنك والخزينة)
 function operationsAndChequesReportHTML(rep) {
   if (!rep) return '';
   let runBal = +rep.opening || 0;
   const ops = (rep.operations || []).map((o, i) => {
-    runBal += (+o.debit || 0) - (+o.credit || 0);
+    const db = +o.debit || 0, cr = +o.credit || 0;
+    runBal += db - cr;
+    const isIn = db > 0 && cr === 0;
+    const kindLbl = o.status === 'معكوس' ? 'معكوس' : isIn ? 'وارد / إيداع' : 'صرف / شيك';
+    const refCell = o.doc_ref
+      ? `<span class="dt ed-chqno">${esc(o.doc_ref)}</span><div class="dt" style="font-size:9.5px;color:#64748b">${esc(o.entry_no || '')}</div>`
+      : `<span class="dt"><b>${esc(o.entry_no || '')}</b></span>`;
     return `<tr>
       <td class="c">${numAr(i + 1)}</td>
-      <td class="c">${dt(o.date)}</td>
-      <td class="c"><span class="dt"><b>${esc(o.entry_no || '')}</b></span>${o.doc_ref ? `<div class="dt" style="font-size:10px;color:#475569">${esc(o.doc_ref)}</div>` : ''}</td>
-      <td><b>${esc(o.description || '')}</b>${o.party ? ` <small class="muted">— ${esc(o.party)}</small>` : ''}${o.status === 'معكوس' ? ' <span style="color:#b91c1c;font-weight:700">[معكوس]</span>' : ''}</td>
-      <td class="n">${+o.debit ? money(o.debit) : '—'}</td>
-      <td class="n">${+o.credit ? money(o.credit) : '—'}</td>
-      <td class="n"><b>${money(runBal)}</b></td>
+      <td class="c" style="white-space:nowrap">${dt(o.date)}</td>
+      <td class="c"><span class="ed-type ${isIn ? 'in' : 'out'}">${kindLbl}</span></td>
+      <td class="c">${refCell}</td>
+      <td>${o.party ? `<b>${esc(o.party)}</b><div style="font-size:11px;color:#475569">${esc(o.description || '')}</div>` : `<b>${esc(o.description || '')}</b>`}${o.status === 'معكوس' ? ' <span style="color:#b91c1c;font-weight:700">[معكوس]</span>' : ''}</td>
+      <td class="n ${db ? 'ed-in' : ''}">${db ? money(db) : '—'}</td>
+      <td class="n ${cr ? 'ed-out' : ''}">${cr ? money(cr) : '—'}</td>
+      <td class="n ed-bal">${money(runBal)}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="7" class="c">لا توجد عمليات مالية مسجّلة خلال هذه الفترة</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="c">لا توجد عمليات مالية مسجّلة خلال هذه الفترة</td></tr>';
 
   const chqs = rep.cheques || [], cs = rep.cheques_summary || {};
   const chqRows = chqs.map((c, i) => `<tr>
     <td class="c">${numAr(i + 1)}</td>
-    <td class="c">${dt(c.issue_date)}</td>
-    <td class="c"><span class="dt"><b>${esc(c.cheque_no || 'بدون رقم')}</b></span></td>
+    <td class="c" style="white-space:nowrap">${dt(c.issue_date)}</td>
+    <td class="c"><span class="dt ed-chqno">${esc(c.cheque_no || 'بدون رقم')}</span></td>
     <td><b>${esc(c.payee_name || '')}</b></td>
     <td>${esc(c.purpose || '')} <small class="muted">(${esc(c.expense_account || '')})</small></td>
-    <td class="c">${c.status === 'ملغى' ? 'ملغى' : c.cleared_date ? 'صُرف ' + dt(c.cleared_date) : esc(c.status || 'صادر') + ' (معلّق)'}</td>
+    <td class="c">${c.status === 'ملغى' ? '<span class="ed-type out">ملغى</span>' : c.cleared_date ? '<span class="ed-type in">صُرف ' + dt(c.cleared_date) + '</span>' : '<span class="ed-type">' + esc(c.status || 'صادر') + ' (معلّق)</span>'}</td>
     <td class="n"><b>${money(c.amount)}</b></td>
   </tr>`).join('') || '<tr><td colspan="7" class="c">لا توجد شيكات صادرة خلال هذه الفترة</td></tr>';
 
   return erpDoc({
-    dept: 'الإدارة المالية والخزينة · حسابات البنوك والعمليات',
+    dept: 'الإدارة المالية والخزينة · دفتر الأستاذ وحسابات البنوك',
     kind: 'كشف حساب العمليات والشيكات', code: 'OPS-CHQ',
     refLbl: 'الحساب', refNo: rep.account === 'ALL' ? '1101+1102' : rep.account, date: rep.to,
-    ctrl: [['الفترة من', dt(rep.from)], ['إلى تاريخ', dt(rep.to)]],
-    title: `تقرير وكشف حساب العمليات المالية والشيكات (${esc(rep.account_label)})`,
-    sub: `حركة الإيداعات والمسحوبات بالرصيد المتحرك وسجل الشيكات الصادرة عن الفترة من ${dt(rep.from)} إلى ${dt(rep.to)}`,
+    ctrl: [['الفترة من', dt(rep.from)], ['إلى تاريخ', dt(rep.to)], ['عدد الحركات', `${numAr((rep.operations || []).length)} حركة`]],
+    title: `كشف حساب الخزينة والبنك والعمليات والشيكات (${esc(rep.account_label)})`,
+    sub: `دفتر الأستاذ التفصيلي بالرصيد المتحرك وسجل الشيكات الصادرة عن الفترة من ${dt(rep.from)} إلى ${dt(rep.to)}`,
     status: `${numAr((rep.operations || []).length)} عملية · ${numAr(cs.total_count || 0)} شيك`, statusCls: 'ok',
-    body: edMoney(rep.closing, `الرصيد الدفتري الختامي في نهاية الفترة (${String(rep.to || '').slice(0, 10)})`) + edGrid([
-      [3, `رصيد أول المدة (${String(rep.from || '').slice(0, 10)})`, `<b>${money(rep.opening)} ج.م</b>`],
-      [3, 'إجمالي الإيداعات والوارد (مدين)', `<b style="color:#166534">+ ${money(rep.total_debit)} ج.م</b>`],
-      [3, 'إجمالي المسحوبات والمنصرف (دائن)', `<b style="color:#991b1b">− ${money(rep.total_credit)} ج.م</b>`],
-      [3, 'الرصيد الدفتري الختامي', `<b>${money(rep.closing)} ج.م</b>`],
+    body: `<div class="ed-open-bar">
+        <span>الرصيد الافتتاحي للفترة (في ${dt(rep.from)}):</span>
+        <b>${money(rep.opening)} ج.م</b>
+      </div>
+      <div class="ed-kpi4">
+        <div class="ed-kpi"><small>رصيد أول المدة</small><b>${money(rep.opening)} ج.م</b></div>
+        <div class="ed-kpi green"><small>إجمالي الوارد والإيداعات (+)</small><b>+ ${money(rep.total_debit)} ج.م</b></div>
+        <div class="ed-kpi rose"><small>إجمالي المنصرف والشيكات (−)</small><b>− ${money(rep.total_credit)} ج.م</b></div>
+        <div class="ed-kpi amber"><small>الرصيد الدفتري الختامي</small><b>${money(rep.closing)} ج.م</b></div>
+      </div>`
+    + edGrid([
       [4, 'شيكات صادرة لم تُصرف من البنك حتى تاريخه', `<b>${money(rep.uncleared_cheques_total)} ج.م (${numAr(rep.uncleared_cheques_count)} شيك)</b>`],
       [4, 'إيداعات بالطريق لم تظهر بالبنك', `<b>${money(rep.uncleared_deposits_total)} ج.م</b>`],
       [4, 'الرصيد المتوقع بكشف البنك', `<b>${money(rep.expected_bank_balance)} ج.م</b>`],
@@ -3158,34 +3197,36 @@ function operationsAndChequesReportHTML(rep) {
       <table class="ed-tbl">
         <thead>
           <tr>
-            <th class="c" style="width:28px">م</th>
-            <th class="c" style="width:74px">التاريخ</th>
-            <th class="c" style="width:94px">القيد / المستند</th>
-            <th>البيان والجهة المستفيدة / المورّدة</th>
-            <th class="n" style="width:80px">وارد (مدين)</th>
-            <th class="n" style="width:80px">منصرف (دائن)</th>
-            <th class="n" style="width:88px">الرصيد المتحرك</th>
+            <th class="c" style="width:24px">م</th>
+            <th class="c" style="width:68px">التاريخ</th>
+            <th class="c" style="width:66px">النوع</th>
+            <th class="c" style="width:82px">رقم الشيك / القيد</th>
+            <th>الجهة / البيان</th>
+            <th class="n" style="width:74px">وارد (+)</th>
+            <th class="n" style="width:74px">منصرف (−)</th>
+            <th class="n" style="width:82px">الرصيد</th>
           </tr>
         </thead>
         <tbody>
-          <tr style="background:#f1f5f9;font-weight:800"><td colspan="6">رصيد أول المدة المنقول في ${dt(rep.from)}</td><td class="n">${money(rep.opening)}</td></tr>
+          <tr style="background:#ecfdf5;font-weight:800"><td colspan="7" style="color:#065f46">الرصيد الافتتاحي المنقول في ${dt(rep.from)}</td><td class="n ed-in">${money(rep.opening)}</td></tr>
           ${ops}
         </tbody>
         <tfoot>
-          <tr><th colspan="4">إجمالي الحركة والرصيد الختامي في ${dt(rep.to)}</th><th class="n">${money(rep.total_debit)}</th><th class="n">${money(rep.total_credit)}</th><th class="n">${money(rep.closing)}</th></tr>
+          <tr><th colspan="5">إجمالي الحركة والرصيد الختامي في ${dt(rep.to)}</th><th class="n ed-in">${money(rep.total_debit)}</th><th class="n ed-out">${money(rep.total_credit)}</th><th class="n ed-bal">${money(rep.closing)}</th></tr>
         </tfoot>
-      </table>`
+      </table>
+      <div class="ed-tfq-strip blue"><small>تفقيط الرصيد الختامي:</small><span>${esc(tafqeet(Math.abs(+rep.closing || 0)))}${+rep.closing < 0 ? ' (بالعجز / بالسالب)' : ''}</span></div>`
     + `<div class="ed-sec">ثانياً: سجل الشيكات البنكية الصادرة خلال الفترة (${numAr(cs.total_count || 0)} شيك — الصحيح منها ${numAr(cs.valid_count || 0)} بقيمة ${money(cs.valid_amount)} ج.م)</div>
       <table class="ed-tbl">
         <thead>
           <tr>
-            <th class="c" style="width:28px">م</th>
-            <th class="c" style="width:74px">تاريخ الإصدار</th>
-            <th class="c" style="width:92px">رقم الشيك</th>
+            <th class="c" style="width:26px">م</th>
+            <th class="c" style="width:72px">تاريخ الإصدار</th>
+            <th class="c" style="width:88px">رقم الشيك</th>
             <th>اسم المستفيد</th>
             <th>الغرض والحساب</th>
-            <th class="c" style="width:104px">الحالة والصرف البنكي</th>
-            <th class="n" style="width:86px">المبلغ (ج.م)</th>
+            <th class="c" style="width:106px">الحالة والصرف البنكي</th>
+            <th class="n" style="width:84px">المبلغ (ج.م)</th>
           </tr>
         </thead>
         <tbody>${chqRows}</tbody>
@@ -3546,6 +3587,8 @@ function settlementsView() {
   const items = S.openAdv || [], drafts = S.stlDrafts || [], carries = S.stlCarries || [], hist = S.stlItems || [];
   const today = new Date(), age = c => Math.floor((today - new Date(c.issue_date)) / 864e5);
   const tot = items.reduce((a, c) => a + +c.amount, 0), over30 = items.filter(c => age(c) > 30);
+  const approved = hist.filter(s => s.status === 'معتمدة');
+  const totRetOrCarry = approved.reduce((a, s) => a + (+s.returned || 0) + (s.return_mode === 'ترحيل' ? Math.max(0, (+s.advance || 0) + (+s.prev_balance || 0) + (+s.subscriptions || 0) - (+s.spent || 0)) : 0), 0);
   const byParty = {}; items.forEach(c => { byParty[c.payee_name] = (byParty[c.payee_name] || 0) + +c.amount; });
   const canStl = can('treasury.settlement'), canRev = can('finance.journal');
   const openIssued = items.filter(c => c.status === 'صادر');
@@ -3553,10 +3596,11 @@ function settlementsView() {
   const chqList = arr => (arr || []).map(x => `<a href="#/cheque/${x.id}">${esc(x.cheque_no || 'بدون رقم')}</a>`).join(' + ') || '—';
   return finTabs('#/settlements') + `<div class="kpis">${kpi('🧾', money(tot), `عُهد وسلف مفتوحة (${numAr(items.length)})`, items.length ? 'warn' : 'ok')}
       ${kpi('⏳', numAr(over30.length), 'متأخرة +30 يوماً', over30.length ? 'warn' : 'ok')}${kpi('📝', numAr(drafts.length), 'مسودات محفوظة', drafts.length ? 'warn' : '')}
-      ${kpi('✅', numAr(hist.filter(s => s.status === 'معتمدة').length), 'تسويات معتمدة', 'ok')}</div>
+      ${kpi('✅', numAr(approved.length), 'تسويات معتمدة', 'ok')}
+      ${kpi('🔄', money(totRetOrCarry), `مرتد أو مرحّل (${numAr(carries.length)} جاهز للترحيل)`, carries.length ? 'warn' : '')}</div>
     <div class="card"><div class="muted">من هنا تسوّي عهدة بشيك واحد أو <b>تسوية مجمّعة لعدة شيكات</b>، وتجلب أي <b>رصيد مرحّل سابق آلياً</b>، وتحفظ <b>مسودة</b> قبل الاعتماد، وتسترجع أي تسوية معتمدة <b>بقيد عكسي</b> عند الخطأ.</div>
-      <div class="row" style="margin-top:8px;gap:8px">${canStl && openIssued.length ? '<button class="btn sm gold" data-act="stlPick">+ تسوية عهدة / تسوية مجمّعة</button>' : ''}
-        <button class="btn sm sec" type="button" data-act="stlRepPick">🖨️ طباعة تقرير تسوية (مفردة / مجمّعة)</button>
+      <div class="row" style="margin-top:8px;gap:8px">${canStl && openIssued.length ? '<button class="btn sm gold" data-act="stlPick">+ تسوية شيك مفرد / تسوية مجمّعة</button>' : ''}
+        <button class="btn sm sec" type="button" data-act="stlRepPick">🖨️ طباعة كشف تسوية (مفردة / مجمّعة)</button>
         <button class="btn sm sec" data-act="advPrint">🖨️ طباعة كشف العهد المفتوحة</button></div></div>
     ${drafts.length ? `<div class="card"><h2>📝 مسودات التسوية المحفوظة (${numAr(drafts.length)})</h2>
       ${drafts.map(d => `<div class="kv" style="align-items:center"><div><b>${esc(d.payee_name)}</b> — شيكات: ${chqList(d.cheques)}
@@ -3596,7 +3640,7 @@ function duesView() {
   const next = d.lastTo ? new Date(new Date(d.lastTo).getTime() + 864e5).toISOString().slice(0, 7) : '';
   const kpi = (i, v, l, c = '') => `<div class="kpi ${c}"><i>${i}</i><div><b>${v}</b><small>${l}</small></div></div>`;
   return finTabs('#/dues') + `<div class="card"><h2>🧮 اشتراك المرتب الشهري (${numAr(sp.total)} ج للعضو)</h2>
-      <div class="kpis" style="margin:0">${kpi('🏢', numAr(sp.local) + ' ج', 'نصيب اللجنة — إيراد اللجنة', 'ok')}${kpi('🏛️', numAr(sp.general) + ' ج', 'النقابة العامة — لا يُثبت عندنا')}${kpi('🇪🇬', numAr(sp.federation) + ' ج', 'اتحاد العمال — لا يُثبت عندنا')}</div>
+      <div class="kpis" style="margin:0">${kpi('🏢', numAr(sp.local) + ' ج', 'نصيب اللجنة — إيراد اللجنة', 'ok')}${kpi('🏛️', numAr(sp.general) + ' ج', 'النقابة العامة — لا يُثبت عندنا')}${kpi('🏷️', numAr(sp.federation) + ' ج', 'حصة مركزية / أخرى — لا تُثبت عندنا')}</div>
       <div class="muted" style="margin-top:8px">النقابة العامة تحصّل الاستقطاع من المرتبات وتحوّل نصيب اللجنة (${numAr(sp.local)} ج/عضو/شهر) لحساب اللجنة كل 3–4 شهور. اللجنة تُثبت <b>الاستحقاق</b> شهرياً (مدين: مستحق من النقابة العامة 1204 / دائن: إيراد 4102) ثم <b>الوارد</b> عند التحويل (مدين: البنك / دائن: 1204)، فيظهر ما لم يُحوَّل بعد كرصيد مستحق.</div></div>
     <div class="kpis">${kpi('👥', numAr(d.membersNow), 'أعضاء النقابة العامة النشطون الآن')}${kpi('📈', money(d.accrued), 'إجمالي المستحق')}${kpi('📥', money(d.received), 'الوارد فعلاً', 'ok')}
       ${kpi('⏳', money(d.outstanding), 'لم يُحوَّل بعد (رصيد 1204)', +d.outstanding > 0 ? 'warn' : 'ok')}</div>
@@ -3988,8 +4032,8 @@ function settleForm(c, h = {}, dr = null) {
   const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
   const v = x => esc(x == null ? '' : String(x)), d = dr || {};
   const bensTxt = b => (b || []).map(x => x.amount ? `${x.job_id}:${x.amount}` : x.job_id).join(', ');
-  const row = (l = {}) => `<div class="row" data-sl ${l.meeting_ids && l.meeting_ids.length ? `data-mids="${esc(l.meeting_ids.join(','))}" data-alwrow="1"` : ''} style="margin-bottom:6px"><select class="input" style="flex:2" name="cat">${options(cats, l.category || null, false)}</select>
-    <input class="input" style="flex:1" name="amt" inputmode="decimal" placeholder="المبلغ" value="${v(l.amount)}"><input class="input" style="flex:2" name="note" placeholder="بيان/مستند" value="${v(l.notes)}">
+  const row = (l = {}) => `<div class="row" data-sl ${l.meeting_ids && l.meeting_ids.length ? `data-mids="${esc(l.meeting_ids.join(','))}" data-alwrow="1"` : ''} style="margin-bottom:6px"><select class="input" style="flex:1.6;min-width:130px" name="cat">${options(cats, l.category || null, false)}</select>
+    <input class="input" style="flex:1;min-width:95px" name="amt" inputmode="decimal" placeholder="المبلغ" value="${v(l.amount)}"><input class="input" style="flex:1.2;min-width:125px" type="date" name="doc_date" title="تاريخ الفاتورة (اختياري)" value="${v(l.doc_date)}"><input class="input" style="flex:2;min-width:140px" name="note" placeholder="بيان / رقم الفاتورة" value="${v(l.notes)}">
     <input class="input" style="flex:1 1 100%" name="bens" placeholder="المستفيدون (اختياري): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200" value="${v(bensTxt(l.beneficiaries))}"></div>`;
   const ids = d.cheque_ids || [];
   const selMids = new Set((d.lines || []).flatMap(l => l.meeting_ids || []));
@@ -5474,7 +5518,9 @@ function bindPage(gridOnly) {
       return_mode: f.return_mode.value, cheque_ids: [...f.querySelectorAll('[name=grp]:checked')].map(i => i.value),
       carried_from: f.carried_from ? f.carried_from.value : '',
       lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
-        amount: r.querySelector('[name=amt]').value.trim(), notes: r.querySelector('[name=note]').value.trim(),
+        amount: r.querySelector('[name=amt]').value.trim(),
+        doc_date: (r.querySelector('[name=doc_date]')?.value || '').trim() || undefined,
+        notes: r.querySelector('[name=note]').value.trim(),
         meeting_ids: r.dataset.mids ? r.dataset.mids.split(',').filter(Boolean) : undefined,
         beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) });
     finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => { S.meetings = null; S.meeting = null; render(); }, 'lg');
