@@ -2133,22 +2133,38 @@ function grantCard(g, admin) {
       <button class="btn sm sec" data-grtprint="${g.id}">🖨️ طباعة الطلب</button><button class="btn sm sec" data-grtdocs="${g.id}">📎 المستندات</button></div>
     <div data-grtdocbox="${g.id}"></div></div>`;
 }
+function calcGrantRate(t, rel, isBoard) {
+  if (!t) return null;
+  const rs = t.rates || [];
+  const pick = rKey => rs.find(x => (x.relation || '') === (rKey || ''));
+  if (isBoard && pick('عضو مجلس إدارة')) return { amount: +pick('عضو مجلس إدارة').amount, label: 'فئة عضو مجلس الإدارة (أو بموجب موافقة)' };
+  if (rel && pick(rel)) return { amount: +pick(rel).amount, label: `صلة القرابة: ${rel}` };
+  if (pick('')) return { amount: +pick('').amount, label: 'الفئة الافتراضية باللائحة' };
+  return t.amount ? { amount: +t.amount, label: 'اللائحة المعتمدة' } : null;
+}
 function grantsView() {
   const types = S.grtTypes || [], my = S.grtMy || [], fam = (S.me.profile && S.me.profile.family) || [];
+  const schedRows = types.flatMap(t => (t.rates || []).map(r => `<div class="kv"><span><b>${esc(t.name)}</b> — ${esc(r.relation || 'الدرجة الأولى / الافتراضي')}${r.notes ? ` <small class="muted">(${esc(r.notes)})</small>` : ''}</span><b style="color:var(--brand)">${money(r.amount)} ج.م</b></div>`)).join('');
   return `${S.grtElig === false ? '<div class="alert warn">المنح لأعضاء النقابة العامة النشطين.</div>' : ''}
-  <div class="card"><h2>📝 طلب منحة</h2><form id="gaf">
-    <label class="f"><span>نوع المنحة</span><select class="input" name="type">${types.map(t => `<option value="${t.code}">${esc(t.name)}${t.amount ? ' — ' + Number(t.amount) + ' ج' : ''}</option>`).join('')}</select></label>
-    <label class="f"><span>تاريخ الواقعة</span><input class="input" type="date" name="event_date" required></label>
-    <label class="f"><span>المستفيد</span><select class="input" name="who"><option value="self">أنا (العضو)</option>
-      ${fam.map(f => `<option value="${f.id}">${esc(f.full_name)} (${esc(f.relation)})</option>`).join('')}<option value="other">شخص آخر من الأسرة (اكتب)</option></select></label>
-    <div class="grid2" id="gother" hidden><input class="input" name="subject_name" placeholder="الاسم"><select class="input" name="subject_relation">${options(['أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], '', false)}</select></div>
+  ${S.grtIsBoard ? '<div class="alert ok" style="margin-bottom:10px">🏛️ <b>عضو مجلس إدارة:</b> يُطبَّق عليك تلقائياً فئة أعضاء مجلس الإدارة المعتمدة باللائحة (أو المبلغ المحدد بموافقة المجلس).</div>' : ''}
+  ${schedRows ? `<div class="card"><h2>💰 لائحة مبالغ المنح المعتمدة للدورة الحالية</h2>${schedRows}</div>` : ''}
+  <div class="card"><h2>📝 تقديم طلب منحة</h2><form id="gaf">
+    <div class="grid2">
+      <label class="f"><span>نوع المنحة</span><select class="input" name="type">${types.map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
+      <label class="f"><span>تاريخ الواقعة</span><input class="input" type="date" name="event_date" required></label>
+    </div>
+    <label class="f"><span>المستفيد / صاحب الواقعة</span><select class="input" name="who"><option value="self" data-rel="العضو">أنا (العضو نفسه)</option>
+      ${fam.map(f => `<option value="${f.id}" data-rel="${esc(f.relation)}">${esc(f.full_name)} (${esc(f.relation)})</option>`).join('')}<option value="other">شخص آخر من الأسرة (اكتب اسمه وصلته)</option></select></label>
+    <div class="grid2" id="gother" hidden><input class="input" name="subject_name" placeholder="الاسم بالكامل"><select class="input" name="subject_relation">${options(['أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], '', false)}</select></div>
+    <div id="grtAmtBox" style="margin:8px 0"></div>
     <div class="muted" id="gdocs"></div>
-    <label class="f"><span>ملاحظات</span><input class="input" name="notes"></label>
-    <div id="ferr"></div><button class="btn block" type="submit">تقديم</button></form></div>
-  <h3 style="margin:14px 4px 6px">طلباتي</h3>${my.map(g => grantCard(g, false)).join('') || '<div class="card empty">لا طلبات</div>'}`;
+    <label class="f" style="margin-top:6px"><span>ملاحظات</span><input class="input" name="notes" placeholder="أي تفاصيل إضافية (اختياري)"></label>
+    <div id="ferr"></div><button class="btn gold block" type="submit">تقديم طلب المنحة</button></form></div>
+  <h3 style="margin:14px 4px 6px">طلباتي السابقة</h3>${my.map(g => grantCard(g, false)).join('') || '<div class="card empty">لا طلبات</div>'}`;
 }
 function grantsAdminView() {
   const c = S.grtCounts || {}, f = S.grtF || {};
+  const allRates = (S.grtTypes || []).flatMap(t => (t.rates || []).map(r => ({ ...r, type_name: t.name, type_code: t.code })));
   return `<div class="subtabs">${[['', '📂 المفتوحة'], ['مقدَّم', '🆕 جديد'], ['ناقص مستندات', '⚠️ ناقص مستندات'], ['مستوفى', '📋 جاهز للاعتماد'], ['معتمد', '🧾 معتمد للصرف'], ['مصروف', '✅ مصروف'], ['مرفوض', '✕ مرفوض']]
       .map(([s, t]) => `<button data-gst="${s}" class="${(f.status || '') === s ? 'on' : ''}">${t}${s && c[s] ? `<span class="st-cnt">${numAr(c[s])}</span>` : ''}</button>`).join('')}</div>
     <div class="card row">
@@ -2158,8 +2174,20 @@ function grantsAdminView() {
       ${can('treasury.cheque.issue') || can('finance.view') ? '<a class="btn sec" href="#/payreqs" style="text-decoration:none">🧾 طابور الشيكات</a>' : ''}
     </div>
     ${(S.grtList || []).map(g => grantCard(g, true)).join('') || '<div class="card empty">لا توجد طلبات منح في هذا التصنيف حالياً</div>'}
-    ${can('grants.approve') ? `<div class="card"><h2>💰 فئات المنح المقررة باللائحة</h2>${(S.grtTypes || []).map(t => kvh(esc(t.name), t.amount ? money(t.amount) + ' ج.م' : '<span class="muted">غير محدد</span>')).join('')}
-      <button class="btn sm sec" data-act="grtRate" style="margin-top:8px">⚙️ تعديل فئة منحة بقرار</button></div>` : ''}`;
+    ${can('grants.approve') ? `<div class="card">
+      <div class="row" style="align-items:center;margin-bottom:8px">
+        <div><h2 style="margin:0">💰 فئات ومبالغ المنح المرنة (قابلة للتعديل في أي وقت)</h2>
+        <div class="muted">تشمل فئة الدرجة الأولى، الزوج/الزوجة/العضو، الزواج، وفئة أعضاء مجلس الإدارة (مع حرية تعديل المبلغ عند الاعتماد بموافقة/قرار).</div></div>
+        <span class="sp"></span>
+        <button class="btn sm gold" data-act="grtRate">⚙️ + إضافة / تعديل فئة منحة</button>
+      </div>
+      ${allRates.map(r => `<div class="kv" style="align-items:center">
+        <div><b>${esc(r.type_name)}</b> — <span class="pill">${esc(r.relation || 'افتراضي / درجة أولى')}</span>
+          <small class="muted">سارية من ${dt(r.valid_from)}${r.notes ? ' · ' + esc(r.notes) : ''}</small></div>
+        <div class="row" style="gap:8px;align-items:center"><b style="color:var(--brand)">${money(r.amount)} ج.م</b>
+          <button class="btn sm bad" data-grtdel="${r.id}" title="حذف هذه الفئة">🗑️</button></div>
+      </div>`).join('') || '<div class="empty">لا فئات مسجّلة</div>'}
+    </div>` : ''}`;
 }
 
 // ───────── الأجهزة (خدمة إعلان وحجز فقط — التقسيط والسداد مع المورد) ─────────
@@ -4488,7 +4516,7 @@ async function render() {
   else if (h.startsWith('#/grants')) {
     title = 'المنح والمناسبات'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const [t, m] = await Promise.all([call('GRT_TYPES'), call('GRT_MY')]);
-    S.grtTypes = t.success ? t.items : []; S.grtElig = t.eligibleToday; S.grtMy = m.success ? m.items : []; body = grantsView();
+    S.grtTypes = t.success ? t.items : []; S.grtElig = t.eligibleToday; S.grtIsBoard = !!(t.success && t.isBoardMember); S.grtMy = m.success ? m.items : []; body = grantsView();
   }
   else if (h.startsWith('#/summer')) {
     title = 'المصايف'; app.innerHTML = shell(title, '<div class="spin"></div>');
@@ -5116,9 +5144,15 @@ function bindPage(gridOnly) {
   // ── المنح ──
   const gaf = $('#gaf');
   if (gaf) {
-    const sync = () => { const t = (S.grtTypes || []).find(x => x.code === gaf.type.value);
+    const sync = () => {
+      const t = (S.grtTypes || []).find(x => x.code === gaf.type.value);
       $('#gother').hidden = gaf.who.value !== 'other';
-      $('#gdocs').textContent = t && t.docs.length ? 'المستندات المطلوبة: ' + t.docs.join('، ') + (t.deadline_days ? ` — خلال ${t.deadline_days} يوم من الواقعة` : '') : ''; };
+      const rel = gaf.who.value === 'other' ? gaf.subject_relation.value : (gaf.who.selectedOptions[0]?.dataset.rel || 'العضو');
+      const calc = calcGrantRate(t, rel, !!S.grtIsBoard);
+      const ab = $('#grtAmtBox');
+      if (ab) ab.innerHTML = calc ? `<div class="alert ok" style="margin:0">💰 <b>المبلغ المقرر لهذه الحالة: ${money(calc.amount)} ج.م</b> <small>(${esc(calc.label)})</small></div>` : '';
+      $('#gdocs').textContent = t && t.docs.length ? 'المستندات المطلوبة: ' + t.docs.join('، ') + (t.deadline_days ? ` — خلال ${t.deadline_days} يوم من الواقعة` : '') : '';
+    };
     gaf.onchange = sync; sync();
     gaf.onsubmit = async e => { e.preventDefault(); const d = formData(gaf);
       const p = { type: d.type, event_date: d.event_date, notes: d.notes };
@@ -5285,17 +5319,33 @@ function bindPage(gridOnly) {
   on('grtStaffNew', openStaffGrantModal);
   on('grtProxy', openStaffGrantModal);
   on('grtRate', async b => { await loadDecs();
-    openModal(`<h3>تعديل مبلغ منحة</h3><form id="grf"><label class="f"><span>النوع</span><select class="input" name="type">${(S.grtTypes || []).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
-      <div class="grid2"><label class="f"><span>المبلغ</span><input class="input" name="amount" inputmode="decimal" required></label>
-        <label class="f"><span>لصلة معينة (اختياري)</span><select class="input" name="relation"><option value="">الكل</option>${options(['العضو', 'أب', 'أم', 'زوج', 'زوجة', 'ابن', 'ابنة'], '', false)}</select></label></div>
-      <div class="grid2"><label class="f"><span>يسري من</span><input class="input" type="date" name="valid_from"></label>
-        <label class="f"><span>القرار</span><select class="input" name="decision_id"><option value="">—</option>${(S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)}</option>`).join('')}</select></label></div>
-      <div id="ferr"></div><div class="acts"><button class="btn" type="submit">حفظ</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
+    const today = new Date().toISOString().slice(0, 10);
+    openModal(`<h3>⚙️ إضافة / تعديل فئة ومبلغ منحة</h3><form id="grf">
+      <div class="grid2">
+        <label class="f"><span>نوع المنحة</span><select class="input" name="type">${(S.grtTypes || []).map(t => `<option value="${t.code}">${esc(t.name)}</option>`).join('')}</select></label>
+        <label class="f"><span>المبلغ (ج.م)</span><input class="input" name="amount" inputmode="decimal" required placeholder="مثال: 500 أو 1000"></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>الفئة / صلة القرابة</span><select class="input" name="relation"><option value="">الكل (الدرجة الأولى / الافتراضي)</option>${options(['العضو', 'زوج', 'زوجة', 'أب', 'أم', 'ابن', 'ابنة', 'عضو مجلس إدارة'], '', false)}</select></label>
+        <label class="f"><span>يسري من تاريخ</span><input class="input" type="date" name="valid_from" value="${today}"></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>قرار المجلس (اختياري)</span><select class="input" name="decision_id"><option value="">— لائحي —</option>${(S.decOpts || []).map(d => `<option value="${d.id}">${esc(d.decision_no)}</option>`).join('')}</select></label>
+        <label class="f"><span>ملاحظات / سند اللائحة</span><input class="input" name="notes" placeholder="مثال: لائحة الدورة الحالية"></label>
+      </div>
+      <div id="ferr"></div><div class="acts"><button class="btn gold" type="submit">💾 حفظ الفئة</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`, () => {
       $('#modal [data-close]').onclick = closeModal;
       $('#grf').onsubmit = async e => { e.preventDefault();
         const r = await busy(e.target.querySelector('[type=submit]'), () => call('GRT_SET_RATE', formData(e.target)));
         if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
-        closeModal(); toast('اتحفظ المبلغ ✓'); render(); }; }); });
+        closeModal(); toast('تم حفظ فئة المنحة ✓'); render(); }; }); });
+  app.querySelectorAll('[data-grtdel]').forEach(b => b.onclick = async () => {
+    const ok = await uiConfirm({ title: 'حذف فئة منحة', msg: 'هل تريد حذف هذه الفئة من جدول اللائحة؟ (لا يؤثر على المنح المصروفة سابقاً).', tone: 'bad', okText: 'حذف الفئة' });
+    if (!ok) return;
+    const r = await busy(b, () => call('GRT_DEL_RATE', { id: b.dataset.grtdel }));
+    if (!r.success) return toast(r.message, true);
+    toast('تم حذف الفئة ✓'); render();
+  });
 
   // ── الأجهزة ──
   const devDo = async (b, action, extra, msg) => { const r = await busy(b, () => call(action, extra)); if (!r.success) return toast(r.message, true); toast(msg); render(); };
