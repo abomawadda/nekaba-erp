@@ -358,10 +358,33 @@ function loginView() {
       <label class="f"><span>كلمة المرور</span><input class="input" type="password" name="password" autocomplete="current-password" required></label>`}
       <div id="lerr"></div>
       <button class="btn block" type="submit">دخول</button>
-    </form></div></div>`;
+    </form>
+    ${tab === 'member' ? `<div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px dashed #e2e8f0">
+      <button type="button" class="btn sm sec" id="actvBtn">🔑 لا تستطيع الدخول أو ينقصك الرقم القومي؟ اطلب تفعيل حسابك</button>
+    </div>` : ''}
+  </div></div>`;
 }
 function bindLogin() {
   document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S._loginTab = b.dataset.tab; render(); });
+  const ab = $('#actvBtn');
+  if (ab) ab.onclick = () => openModal(`<h3>🔑 طلب تفعيل حساب عضو (تحديث الرقم القومي والموبايل)</h3>
+    <p class="muted" style="font-size:13px">إذا لم يكن رقمك القومي مسجّلاً بقاعدة بيانات اللجنة بعد، أرسل بياناتك ليتم التحقق وتفعيل دخولك للبوابة:</p>
+    <form id="actvf">
+      <label class="f"><span>الرقم الوظيفي</span><input class="input" name="job_id" inputmode="numeric" required placeholder="مثال: 97117"></label>
+      <label class="f"><span>الرقم القومي كاملاً (14 رقماً)</span><input class="input" name="national_id" inputmode="numeric" minlength="14" maxlength="14" required placeholder="14 رقماً"></label>
+      <label class="f"><span>رقم الموبايل للتواصل</span><input class="input" name="phone" inputmode="tel" required placeholder="01xxxxxxxxx"></label>
+      <div id="ferr"></div>
+      <div class="acts"><button class="btn gold" type="submit">إرسال طلب التفعيل</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`, () => {
+    $('#modal [data-close]').onclick = closeModal;
+    $('#actvf').onsubmit = async e => {
+      e.preventDefault();
+      const r = await busy(e.target.querySelector('[type=submit]'), () => call('ACTV_REQUEST', formData(e.target)));
+      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+      closeModal();
+      toast(`تم استلام طلب التفعيل للأستاذ/ ${r.full_name} — سيتم التفعيل عقب المراجعة ✓`);
+    };
+  });
   $('#lf').onsubmit = async e => {
     e.preventDefault();
     const d = formData(e.target), member = (S._loginTab || 'member') === 'member';
@@ -379,15 +402,15 @@ function navModel() {
   const pay = fin || can('treasury.payment.request') || can('treasury.payment.approve') || can('treasury.cheque.issue');
   if (isStaff()) return [
     ['الرئيسية', [['#/dash', '📊', 'لوحة القيادة', true], ['#/inbox', '📥', 'صندوق الاعتمادات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
-    ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/memberlists', '📋', 'كشوف الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
+    ['العضوية', [['#/admin', '👥', 'الأعضاء', can('profile.view')], ['#/memberlists', '📋', 'كشوف الأعضاء', can('profile.view')], ['#/requests', '📝', 'طلبات التعديل', can('profile.change.approve')], ['#/activations', '🔑', 'طلبات تفعيل الأعضاء', can('profile.edit') || can('profile.change.approve')], ['#/lists', '🗂️', 'القوائم', can('lists.manage')]]],
     ['الحوكمة', [['#/board', '🏛️', 'المجلس', gov], ['#/meetings', '🗓️', 'الاجتماعات', gov], ['#/decisions', '⚖️', 'القرارات', gov]]],
-    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/payreqs', '📝', 'طلبات الصرف والشيكات', pay], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin], ['#/dues', '🧮', 'حصة الاشتراكات', fin], ['#/policy', '📜', 'اللائحة المالية', fin], ['#/journal', '✍️', 'عملية مالية / قيد', can('finance.journal')], ['#/parties', '🏢', 'الأطراف الخارجية', fin]]],
+    ['المالية والخزينة', [['#/finance', '💰', 'المالية', fin], ['#/payreqs', '📝', 'طلبات الصرف والشيكات', pay], ['#/cheques', '🧾', 'الشيكات والعُهد', fin], ['#/settlements', '🧮', 'التسويات والعُهد المفتوحة', fin], ['#/bank', '🏦', 'مطابقة البنك', fin], ['#/chqbooks', '📗', 'دفاتر الشيكات', fin], ['#/receipts', '📥', 'المقبوضات', fin], ['#/entries', '📒', 'القيود', fin], ['#/trial', '⚖️', 'ميزان المراجعة', fin], ['#/statements', '📑', 'القوائم المالية', fin], ['#/budget', '🎯', 'الموازنة التقديرية', fin], ['#/dues', '🧮', 'حصة الاشتراكات', fin], ['#/policy', '📜', 'اللائحة المالية', fin], ['#/periods', '🔒', 'إقفال الفترات والسنوات', fin], ['#/journal', '✍️', 'عملية مالية / قيد', can('finance.journal')], ['#/parties', '🏢', 'الأطراف الخارجية', fin]]],
     ['الخدمات والمزايا', [['#/trips', '🚌', 'الأنشطة', can('activities.manage')], ['#/summer', '🏖️', 'المصايف', can('summer.manage')], ['#/grantsadmin', '🎁', 'المنح', canGrtAdmin()], ['#/devadmin', '📱', 'الأجهزة والعمرة', can('devices.manage')], ['#/benefits', '🏅', 'المزايا', can('benefits.view')]]],
-    ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/annual', '📘', 'التقرير السنوي', (can('reports.view') || fin) && fin], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
+    ['التقارير والاتصال', [['#/reports', '📈', 'التقارير', can('reports.view') || fin], ['#/annual', '📘', 'التقرير السنوي', (can('reports.view') || fin) && fin], ['#/tickets', '💬', 'شكاوى ومقترحات الأعضاء', can('profile.view') || can('profile.change.approve')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
     ['النظام', [['#/users', '🔐', 'المستخدمون والصلاحيات', can('users.manage')], ['#/archive', '🗂️', 'الأرشيف الإلكتروني', can('finance.view') || can('audit.view') || can('governance.view')], ['#/audit', '🛡️', 'سجل التدقيق', can('audit.view')], ['#/help', '❓', 'المساعدة', true], ['#/account', '⚙️', 'حسابي', true]]],
   ];
   return [
-    ['الرئيسية', [['#/home', '🏠', 'أنشطتي', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
+    ['الرئيسية', [['#/home', '🏠', 'بوابتي الرئيسية', true], ['#/myrequests', '📋', 'طلباتي ومتابعتها', true], ['#/tickets', '💬', 'الشكاوى والمقترحات', true], ['#/calendar', '📅', 'التقويم', true], ['#/notifications', '🔔', 'الإشعارات', true]]],
     ['خدماتي', [['#/trips', '🚌', 'الرحلات والفعاليات', true], ['#/mytrips', '🎫', 'حجوزاتي', true], ['#/summer', '🏖️', 'المصايف', true], ['#/grants', '🎁', 'المنح', true], ['#/devices', '📱', 'الأجهزة', true], ['#/umrah', '🕋', 'العمرة والحج', true]]],
     ['ملفي', [['#/card', '💳', 'بطاقة العضوية', true], ['#/profile', '🪪', 'ملفي', true], ['#/family', '👨‍👩‍👧', 'أسرتي', true], ['#/mybenefits', '🏅', 'استفاداتي', true]]],
     ['الإدارة', [['#/board', '🏛️', 'المجلس', gov], ['#/finance', '💰', 'المالية', fin], ['#/reports', '📈', 'التقارير', can('reports.view')], ['#/news', '📰', 'الأخبار', can('news.manage')]]],
@@ -883,39 +906,169 @@ function memberStrip() {
     ${it('🎁', numAr(s.grt), 'طلبات منح تحت الإجراء', '#/grants')}${it('👨‍👩‍👧', numAr(s.fam), 'أفراد الأسرة', '#/family')}</div>`;
 }
 
-// ───────── أنشطتي ─────────
+// ───────── بوابة العضو المؤسسية (المرحلة 36) ─────────
 function homeView() {
   const pr = S.me.profile, p = pr.person, c = pr.completeness;
-  const elig = pr.eligibleToday;
+  const elig = pr.eligibleToday, ms = S.mySum || { ben: 0, bk: 0, grt: 0, fam: (pr.family || []).length };
+  const openReqs = (ms.bk || 0) + (ms.grt || 0);
   const tiles = [
-    { i: '📚', b: 'الكتب الخارجية', s: 'احجز كتب ولادك بالتقسيط', href: C.BOOKS_URL },
-    { i: '🚌', b: 'الرحلات والفعاليات', s: 'احجز لك ولأسرتك', href: '#/trips', internal: true },
-    { i: '🏖️', b: 'المصايف', s: 'قدّم على مصيف الصيف', href: '#/summer', internal: true },
+    { i: '🚌', b: 'الرحلات والفعاليات', s: 'احجز لك ولأسرتك وتابع المقاعد', href: '#/trips', internal: true },
+    { i: '🏖️', b: 'المصايف', s: 'قدّم على مصيف الصيف وتابع الفوج', href: '#/summer', internal: true },
     { i: '🎁', b: 'المنح والمناسبات', s: elig ? 'زواج، مولود، وفاة، تفوق، علاج' : 'لأعضاء النقابة العامة', href: '#/grants', internal: true },
-    { i: '📱', b: 'أجهزة بالتقسيط', s: 'عروض بالتقسيط — احجز', href: '#/devices', internal: true },
-    { i: '🕋', b: 'العمرة والحج', s: 'عروض الشركات — احجز', href: '#/umrah', internal: true },
-    { i: '🌙', b: 'الإفطار والفعاليات', s: 'من الرحلات والفعاليات', href: '#/trips', internal: true },
+    { i: '📱', b: 'أجهزة بالتقسيط', s: 'عروض التقسيط المتاحة', href: '#/devices', internal: true },
+    { i: '🕋', b: 'العمرة والحج', s: 'عروض الشركات المعتمدة', href: '#/umrah', internal: true },
+    { i: '📚', b: 'الكتب الخارجية', s: 'احجز كتب أولادك بالتقسيط', href: C.BOOKS_URL },
   ];
-  return `<div class="card"><h2>أهلاً ${esc((p.full_name || '').split(' ')[0])} 👋</h2>
-      <div class="row"><span class="pill ${elig ? 'ok' : 'warn'}">${elig ? 'عضو النقابة العامة — مستحق الدعم' : esc(p.union_org || 'التنظيم غير محدد')}</span>
-      ${p.member_state ? `<span class="pill">${esc(p.member_state)}</span>` : ''}</div></div>
-    ${memberStrip()}
+  return `<div class="mp-hero">
+      <div class="mp-hero-top">
+        <div>
+          <h2>أهلاً بك، ${esc((p.full_name || '').split(' ').slice(0, 2).join(' '))} 👋</h2>
+          <div class="mp-sub">الرقم الوظيفي: <b>${esc(p.job_id || '—')}</b>${p.workplace ? ' · ' + esc(p.workplace) : ''}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span class="mp-badge ${elig ? 'gold' : ''}">${elig ? '✓ عضو النقابة العامة — مستحق الدعم' : esc(p.union_org || 'التنظيم غير محدد')}</span>
+          ${p.member_state ? `<span class="mp-badge">${esc(p.member_state)}</span>` : ''}
+        </div>
+      </div>
+      <div class="mp-stats">
+        <a class="mp-stat" href="#/mybenefits"><small>إجمالي استفاداتي</small><b>${money(ms.ben || 0)} ج</b></a>
+        <a class="mp-stat" href="#/myrequests"><small>طلبات وحجوزات جارية</small><b>${numAr(openReqs)}</b></a>
+        <a class="mp-stat" href="#/family"><small>أفراد الأسرة المسجّلون</small><b>${numAr(ms.fam || 0)}</b></a>
+        <a class="mp-stat" href="#/profile"><small>اكتمال الملف الشخصي</small><b>${numAr(c.percent)}%</b></a>
+      </div>
+    </div>
     ${c.percent < 100 ? `<a class="card" style="display:block;text-decoration:none;color:inherit" href="#/profile">
-      <h2>ملفك مكتمل ${c.percent}%<span class="sp"></span><span class="pill warn">كمّله</span></h2>
+      <h2>ملفك الشخصي مكتمل بنسبة ${numAr(c.percent)}%<span class="sp"></span><span class="pill warn">استكمال البيانات</span></h2>
       <div class="prog"><div style="width:${c.percent}%"></div></div>
-      <div class="muted">ناقص: ${c.missing.map(esc).join('، ')}</div></a>` : ''}
+      <div class="muted" style="margin-top:4px">البيانات الناقصة: ${c.missing.map(esc).join('، ')}</div></a>` : ''}
+    <div class="mp-docs">
+      <button type="button" class="mp-doc gold" data-act="prtMemberCert"><i>📜</i><div><b>إفادة عضوية نقابية رسمية</b><small>معاينة وطباعة إفادة معتمدة بـ QR</small></div></button>
+      <button type="button" class="mp-doc" data-act="prtMemberBen"><i>🏅</i><div><b>كشف استفاداتي المعتمد</b><small>تقرير المنح والدعم والتوفير</small></div></button>
+      <a class="mp-doc" href="#/card"><i>💳</i><div><b>بطاقة العضوية الرقمية</b><small>اعرض البطاقة أو اطبعها</small></div></a>
+      <a class="mp-doc" href="#/tickets"><i>💬</i><div><b>الشكاوى والمقترحات</b><small>تواصل مباشر مع اللجنة النقابية</small></div></a>
+    </div>
     ${installCard()}
-    ${(S.homeNews || []).length ? `<div class="card"><h2>📰 أخبار النقابة<span class="sp"></span><a href="#/news" class="pill" style="text-decoration:none">الكل</a></h2>
+    ${(S.homeNews || []).length ? `<div class="card"><h2>📰 أحدث أخبار وإعلانات النقابة<span class="sp"></span><a href="#/news" class="pill" style="text-decoration:none">كل الأخبار</a></h2>
       ${S.homeNews.map(n => newsItem(n, false)).join('')}</div>` : ''}
-    <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/card">
-      <span style="font-size:30px">💳</span><div style="flex:1"><b>بطاقة العضوية</b><div class="muted">بطاقتك الرقمية — اعرضها أو اطبعها</div></div><span class="pill ok">عرض</span></a>
-    <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/myrequests">
-      <span style="font-size:30px">📋</span><div style="flex:1"><b>طلباتي ومتابعتها</b><div class="muted">تابع كل طلب: وصل لفين ومستني مين</div></div><span class="pill warn">تابع</span></a>
-    <a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="#/mybenefits">
-      <span style="font-size:30px">🎁</span><div style="flex:1"><b>استفاداتي من النقابة</b><div class="muted">المنح والبدلات والدعم والتوفير — كل اللي استفدت بيه</div></div><span class="pill ok">عرض</span></a>
-    <div class="tiles">${tiles.map(t => t.soon
-      ? `<div class="tile soon"><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></div>`
-      : `<a class="tile" href="${esc(t.href)}" ${t.internal ? '' : 'target="_blank" rel="noopener"'}><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></a>`).join('')}</div>`;
+    <div class="card" style="padding-bottom:10px"><h2 style="margin-bottom:10px">🎯 الخدمات النقابية والأنشطة</h2>
+      <div class="tiles">${tiles.map(t => `<a class="tile" href="${esc(t.href)}" ${t.internal ? '' : 'target="_blank" rel="noopener"'}><i>${t.i}</i><b>${t.b}</b><small>${esc(t.s)}</small></a>`).join('')}</div>
+    </div>`;
+}
+
+function memberCertHTML(pr) {
+  const p = (pr && pr.person) || {};
+  const today = new Date().toISOString().slice(0, 10);
+  const elig = pr && pr.eligibleToday;
+  return erpDoc({
+    compact: true,
+    dept: 'شئون العضوية والسجلات النقابية', kind: 'إفادة عضوية رسمية', code: 'CERT',
+    refLbl: 'الرقم الوظيفي', refNo: p.job_id || '—', date: today,
+    ctrl: [['التنظيم النقابي', p.union_org || '—'], ['حالة العضوية', p.member_state || '—']],
+    title: 'إفادة قيد وعضوية نقابية رسمية',
+    sub: 'صادرة آلياً من سجل العضوية المعتمد باللجنة النقابية',
+    status: elig ? 'عضوية سارية — مستحق الدعم' : (p.member_state || 'مقيّد'),
+    statusCls: elig ? 'ok' : 'warn',
+    body: `<div class="ed-box gold" style="font-size:14px;line-height:2;padding:14px 16px">
+        تشهد <b>${esc(C.ORG_NAME)}</b> بأن السيد/ <b>${esc(p.full_name || '—')}</b>، الحامل للرقم الوظيفي (<b>${esc(p.job_id || '—')}</b>)،
+        ${p.national_id ? `والرقم القومي (<b>${esc(p.national_id)}</b>)،` : ''}
+        مقيّد بسجلات اللجنة النقابية وفق البيانات الموضحة أدناه، وقد أُعطيت له هذه الإفادة بناءً على طلبه لتقديمها لمن يهمه الأمر دون أدنى مسئولية مالية على اللجنة.
+      </div>`
+      + edGrid([
+        [6, 'الاسم الرباعي', `<b>${esc(p.full_name || '—')}</b>`],
+        [3, 'الرقم الوظيفي', `<b>${esc(p.job_id || '—')}</b>`],
+        [3, 'الرقم القومي', esc(p.national_id || '—')],
+        [6, 'جهة العمل الحالية', esc(p.workplace || '—')],
+        [3, 'الوظيفة / الدرجة', esc([p.job_title, p.grade].filter(Boolean).join(' — ') || '—')],
+        [3, 'تاريخ التعيين', p.hire_date ? dt(p.hire_date) : '—'],
+        [4, 'التنظيم النقابي', `<b>${esc(p.union_org || '—')}</b>`],
+        [4, 'حالة القيد الحالية', `<b>${esc(p.member_state || '—')}</b>`],
+        [4, 'الاستحقاق للدعم النقابي', elig ? '<b class="ed-in">مستحق للدعم والمنح ✓</b>' : 'غير مستحق حالياً'],
+      ])
+      + `<div class="ed-box">يُمكن التحقق من صحة وسريان هذه الإفادة عبر مسح رمز الاستجابة السريعة (QR) المطبوع بأعلى المستند أو مراجعة إدارة العضوية باللجنة.</div>`
+  });
+}
+
+function memberBenefitsPrintHTML(pr, ben) {
+  const p = (pr && pr.person) || {}, items = (ben && ben.items) || [];
+  const tot = +((ben && ben.total) || 0);
+  const rows = items.map((x, i) => `<tr>
+    <td class="c">${numAr(i + 1)}</td>
+    <td class="c" style="white-space:nowrap">${dt(x.benefit_date || x.date)}</td>
+    <td><b>${esc(x.category || x.kind || '—')}</b></td>
+    <td>${esc(x.description || x.notes || '—')}</td>
+    <td class="n"><b>${money(x.amount)}</b></td>
+  </tr>`).join('') || '<tr><td colspan="5" class="c">لا توجد استفادات مسجّلة حتى تاريخه</td></tr>';
+  return erpDoc({
+    dept: 'إدارة المزايا والخدمات النقابية', kind: 'كشف استفادات عضو', code: 'BEN-MEM',
+    refLbl: 'الرقم الوظيفي', refNo: p.job_id || '—',
+    title: 'كشف بيان الاستفادات والمزايا النقابية للعضو',
+    sub: `${esc(p.full_name || '—')} — ${esc(p.workplace || 'اللجنة النقابية')}`,
+    status: `${numAr(items.length)} بند استفادة`, statusCls: 'ok',
+    body: edMoney(tot, 'إجمالي ما استفاد به العضو من المنح والدعم والتوفير')
+      + edGrid([
+        [6, 'اسم العضو', `<b>${esc(p.full_name || '—')}</b>`],
+        [3, 'الرقم الوظيفي', esc(p.job_id || '—')],
+        [3, 'جهة العمل', esc(p.workplace || '—')],
+      ])
+      + `<div class="ed-sec">بيان الاستفادات المسجّلة بسجل المزايا (${numAr(items.length)} بند)</div>
+        <table class="ed-tbl"><thead><tr><th class="c" style="width:32px">م</th><th class="c" style="width:82px">التاريخ</th><th style="width:140px">نوع الاستفادة</th><th>البيان والتفاصيل</th><th class="n" style="width:100px">القيمة (ج.م)</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><th colspan="4">الإجمالي العام للاستفادات</th><th class="n">${money(tot)}</th></tr></tfoot></table>`
+  });
+}
+
+function ticketsView() {
+  const data = S.tickets || { staff: false, items: [] }, items = data.items || [], staff = !!data.staff;
+  const stCls = s => s === 'تم الرد' ? 'replied' : s === 'مغلق' ? 'closed' : '';
+  const stPillT = s => `<span class="pill ${s === 'تم الرد' ? 'ok' : s === 'مغلق' ? '' : 'warn'}">${esc(s)}</span>`;
+  return `${!staff ? `<div class="card"><h2>💬 إرسال شكوى أو مقترح أو استفسار للجنة النقابية</h2>
+      <form id="tktf">
+        <div class="grid2">
+          <label class="f"><span>التصنيف</span><select class="input" name="category">${options(['استفسار', 'شكوى', 'مقترح تطوير', 'طلب إفادة / مستند', 'مشكلة في البيانات'], 'استفسار', false)}</select></label>
+          <label class="f"><span>عنوان الرسالة</span><input class="input" name="subject" required placeholder="ملخص قصير للموضوع…"></label>
+        </div>
+        <label class="f"><span>التفاصيل</span><textarea class="input" name="body" rows="3" required placeholder="اكتب التفاصيل كاملة ليتمكن مجلس الإدارة من خدمتك بسرعة…"></textarea></label>
+        <div id="ferr"></div>
+        <div class="acts"><button class="btn gold" type="submit">📨 إرسال للجنة النقابية</button></div>
+      </form></div>` : `<div class="card row" style="align-items:center">
+      <div><h2 style="margin:0">💬 صندوق شكاوى ومقترحات الأعضاء</h2><div class="muted">الرد على أي رسالة يُرسل إشعاراً فورياً في بوابة العضو.</div></div>
+      <span class="sp"></span>
+      <span class="pill ${data.openCount ? 'warn' : 'ok'}">${numAr(data.openCount || 0)} رسالة مفتوحة</span>
+    </div>`}
+    <div class="card"><h2>${staff ? `📋 جميع الرسائل الواردة (${numAr(items.length)})` : `📋 رسائلي السابقة ومتابعة الردود (${numAr(items.length)})`}</h2>
+      ${items.map(t => `<div class="tkt-card ${stCls(t.status)}">
+        <div class="row" style="align-items:center;gap:8px">
+          <span class="pill">${esc(t.ticket_no)}</span>
+          <span class="pill">${esc(t.category)}</span>
+          <b>${esc(t.subject)}</b>
+          <span class="sp"></span>
+          ${stPillT(t.status)}
+        </div>
+        ${staff ? `<div class="muted" style="font-size:12.5px;margin-top:4px">👤 <b>${esc(t.full_name)}</b> (${esc(t.job_id || '—')})${t.workplace ? ' · ' + esc(t.workplace) : ''} · ${dt(t.created_at)}</div>`
+                : `<div class="muted" style="font-size:12px;margin-top:4px">تاريخ الإرسال: ${dt(t.created_at)}</div>`}
+        <div style="margin-top:6px;line-height:1.7">${esc(t.body)}</div>
+        ${t.reply ? `<div class="tkt-reply"><b>✓ رد الإدارة (${esc(t.replied_by || 'اللجنة النقابية')} — ${dt(t.replied_at)}):</b><div style="margin-top:3px">${esc(t.reply)}</div></div>` : ''}
+        ${staff ? `<div class="row" style="margin-top:8px"><button class="btn sm ${t.reply ? 'sec' : 'gold'}" data-tktrpl="${t.id}">${t.reply ? '✏️ تحديث الرد' : '↩️ الرد على العضو'}</button></div>` : ''}
+      </div>`).join('') || '<div class="empty">لا توجد رسائل مسجّلة حتى الآن</div>'}
+    </div>`;
+}
+
+function activationsView() {
+  const data = S.actvs || { items: [], pendingCount: 0 }, items = data.items || [];
+  return `<div class="card row" style="align-items:center">
+      <div><h2 style="margin:0">🔑 طلبات تفعيل حسابات الأعضاء (تحديث الرقم القومي)</h2>
+      <div class="muted">الأعضاء الذين لم يكن رقمهم القومي مسجّلاً بقاعدة البيانات وأرسلوا بياناتهم لتفعيل دخول بوابة العضو.</div></div>
+      <span class="sp"></span><span class="pill ${data.pendingCount ? 'warn' : 'ok'}">${numAr(data.pendingCount || 0)} بانتظار المراجعة</span>
+    </div>
+    ${grid('actv', [
+      { t: 'التاريخ', v: x => dt(x.created_at), raw: x => x.created_at },
+      { t: 'الرقم الوظيفي', v: x => `<b>${esc(x.job_id)}</b>`, raw: x => x.job_id },
+      { t: 'الاسم بالقاعدة', v: x => `<b>${esc(x.full_name)}</b>`, raw: x => x.full_name },
+      { t: 'الرقم القومي المقدّم', v: x => `<span class="dt">${esc(x.national_id)}</span>`, raw: x => x.national_id },
+      { t: 'الموبايل', v: x => `<span class="dt">${esc(x.phone)}</span>`, raw: x => x.phone },
+      { t: 'الحالة', v: x => `<span class="pill ${x.status === 'معتمد' ? 'ok' : x.status === 'مرفوض' ? 'bad' : 'warn'}">${esc(x.status)}</span>`, raw: x => x.status },
+      { t: 'إجراء', v: x => x.status === 'معلّق' ? `<div class="row" style="gap:4px"><button class="btn sm ok" data-actvok="${x.id}">✓ اعتماد وتفعيل</button><button class="btn sm bad" data-actvno="${x.id}">✕ رفض</button></div>` : esc(x.notes || '—'), raw: () => '' },
+    ], items, { title: '📋 سجل طلبات التفعيل', file: 'activation-requests', empty: 'لا توجد طلبات تفعيل معلّقة 👌' })}`;
 }
 
 // ───────── ملفي ─────────
@@ -2240,6 +2393,7 @@ const FIN_GROUPS = [
     ['#/budget', '🎯', 'الموازنة التقديرية', () => can('finance.view')],
     ['#/dues', '🧮', 'حصة الاشتراكات', () => can('finance.view')],
     ['#/policy', '📜', 'اللائحة المالية', () => can('finance.view')],
+    ['#/periods', '🔒', 'إقفال الفترات والسنوات', () => can('finance.view')],
   ]],
 ];
 function finTabs(act) {
@@ -3663,6 +3817,46 @@ function duesView() {
     ], d.periods, { title: '📅 فترات الاستحقاق', file: 'dues-periods', attr: x => x.entry_id ? `data-entry="${x.entry_id}"` : '', empty: 'لم تُثبت أي فترة بعد' })}
     <div class="card"><h2>📥 التحويلات الواردة</h2>${(d.receipts || []).map(r => kvh(`${dt(r.date)} <small class="muted">${esc(r.no)}${r.notes ? ' · ' + esc(r.notes) : ''}</small>`, money(r.amount))).join('') || '<div class="empty">لا تحويلات مسجّلة</div>'}</div>`;
 }
+function periodsView() {
+  const data = S.periods || { years: [], canClose: false, isAdmin: false };
+  const yrs = data.years || [];
+  const moNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  return finTabs('#/periods') + `<div class="card">
+      <h2>🔒 إقفال الفترات المحاسبية والسنوات المالية</h2>
+      <div class="muted">إقفال أي شهر يمنع إدخال أو تعديل أي قيود محاسبية داخل ذلك الشهر (التصحيح لاحقاً يتم بقيد عكسي في فترة مفتوحة). أما <b>إقفال السنة المالية</b> فيُرحّل تلقائياً صافي الفائض أو العجز من الإيرادات (4xxx) والمصروفات (5xxx) إلى حـ/ <b>3201 فائض/عجز سنوات سابقة</b> ويُقفل الأشهر الـ 12 بالكامل.</div>
+    </div>`
+    + yrs.map(y => {
+      const net = (+y.revenues || 0) - (+y.expenses || 0);
+      const isClosedYr = !!y.closing_entry_id;
+      return `<div class="card">
+        <div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
+          <h2 style="margin:0">📅 السنة المالية ${numAr(y.year)}</h2>
+          <span class="pill">${numAr(y.entries_count)} قيد مرحّل</span>
+          <span class="pill ${y.closed_months === 12 ? 'ok' : 'warn'}">${numAr(y.closed_months)} / ١٢ شهر مقفول</span>
+          ${isClosedYr ? `<span class="pill ok">✓ مقفولة سنوياً (${esc(y.closing_entry_no || 'قيد إقفال')})</span>` : ''}
+          ${+y.draft_settlements ? `<span class="pill bad">⚠️ ${numAr(y.draft_settlements)} مسودة تسوية معلّقة</span>` : ''}
+          <span class="sp"></span>
+          ${isClosedYr
+            ? `<button class="btn sm sec" data-entry="${y.closing_entry_id}">📒 عرض قيد الإقفال</button>`
+            : data.canClose ? `<button class="btn sm gold" data-yrclose="${y.year}" ${+y.draft_settlements ? 'disabled title="اعتمد أو احذف مسودات التسوية أولاً"' : ''}>🔒 إقفال سنة ${numAr(y.year)} وترحيل الفائض/العجز</button>` : ''}
+        </div>
+        <div class="kpis" style="margin:10px 0 6px">
+          <div class="kpi ok"><i>📈</i><div><b>${money(y.revenues)} ج</b><small>إجمالي إيرادات ${numAr(y.year)}</small></div></div>
+          <div class="kpi warn"><i>📉</i><div><b>${money(y.expenses)} ج</b><small>إجمالي مصروفات ${numAr(y.year)}</small></div></div>
+          <div class="kpi ${net >= 0 ? 'ok' : 'bad'}"><i>⚖️</i><div><b>${money(net)} ج</b><small>${net >= 0 ? 'صافي الفائض القابل للترحيل (3201)' : 'صافي العجز المرحّل (3201)'}</small></div></div>
+        </div>
+        <div class="period-grid">${(y.months || []).map(m => {
+          const cl = m.status === 'مقفولة';
+          const dis = cl ? !data.isAdmin : !data.canClose;
+          return `<button type="button" class="period-m ${cl ? 'closed' : ''}" data-ptog="${y.year}-${m.month}" data-pst="${cl ? 'مفتوحة' : 'مقفولة'}" ${dis ? 'disabled' : ''}>
+            <b>${moNames[m.month - 1]}</b>
+            <small>${cl ? '🔒 مقفول' : '🔓 مفتوح'}</small>
+          </button>`;
+        }).join('')}</div>
+      </div>`;
+    }).join('');
+}
+
 function policyView() {
   const items = S.pol || [], ed = S.polEdit;
   return finTabs('#/policy') + `<div class="card"><h2>📜 اللائحة المالية — حدود بنود الصرف</h2>
@@ -3882,7 +4076,7 @@ function chequeForm(nextNo = '') {
       <label class="f"><span>قرار مجلس الإدارة (اختياري — للصرف غير اللائحي أو الاستثنائي فقط)</span><select class="input" name="decision_id"><option value="">— بدون قرار (صرف لائحي / ضمن الصلاحية المعتمدة) —</option>${decs}</select></label>
       <label class="f"><span>البيان التفصيلي للصرف</span><input class="input" name="notes" placeholder="وذلك قيمة…"></label>
     </div>
-    <div id="polMsg"></div><div id="ferr"></div>
+    <div id="chqCustAlert"></div><div id="polMsg"></div><div id="ferr"></div>
     <div class="acts"><button class="btn gold" type="submit">🧾 إصدار الشيك وترحيل القيد</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
 
@@ -4049,12 +4243,14 @@ function settleForm(c, h = {}, dr = null) {
       <b style="color:var(--brand)">${money(m.total)} ج</b></label>`).join('')}</div>` : '';
   const car = (h.carry || []).length ? `<label class="f"><span>رصيد مرحّل من تسوية سابقة (يُجلب آلياً)</span><select class="input" name="carried_from"><option value="" data-amt="0">— لا يوجد —</option>
     ${h.carry.map(x => `<option value="${x.id}" data-amt="${x.amount}" ${d.carried_from === x.id ? 'selected' : ''}>شيك ${esc(x.cheque_no || 'بدون رقم')} — تسوية ${dt(x.settle_date)} — متبقي ${money(x.amount)}</option>`).join('')}</select></label>` : '';
+  const acts = (h.activities || []).length ? `<label class="f"><span>ربط التسوية برحلة / فعالية (اختياري — لمراجعة الاشتراكات المسجّلة مسبقاً ومنع الازدواج)</span><select class="input" name="activity_id" id="stlActSel"><option value="">— بدون ربط بنشاط —</option>
+    ${h.activities.map(a => `<option value="${a.id}" data-paid="${a.paid_bookings || 0}" data-cnt="${a.bookings_count || 0}" ${d.activity_id === a.id ? 'selected' : ''}>${esc(a.title)} (${dt(a.start_date)} · محصّل بإيصالات: ${money(a.paid_bookings || 0)} ج)</option>`).join('')}</select><div id="stlActInfo"></div></label>` : '';
   const lines = (d.lines || []).length ? d.lines.map(row).join('') : row() + row();
   return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3>${dr ? '<div class="alert warn">بتكمّل مسودة محفوظة.</div>' : ''}<form id="stf">
     <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" value="${v(d.date)}" required></label>
-    ${grp}${alwBox}${car}
+    ${grp}${alwBox}${car}${acts}
     <b>المصروفات بالمستندات</b><div id="sls">${lines}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
-    <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات حُصّلت من المشاركين</span><input class="input" name="subscriptions" inputmode="decimal" value="${v(d.subscriptions ?? 0)}"></label>
+    <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات نقدية بيد صاحب العهدة (لم تُثبت بإيصال مسبق)</span><input class="input" name="subscriptions" inputmode="decimal" value="${v(d.subscriptions ?? 0)}"></label>
       <label class="f"><span>المتبقي المردود</span><input class="input" name="returned" inputmode="decimal" value="${v(d.returned ?? 0)}"></label></div>
     <label class="f"><span>التصرف في المتبقي</span><select class="input" name="return_mode">${options(['لا يوجد', 'رد للخزينة', 'توريد للبنك', 'ترحيل'], d.return_mode || 'لا يوجد', false)}</select></label>
     <div class="alert warn" id="stCalc"></div>
@@ -4197,6 +4393,14 @@ async function render() {
     title = 'طلباتي'; app.innerHTML = shell(title, '<div class="spin"></div>');
     const r = await call('NTF_MINE'); if (!r.success) return toast(r.message, true); S.myReq = r.items; body = myReqView();
   }
+  else if (h.startsWith('#/tickets')) {
+    title = isStaff() ? 'شكاوى ومقترحات الأعضاء' : 'الشكاوى والمقترحات'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('TKT_LIST', { mine: !isStaff() }); if (!r.success) return toast(r.message, true); S.tickets = r; body = ticketsView();
+  }
+  else if (h.startsWith('#/activations')) {
+    title = 'طلبات تفعيل الأعضاء'; app.innerHTML = shell(title, '<div class="spin"></div>');
+    const r = await call('ACTV_LIST', {}); if (!r.success) return toast(r.message, true); S.actvs = r; body = activationsView();
+  }
   else if (h.startsWith('#/home')) {
     title = 'أنشطتي';
     if (S.me.profile && (!S.mySumAt || Date.now() - S.mySumAt > 60000)) {
@@ -4312,8 +4516,8 @@ async function render() {
     const r = await call('BEN_REPORT', { year: S.benYear || '' }); if (!r.success) return toast(r.message, true);
     S.benRep = r; body = benefitsReportView();
   }
-  else if (['#/finance', '#/payreqs', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/settlements', '#/dues', '#/policy', '#/journal', '#/parties', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
-    title = h.startsWith('#/payreqs') ? 'طلبات الصرف والشيكات' : 'المالية';
+  else if (['#/finance', '#/payreqs', '#/cheques', '#/cheque/', '#/receipts', '#/trial', '#/statements', '#/budget', '#/bank', '#/chqbooks', '#/settlements', '#/dues', '#/policy', '#/periods', '#/journal', '#/parties', '#/ledger/', '#/entries'].some(x => h.startsWith(x))) {
+    title = h.startsWith('#/payreqs') ? 'طلبات الصرف والشيكات' : h.startsWith('#/periods') ? 'إقفال الفترات والسنوات' : 'المالية';
     app.innerHTML = shell(title, '<div class="spin"></div>');
     const P = S.finP || {};
     if (h.startsWith('#/finance')) { const r = await call('FIN_SUMMARY', P); if (!r.success) return toast(r.message, true); S.fin = r; body = finSummaryView(); }
@@ -4334,6 +4538,9 @@ async function render() {
     }
     else if (h.startsWith('#/policy')) {
       const r = await call('POL_LIST'); if (!r.success) return toast(r.message, true); S.pol = r.items; S.polEdit = r.canEdit; body = policyView();
+    }
+    else if (h.startsWith('#/periods')) {
+      const r = await call('FIN_PERIODS_LIST'); if (!r.success) return toast(r.message, true); S.periods = r; body = periodsView();
     }
     else if (h.startsWith('#/settlements')) {
       const r = await call('FIN_SETTLEMENTS'); if (!r.success) return toast(r.message, true);
@@ -5362,7 +5569,20 @@ function bindPage(gridOnly) {
       if (pm && pm.isConnected) pm.innerHTML = r.success && r.message ? `<div class="alert warn">📜 ${esc(r.message)}</div>` : '';
     };
     ['amount', 'expense_account', 'decision_id', 'date', 'purpose'].forEach(n => { if (f[n]) f[n].addEventListener('change', chk); });
-    const sync = () => { if ($('#chAcc')) $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; }; sync(); $('#chPurpose').onchange = sync;
+    const sync = () => { if ($('#chAcc')) $('#chAcc').style.display = $('#chPurpose').value === 'عهدة' ? 'none' : ''; chkCust(); };
+    const chkCust = async () => {
+      if (!f || !f.isConnected) return;
+      const box = f.querySelector('#chqCustAlert');
+      const nm = (f.payee_name && f.payee_name.value || '').trim();
+      if (!box || f.purpose.value !== 'عهدة' || nm.length < 3) { if (box) box.innerHTML = ''; return; }
+      const r = await call('FIN_CUSTODIAN_ALERT', { name: nm });
+      if (!box.isConnected) return;
+      if (r.success && r.count > 0) {
+        box.innerHTML = `<div class="alert ${r.overdue_count > 0 ? 'bad' : 'warn'}" style="margin-bottom:8px">⚠️ <b>تنبيه عُهد مفتوحة على «${esc(nm)}»:</b> يوجد لديه <b>${numAr(r.count)}</b> عهدة مفتوحة بإجمالي <b>${money(r.total)} ج</b>${r.overdue_count > 0 ? ` — منها <b>${numAr(r.overdue_count)} عهدة متأخرة (+30 يوم) بقيمة ${money(r.overdue_total)} ج</b>` : ''}. يُنصح بتسوية العهدة السابقة أو تجميعها.</div>`;
+      } else box.innerHTML = '';
+    };
+    if (f.payee_name) f.payee_name.addEventListener('blur', chkCust);
+    sync(); $('#chPurpose').onchange = sync;
   });
 
   // ── طلبات الصرف واستخراج الشيكات (FIN_PAY_*) ──
@@ -5512,11 +5732,15 @@ function bindPage(gridOnly) {
   const openSettle = async cid => {
     let c = S.cheque && S.cheque.id === cid ? S.cheque : null;
     if (!c) { const x = await call('FIN_CHEQUE', { id: cid }); if (!x.success) return toast(x.message, true); c = x.cheque; }
-    const st = c.settlement, h = await call('FIN_SETTLE_HELP', { cheque_id: c.id }); if (!h.success) return toast(h.message, true);
+    const st = c.settlement;
+    const [h, actsRes] = await Promise.all([call('FIN_SETTLE_HELP', { cheque_id: c.id }), call('FIN_SETTLE_ACTIVITIES')]);
+    if (!h.success) return toast(h.message, true);
+    h.activities = actsRes && actsRes.success ? actsRes.items : [];
     const dr = st && st.status === 'مسودة' ? st.draft : null;
     const build = f => ({ cheque_id: c.id, date: f.date.value, subscriptions: f.subscriptions.value, returned: f.returned.value,
       return_mode: f.return_mode.value, cheque_ids: [...f.querySelectorAll('[name=grp]:checked')].map(i => i.value),
       carried_from: f.carried_from ? f.carried_from.value : '',
+      activity_id: f.activity_id ? f.activity_id.value : '',
       lines: [...f.querySelectorAll('[data-sl]')].map(r => ({ category: r.querySelector('[name=cat]').value,
         amount: r.querySelector('[name=amt]').value.trim(),
         doc_date: (r.querySelector('[name=doc_date]')?.value || '').trim() || undefined,
@@ -5524,6 +5748,18 @@ function bindPage(gridOnly) {
         meeting_ids: r.dataset.mids ? r.dataset.mids.split(',').filter(Boolean) : undefined,
         beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) });
     finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => { S.meetings = null; S.meeting = null; render(); }, 'lg');
+    const actSel = $('#stlActSel');
+    if (actSel) {
+      const syncAct = () => {
+        const opt = actSel.selectedOptions[0], box = $('#stlActInfo');
+        if (!box) return;
+        const pd = +(opt && opt.dataset.paid || 0), cnt = +(opt && opt.dataset.cnt || 0);
+        box.innerHTML = actSel.value
+          ? `<div class="alert ${pd > 0 ? 'warn' : ''}" style="margin-top:6px;font-size:12.5px">🚌 <b>معلومة مطابقة للنشاط:</b> يوجد <b>${numAr(cnt)}</b> حجز مسجّل بإجمالي اشتراكات مثبّتة مسبقاً بإيصالات = <b>${money(pd)} ج</b> (في حـ/ 4201). <b>لا تُعد إدخال هذا المبلغ</b> في خانة الاشتراكات بالأسفل منعاً للازدواج؛ اكتب فقط أي مبالغ نقدية إضافية بيد صاحب العهدة لم يُصدر لها إيصال.</div>`
+          : '';
+      };
+      actSel.onchange = syncAct; syncAct();
+    }
     $('#modal [data-act=stlDraft]').onclick = async e => {
       const r = await busy(e.target, () => call('FIN_SETTLE', { ...build($('#stf')), draft: true }));
       if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
@@ -5585,6 +5821,66 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-strev]').forEach(b => b.onclick = ev => { ev.stopPropagation(); revSettle(b.dataset.strev); });
   on('stlDraftDel', () => delDraft(S.cheque.settlement.id));
   on('stlReverse', () => revSettle(S.cheque.settlement.id));
+
+  // ── المرحلتان 35 و 36: إقفال الفترات، مستندات بوابة العضو، الشكاوى، وطلبات التفعيل ──
+  on('prtMemberCert', () => { if (S.me && S.me.profile) printDoc(memberCertHTML(S.me.profile)); });
+  on('prtMemberBen', async () => {
+    const r = await call('BEN_MY');
+    if (!r.success) return toast(r.message, true);
+    printDoc(memberBenefitsPrintHTML(S.me.profile, r.benefits));
+  });
+  const tktf = $('#tktf');
+  if (tktf) tktf.onsubmit = async e => {
+    e.preventDefault();
+    const r = await busy(tktf.querySelector('[type=submit]'), () => call('TKT_CREATE', formData(tktf)));
+    if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+    toast(`تم إرسال رسالتك برقم ${r.ticket_no} ✓`); render();
+  };
+  app.querySelectorAll('[data-tktrpl]').forEach(b => b.onclick = async () => {
+    const reply = await uiPrompt({ title: 'الرد على رسالة العضو', msg: 'سيتم حفظ الرد وإرسال إشعار فوري في بوابة العضو:', label: 'نص الرد الرسمي', okText: 'إرسال الرد' });
+    if (!reply) return;
+    const r = await busy(b, () => call('TKT_REPLY', { id: b.dataset.tktrpl, reply, status: 'تم الرد' }));
+    if (!r.success) return toast(r.message, true);
+    toast('تم إرسال الرد وإشعار العضو ✓'); render();
+  });
+  app.querySelectorAll('[data-actvok]').forEach(b => b.onclick = async () => {
+    const ok = await uiConfirm({ title: 'اعتماد تفعيل حساب العضو', msg: 'سيتم تحديث الرقم القومي والموبايل في ملف العضو وتفعيل دخوله الفوري لبوابة العضو. هل تود المتابعة؟', tone: 'ok', okText: 'اعتماد وتفعيل' });
+    if (!ok) return;
+    const r = await busy(b, () => call('ACTV_DECIDE', { id: b.dataset.actvok, approve: true }));
+    if (!r.success) return toast(r.message, true);
+    toast('تم تفعيل حساب العضو ✓'); render();
+  });
+  app.querySelectorAll('[data-actvno]').forEach(b => b.onclick = async () => {
+    const notes = await uiPrompt({ title: 'رفض طلب التفعيل', msg: 'اذكر سبب الرفض للتدقيق:', label: 'سبب الرفض', tone: 'bad', okText: 'رفض الطلب' });
+    if (!notes) return;
+    const r = await busy(b, () => call('ACTV_DECIDE', { id: b.dataset.actvno, approve: false, notes }));
+    if (!r.success) return toast(r.message, true);
+    toast('تم رفض الطلب ✓'); render();
+  });
+  app.querySelectorAll('[data-ptog]').forEach(b => b.onclick = async () => {
+    const [year, month] = b.dataset.ptog.split('-').map(Number), st = b.dataset.pst;
+    const ok = await uiConfirm({
+      title: st === 'مقفولة' ? `إقفال شهر ${month} / ${year}` : `إعادة فتح شهر ${month} / ${year}`,
+      msg: st === 'مقفولة' ? 'لن يُسمح بإدخال أو تعديل أي قيود بتاريخ داخل هذا الشهر بعد إقفاله.' : 'إعادة فتح فترة مقفولة تُسجل في سجل التدقيق. هل أنت متأكد؟',
+      tone: 'warn', okText: st === 'مقفولة' ? 'إقفال الشهر' : 'إعادة الفتح'
+    });
+    if (!ok) return;
+    const r = await busy(b, () => call('FIN_PERIOD_TOGGLE', { year, month, status: st }));
+    if (!r.success) return toast(r.message, true);
+    toast(st === 'مقفولة' ? 'تم إقفال الشهر ✓' : 'تم إعادة فتح الشهر ✓'); render();
+  });
+  app.querySelectorAll('[data-yrclose]').forEach(b => b.onclick = async () => {
+    const year = +b.dataset.yrclose;
+    const ok = await uiConfirm({
+      title: `إقفال السنة المالية ${year}`,
+      msg: `سيتم إنشاء قيد إقفال سنوي آلي بتاريخ ${year}-12-31 يُقفل كافة الإيرادات والمصروفات ويُرحّل صافي الفائض/العجز إلى حـ/ 3201، مع إقفال الأشهر الـ 12 بالكامل. هل أنت متأكد؟`,
+      tone: 'warn', okText: `تأكيد إقفال سنة ${year}`
+    });
+    if (!ok) return;
+    const r = await busy(b, () => call('FIN_YEAR_CLOSE', { year }));
+    if (!r.success) return toast(r.message, true);
+    toast(`تم إقفال السنة المالية ${year} بنجاح ✓`); render();
+  });
 
   const pw = $('#pw');
   if (pw) pw.onsubmit = async e => { e.preventDefault();

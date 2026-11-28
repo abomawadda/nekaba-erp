@@ -729,3 +729,40 @@ a.kpi:hover,.kpi[data-ptab]:hover{transform:translateY(-1px);box-shadow:0 6px 16
 .rep-card p{margin:0;font-size:12.5px;color:#526377;line-height:1.6;flex:1}
 .rep-card-ft{display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:1px dashed #e2eaf2;margin-top:auto}
 
+/* ───────── المرحلتان 35 و 36: إقفال الفترات وبوابة العضو المؤسسية والشكاوى ───────── */
+.period-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}
+@media(max-width:760px){.period-grid{grid-template-columns:repeat(3,1fr)}}
+.period-m{border:1px solid #d7e2ec;border-radius:10px;padding:9px 8px;text-align:center;background:#f8fbfe;cursor:pointer;transition:all .15s;font-family:inherit}
+.period-m:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(15,61,94,.1)}
+.period-m b{display:block;font-size:13px;color:var(--brand)}
+.period-m small{display:block;font-size:11px;margin-top:2px;font-weight:700;color:#15803d}
+.period-m.closed{background:#fef2f2;border-color:#fecaca}
+.period-m.closed b{color:#991b1b}
+.period-m.closed small{color:#b91c1c}
+.period-m[disabled]{cursor:default;opacity:.85}
+
+.mp-hero{background:linear-gradient(135deg,#0f3d5e 0%,#155582 65%,#1c6da6 100%);color:#fff;border-radius:18px;padding:20px 22px;margin-bottom:14px;box-shadow:0 12px 30px rgba(15,61,94,.22);position:relative;overflow:hidden}
+.mp-hero::after{content:"";position:absolute;inset-inline-end:-45px;top:-45px;width:190px;height:190px;border-radius:50%;background:rgba(201,162,39,.18);pointer-events:none}
+.mp-hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:relative;z-index:1}
+.mp-hero h2{margin:0;font-size:21px;color:#fff;line-height:1.35}
+.mp-hero .mp-sub{font-size:13px;opacity:.9;margin-top:3px}
+.mp-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:800;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff}
+.mp-badge.gold{background:rgba(201,162,39,.25);border-color:#f0cf65;color:#fff7d6}
+.mp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;position:relative;z-index:1}
+@media(max-width:720px){.mp-stats{grid-template-columns:repeat(2,1fr)}}
+.mp-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 12px;text-decoration:none;color:#fff;display:block;transition:background .15s}
+.mp-stat:hover{background:rgba(255,255,255,.2)}
+.mp-stat small{display:block;font-size:11.5px;opacity:.85}
+.mp-stat b{display:block;font-size:18px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+.mp-docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px}
+.mp-doc{background:#fff;border:1px solid #d9e4ee;border-inline-start:4px solid var(--brand);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;cursor:pointer;font-family:inherit;text-align:start;transition:all .15s;box-shadow:0 2px 8px rgba(15,61,94,.04)}
+.mp-doc:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,61,94,.1);border-color:var(--brand2)}
+.mp-doc.gold{border-inline-start-color:var(--gold)}
+.mp-doc i{font-size:24px;font-style:normal;flex:none}
+.mp-doc b{display:block;font-size:13.5px;color:var(--brand)}
+.mp-doc small{display:block;font-size:11.5px;color:#5a6b7d;margin-top:1px}
+
+.tkt-card{background:#fff;border:1px solid #d9e4ee;border-inline-start:4px solid var(--brand);border-radius:12px;padding:13px 15px;margin-bottom:10px}
+.tkt-card.replied{border-inline-start-color:var(--ok)}
+.tkt-card.closed{border-inline-start-color:#94a3b8;opacity:.88}
+.tkt-reply{margin-top:9px;padding:9px 12px;border-radius:9px;background:#f0fdf4;border:1px solid #bbf7d0;font-size:13px;color:#14532d}
