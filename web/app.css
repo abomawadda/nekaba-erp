@@ -113,16 +113,18 @@ label.f>span{display:block;font-size:12.5px;font-weight:700;color:#475569;margin
 /* النوافذ المؤسسية ونماذج الإدخال */
 .modal{position:fixed;inset:0;z-index:50;background:rgba(10,25,42,.62);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;padding:0}
 .modal[hidden]{display:none}
-.modal:not(.doc-studio) .sheet{background:#fff;width:100%;max-width:600px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:0;box-shadow:0 24px 60px rgba(8,24,44,.35);border-top:4px solid var(--gold);display:flex;flex-direction:column}
-.modal:not(.doc-studio) .m-head{position:sticky;top:0;z-index:3;background:linear-gradient(180deg,#f8fbfe 0%,#fff 100%);padding:14px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.modal:not(.doc-studio) .m-head h3{margin:0;font-size:17.5px;color:var(--brand);font-weight:800;display:flex;align-items:center;gap:8px}
-.modal:not(.doc-studio) .m-x{width:32px;height:32px;border-radius:9px;border:1px solid #dbe3ec;background:#fff;color:#475569;font-size:16px;font-weight:800;cursor:pointer;display:grid;place-items:center;flex:none;transition:.15s}
-.modal:not(.doc-studio) .m-x:hover{background:var(--badbg);color:var(--bad);border-color:#f3c4bf}
-.modal:not(.doc-studio) .m-body{padding:16px 20px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;flex:1}
-.modal.lg:not(.doc-studio) .sheet{max-width:740px}
-@media(min-width:640px){.modal:not(.doc-studio){align-items:center;padding:16px}.modal:not(.doc-studio) .sheet{border-radius:18px;max-height:88vh}}
+.modal:not(.doc-studio) .sheet{background:#f8fafd;width:100%;max-width:620px;max-height:92vh;overflow:hidden;border-radius:20px 20px 0 0;padding:0;box-shadow:0 28px 70px rgba(8,24,44,.42);border:1px solid rgba(15,61,94,.22);display:flex;flex-direction:column}
+.modal:not(.doc-studio) .m-head{position:sticky;top:0;z-index:3;background:linear-gradient(135deg,#0f3d5e 0%,#155380 72%,#1b669c 100%);padding:14px 20px 13px;border-bottom:3px solid var(--gold);display:flex;align-items:center;justify-content:space-between;gap:12px;color:#fff}
+.modal:not(.doc-studio) .m-head h3{margin:0;font-size:17px;color:#fff;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.modal:not(.doc-studio) .m-head h3 small{color:rgba(255,255,255,.8);font-weight:600;font-size:12.5px}
+.modal:not(.doc-studio) .m-x{width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;font-size:16px;font-weight:800;cursor:pointer;display:grid;place-items:center;flex:none;transition:.15s}
+.modal:not(.doc-studio) .m-x:hover{background:#dc2626;border-color:#dc2626;color:#fff}
+.modal:not(.doc-studio) .m-body{padding:16px 20px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;flex:1;background:#f8fafd}
+.modal:not(.doc-studio) .m-body .form-sec{background:#fff;border:1px solid #d9e4ee;border-radius:12px;padding:12px 14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(15,61,94,.04)}
+.modal.lg:not(.doc-studio) .sheet{max-width:780px}
+@media(min-width:640px){.modal:not(.doc-studio){align-items:center;padding:16px}.modal:not(.doc-studio) .sheet{border-radius:18px;max-height:89vh}}
 .modal h3{margin:0 0 12px;font-size:18px;color:var(--brand)}
-.modal .acts{display:flex;gap:10px;margin-top:16px;padding-top:12px;border-top:1px solid #e6edf4}
+.modal .acts{display:flex;gap:10px;margin-top:16px;padding-top:13px;border-top:1px solid #dce6f0;position:sticky;bottom:0;background:#f8fafd}
 .modal .acts .btn{flex:1}
 .amt-words{margin-top:5px;padding:5px 10px;border-radius:8px;background:#fffdf5;border:1px solid #ead89c;border-inline-start:3px solid var(--gold);font-size:12px;font-weight:700;color:#6e5207}
 .amt-words:empty{display:none}
@@ -788,4 +790,13 @@ a.kpi:hover,.kpi[data-ptab]:hover{transform:translateY(-1px);box-shadow:0 6px 16
 .stl-surplus-btn i{font-size:22px;font-style:normal}
 .stl-surplus-btn b{display:block;font-size:14px;color:var(--brand)}
 .stl-surplus-btn small{display:block;font-size:12px;color:#526377}
+
+/* ───────── المرحلة 39: ضبط كشف الجمعية العمومية A4 وتحسين جدول الأعضاء ───────── */
+.ed-tbl.ga-tbl{table-layout:fixed;width:100%;font-size:10px}
+.ed-tbl.ga-tbl thead th{padding:5px 4px;font-size:9.5px;white-space:normal;line-height:1.3}
+.ed-tbl.ga-tbl td{padding:4.5px 4px;line-height:1.35;word-break:break-word;overflow-wrap:anywhere}
+.ed-tbl.ga-tbl .dt{font-size:9.5px}
+.m-nm{min-width:190px;font-weight:800;color:#0f172a;line-height:1.45}
+.m-job-pill{display:inline-block;padding:2px 8px;border-radius:7px;background:#eef4fa;border:1px solid #d4e2f0;color:var(--brand);font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums}
+
 

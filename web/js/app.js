@@ -466,6 +466,16 @@ function shell(title, body) {
 
 // ───────── لوحة القيادة (الإدارة) ─────────
 const numAr = v => Number(v || 0).toLocaleString('ar-EG');
+const jobSortNum = j => { const d = String(j || '').replace(/\D/g, ''); return d ? parseInt(d, 10) : 999999999999; };
+const sortMembers = arr => [...(arr || [])].sort((a, b) => (jobSortNum(a.job_id) - jobSortNum(b.job_id)) || String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar'));
+const boardRoleRank = role => {
+  const r = String(role || '');
+  if (/رئيس/.test(r)) return 1;
+  if (/الأمين العام|أمين عام/.test(r)) return 2;
+  if (/أمين الصندوق/.test(r)) return 3;
+  return 10;
+};
+const sortBoard = arr => [...(arr || [])].sort((a, b) => (boardRoleRank(a.role) - boardRoleRank(b.role)) || (jobSortNum(a.job_id) - jobSortNum(b.job_id)) || String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar'));
 const bars = (o, money_ = false) => { const e = Object.entries(o || {}).sort((x, y) => y[1] - x[1]); const mx = Math.max(1, ...e.map(x => +x[1]));
   return e.map(([k, v]) => `<div class="bar"><span>${esc(k)}</span><div><i style="width:${Math.max(2, 100 * v / mx)}%"></i></div><b>${money_ ? money(v) : numAr(v)}</b></div>`).join('') || '<div class="empty">لا بيانات</div>'; };
 function dashView() {
@@ -667,18 +677,17 @@ function memberListsView() {
       ${Object.entries(r.byState || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `<div class="kpi"><i>🪪</i><div><b>${numAr(v)}</b><small>${esc(k)}</small></div></div>`).join('')}</div>
     ${fixBox(r, f)}
     ${grid('mlist', [
-      { t: 'الرقم الوظيفي', v: x => esc(x.job_id || ''), raw: x => x.job_id || '' },
-      { t: 'الاسم', v: x => `<b>${esc(x.full_name)}</b>`, raw: x => x.full_name },
+      { t: 'م', v: (x, i) => `<span class="muted">${numAr(i + 1)}</span>`, raw: () => 0 },
+      { t: 'الرقم الوظيفي', v: x => x.job_id ? `<span class="m-job-pill">${esc(x.job_id)}</span>` : '<span class="muted">—</span>', raw: x => jobSortNum(x.job_id), num: true },
+      { t: 'الاسم الرباعي', v: x => `<div class="m-nm">${esc(x.full_name)}</div>`, raw: x => x.full_name },
       { t: 'الموبايل', v: x => x.phone ? `<span class="dt">${esc(x.phone)}</span>` : '<span class="pill warn">—</span>', raw: x => x.phone || '' },
       { t: 'جهة العمل', v: x => esc(x.workplace || '—'), raw: x => x.workplace || '' },
-      { t: 'الوظيفة', v: x => esc(x.job_title || '—'), raw: x => x.job_title || '' },
-      { t: 'الدرجة', v: x => esc(x.grade || '—'), raw: x => x.grade || '' },
+      { t: 'الوظيفة / الدرجة', v: x => `<div>${esc(x.job_title || '—')}</div>${x.grade ? `<small class="muted">${esc(x.grade)}</small>` : ''}`, raw: x => x.job_title || '' },
       { t: 'التنظيم', v: x => `<span class="pill ${x.union_org === 'النقابة العامة' ? 'ok' : 'warn'}">${esc(x.union_org || '؟')}</span>`, raw: x => x.union_org || '' },
-      { t: 'الحالة', v: x => esc(x.member_state || '—'), raw: x => x.member_state || '' },
+      { t: 'الحالة', v: x => `<span class="pill ${x.member_state === 'نشط' ? 'ok' : ''}">${esc(x.member_state || '—')}</span>`, raw: x => x.member_state || '' },
       { t: 'التعيين', v: x => dt(x.hire_date), raw: x => x.hire_date || '' },
-      { t: 'المعاش', v: x => dt(x.retirement_date), raw: x => x.retirement_date || '' },
       { t: 'الأسرة', v: x => numAr(x.family), raw: x => +x.family, num: true },
-    ], r.items, { title: '📋 الكشف', file: 'members-list', attr: x => `data-person="${x.id}"`, empty: 'لا أعضاء مطابقين' })}
+    ], sortMembers(r.items), { title: '📋 كشف الأعضاء (مرتب بالرقم الوظيفي تصاعدياً)', file: 'members-list', attr: x => `data-person="${x.id}"`, empty: 'لا أعضاء مطابقين' })}
     <div class="card"><h2>🏢 التوزيع حسب جهة العمل</h2>${bars(r.byWorkplace)}</div>`;
 }
 
@@ -1248,12 +1257,12 @@ function adminView() {
     <form id="qs" class="row"><input class="input" style="flex:1" name="q" value="${esc(q)}" placeholder="اسم أو رقم وظيفي أو موبايل أو قومي">
       <button class="btn">بحث</button></form></div>
     <div id="res">${grid('mem', [
-      { t: 'الاسم', v: x => `<b>${esc(x.full_name)}</b>`, raw: x => x.full_name },
-      { t: 'الرقم الوظيفي', v: x => esc(x.job_id || ''), raw: x => x.job_id || '' },
+      { t: 'الرقم الوظيفي', v: x => x.job_id ? `<span class="m-job-pill">${esc(x.job_id)}</span>` : '<span class="muted">—</span>', raw: x => jobSortNum(x.job_id), num: true },
+      { t: 'الاسم الرباعي', v: x => `<div class="m-nm">${esc(x.full_name)}</div>`, raw: x => x.full_name },
       { t: 'جهة العمل', v: x => esc(x.workplace || '—'), raw: x => x.workplace || '' },
       { t: 'الوظيفة', v: x => esc(x.job_title || '—'), raw: x => x.job_title || '' },
       { t: 'التنظيم', v: x => `<span class="pill ${x.union_org === 'النقابة العامة' ? 'ok' : 'warn'}">${esc(x.union_org || '؟')}</span>`, raw: x => x.union_org || '' },
-    ], S.results, { title: '👥 نتائج البحث', file: 'members', attr: x => `data-person="${x.id}"`, empty: 'ابحث عن عضو بالاسم أو الرقم الوظيفي' })}</div>`;
+    ], sortMembers(S.results), { title: '👥 نتائج البحث (مرتبة بالرقم الوظيفي تصاعدياً)', file: 'members', attr: x => `data-person="${x.id}"`, empty: 'ابحث عن عضو بالاسم أو الرقم الوظيفي' })}</div>`;
 }
 function personView() {
   const pr = S.person; if (!pr) return '<div class="empty">...</div>';
@@ -1345,7 +1354,7 @@ const govTabs = act => `<div class="subtabs">${[['#/board', '🏛️ تشكيل 
 function boardView() {
   const g = S.gov, t = g && g.term;
   if (!t) return govTabs('#/board') + `<div class="card empty">لا توجد دورة جارية${g && g.canManage ? '<br><button class="btn" style="margin-top:10px" data-act="termEdit">+ دورة جديدة</button>' : ''}</div>`;
-  const cur = t.seats.filter(s => !s.to_date), old = t.seats.filter(s => s.to_date);
+  const cur = sortBoard(t.seats.filter(s => !s.to_date)), old = sortBoard(t.seats.filter(s => s.to_date));
   const seat = s => `<div class="fam"><div class="av">${s.role === 'رئيس المجلس' ? '⭐' : s.role === 'أمين الصندوق' ? '💰' : s.role === 'الأمين العام' ? '📜' : '👤'}</div>
     <div class="nm"><b>${esc(s.full_name)}</b><span class="muted">${esc(s.role)} · من ${dt(s.from_date)}${s.to_date ? ' إلى ' + dt(s.to_date) : ''}
       · ${esc(s.join_method)}${s.workplace ? ' · ' + esc(s.workplace) : ''}${s.end_reason ? ' · ' + esc(s.end_reason) : ''}</span></div>
@@ -1475,7 +1484,7 @@ function erpDoc(o) {
 
 function meetingMinutesHTML(m) {
   const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
-  const attRows = (m.attendance.length ? m.attendance : (m.board || []).map(b => ({ ...b, status: '—' })))
+  const attRows = sortBoard(m.attendance.length ? m.attendance : (m.board || []).map(b => ({ ...b, status: '—' })))
     .map((a, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td>${esc(a.role || 'عضو مجلس إدارة')}</td><td class="c">${esc(a.status)}</td><td>${esc(a.notes || '')}</td></tr>`).join('');
   const decHtml = (m.decisions || []).map(d => `<div class="ed-box">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px">
@@ -1507,7 +1516,7 @@ function meetingMinutesHTML(m) {
   });
 }
 function attendanceSheetHTML(m, blank = false) {
-  const list = !blank && m.attendance && m.attendance.length ? m.attendance : (m.board || []);
+  const list = sortBoard(!blank && m.attendance && m.attendance.length ? m.attendance : (m.board || []));
   const rows = list.map((a, i) => `<tr><td class="c">${numAr(i + 1)}</td><td><b>${esc(a.full_name)}</b></td><td class="c">${esc(a.job_id || '—')}</td><td>${esc(a.role || 'عضو مجلس إدارة')}</td>
     <td class="c">${blank ? '' : esc(a.status || '')}</td><td style="width:28%"></td></tr>`).join('');
   return erpDoc({
@@ -1526,7 +1535,7 @@ function attendanceSheetHTML(m, blank = false) {
 }
 function allowanceSheetHTML(m, rateOverride) {
   const alw = m.allowance || {}, rate = +(rateOverride || alw.rate || 75);
-  const att = (m.attendance || []).filter(a => a.status === 'حاضر');
+  const att = sortBoard((m.attendance || []).filter(a => a.status === 'حاضر'));
   const tot = alw.paid && !rateOverride ? +alw.total : att.length * rate;
   const share = att.length ? +(tot / att.length).toFixed(2) : rate;
   const rows = att.map((a, i) => {
@@ -1712,7 +1721,7 @@ function meetingView() {
   const q = m.seats ? m.present >= Math.floor(m.seats / 2) + 1 : false;
   const pct = m.seats ? Math.min(100, Math.round((m.present / m.seats) * 100)) : 0;
   const alw = m.allowance || { rate: 75, present: m.present || 0, total: 0, paid: false };
-  const presentList = (m.attendance || []).filter(a => a.status === 'حاضر');
+  const presentList = sortBoard((m.attendance || []).filter(a => a.status === 'حاضر'));
   const attMap = {}; (m.attendance || []).forEach(a => (attMap[a.person_id] = a.status));
   const showQuickAtt = g.canManage && (!m.attendance.length || S.quickAttOpen);
   return `<a href="#/meetings" class="btn sm sec" style="display:inline-block;margin-bottom:10px;text-decoration:none">→ سجل الاجتماعات</a>
@@ -1771,10 +1780,10 @@ function meetingView() {
     ${showQuickAtt ? `<div class="form-sec" id="qattBox" data-seats="${(m.board || []).length}">
         <div class="form-sec-hd"><span id="qattStat">حدد حالة كل عضو مجلس بنقرة واحدة:</span>
           <button class="btn sm sec" type="button" data-act="attAllPresent">✓ تحديد الكل حاضر</button></div>
-        ${attSegRows(m.board || [], attMap)}
+        ${attSegRows(sortBoard(m.board || []), attMap)}
         <div class="acts" style="margin-top:8px"><button class="btn" type="button" data-act="saveQuickAtt">💾 حفظ كشف الحضور وحساب البدل</button></div>
       </div>`
-      : m.attendance.map(a => `<div class="kv"><span><b>${esc(a.full_name)}</b> <small class="muted">· ${esc(a.role || '')}</small></span>
+      : sortBoard(m.attendance || []).map(a => `<div class="kv"><span><b>${esc(a.full_name)}</b> <small class="muted">· ${esc(a.role || '')}</small></span>
           <span class="pill ${a.status === 'حاضر' ? 'ok' : a.status === 'غائب' ? 'bad' : 'warn'}">${esc(a.status)}</span></div>`).join('') || '<div class="empty">الحضور غير مسجّل</div>'}
   </div>
   ${docsBox('meeting', m.id, '📎 محضر الاجتماع الموقّع ومستنداته')}`;
@@ -1854,7 +1863,7 @@ const decRow = (d, i) => `<div class="card" style="box-shadow:none;border:1px so
       <div class="grid2"><label class="f"><span>المسئول عن التنفيذ (اختياري)</span><input class="input" name="d_assignee" value="${esc(d.assignee_name || d.assignee_display || '')}" placeholder="مثلاً: أمين الصندوق"></label>
         <label class="f"><span>موعد التنفيذ المستهدف</span><input class="input" type="date" name="d_due" value="${esc(d.due_date || '')}"></label></div></div>`;
 function meetingForm(m) {
-  const board = (m && m.board && m.board.length) ? m.board : (S.gov ? S.gov.term.seats.filter(s => !s.to_date) : []);
+  const board = sortBoard((m && m.board && m.board.length) ? m.board : (S.gov ? S.gov.term.seats.filter(s => !s.to_date) : []));
   const att = {}; ((m && m.attendance) || []).forEach(a => (att[a.person_id] = a.status));
   const decs = (m && m.decisions && m.decisions.length) ? m.decisions : [{}];
   return `<h3>${m && m.id ? '✏️ تعديل بيانات ومحضر الجلسة' : '🗓️ تسجيل جلسة مجلس إدارة جديدة'}</h3><form id="mtf">
@@ -3422,7 +3431,7 @@ function operationsAndChequesReportHTML(rep) {
 // 4) تقرير وكشف الجمعية العمومية (نقابة عامة)
 function generalAssemblyReportHTML(rep) {
   if (!rep) return '';
-  const items = rep.items || [], wpList = rep.by_workplace || [], comp = rep.completeness || {};
+  const items = sortMembers(rep.items || []), wpList = rep.by_workplace || [], comp = rep.completeness || {};
   const stateLbl = rep.filter_state === 'الكل' ? 'جميع المقيدين بالنقابة العامة' : `الأعضاء (${rep.filter_state})`;
   const wpRows = wpList.map((w, i) => `<tr>
     <td class="c">${numAr(i + 1)}</td>
@@ -3448,7 +3457,7 @@ function generalAssemblyReportHTML(rep) {
     refLbl: 'تاريخ الحصر', refNo: String(rep.as_of || new Date().toISOString().slice(0, 10)), date: rep.as_of,
     ctrl: [['التنظيم النقابي', 'النقابة العامة'], ['نطاق الكشف', stateLbl]],
     title: 'التقرير الإحصائي والكشف الرسمي لأعضاء الجمعية العمومية (النقابة العامة)',
-    sub: `${rep.filter_workplace ? 'جهة العمل: ' + esc(rep.filter_workplace) + ' · ' : ''}مُعد وفق أحكام قانون المنظمات النقابية العمالية ولائحة النظام الأساسي`,
+    sub: `${rep.filter_workplace ? 'جهة العمل: ' + esc(rep.filter_workplace) + ' · ' : ''}مرتب بالرقم الوظيفي من الأقل للأكبر · مُعد وفق لائحة النظام الأساسي`,
     status: `${numAr(items.length)} عضو بالكشف`, statusCls: 'ok',
     body: edGrid([
       [3, 'أعضاء النقابة العامة النشطون (لهم حق التصويت)', `<b>${numAr(rep.active_voting)} عضو</b>`],
@@ -3463,17 +3472,17 @@ function generalAssemblyReportHTML(rep) {
       <table class="ed-tbl"><thead><tr><th class="c" style="width:38px">م</th><th>جهة / مقر العمل</th><th class="n" style="width:110px">عدد الأعضاء</th><th class="c" style="width:90px">النسبة %</th></tr></thead>
       <tbody>${wpRows}</tbody></table>` : '')
     + `<div class="ed-sec">${!rep.filter_workplace && wpList.length > 1 ? 'ثانياً' : 'أولاً'}: الكشف الاسمي لأعضاء الجمعية العمومية — النقابة العامة (${numAr(items.length)} عضو)</div>
-      <table class="ed-tbl">
+      <table class="ed-tbl ga-tbl">
         <thead>
           <tr>
-            <th class="c" style="width:34px">م</th>
-            <th class="c" style="width:68px">الرقم الوظيفي</th>
-            <th>الاسم الرباعي للعضو</th>
-            <th class="c" style="width:108px">الرقم القومي</th>
-            <th>جهة العمل</th>
-            <th>الوظيفة / الدرجة</th>
-            <th class="c" style="width:88px">التليفون</th>
-            <th class="c" style="width:96px">التوقيع بالحضور</th>
+            <th class="c" style="width:4%">م</th>
+            <th class="c" style="width:9%">الرقم الوظيفي</th>
+            <th style="width:22%">الاسم الرباعي للعضو</th>
+            <th class="c" style="width:15%">الرقم القومي</th>
+            <th style="width:11%">جهة العمل</th>
+            <th style="width:16%">الوظيفة / الدرجة</th>
+            <th class="c" style="width:11%">التليفون</th>
+            <th class="c" style="width:12%">التوقيع</th>
           </tr>
         </thead>
         <tbody>${memRows}</tbody>
