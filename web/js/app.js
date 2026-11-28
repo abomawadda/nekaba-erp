@@ -468,14 +468,23 @@ function shell(title, body) {
 const numAr = v => Number(v || 0).toLocaleString('ar-EG');
 const jobSortNum = j => { const d = String(j || '').replace(/\D/g, ''); return d ? parseInt(d, 10) : 999999999999; };
 const sortMembers = arr => [...(arr || [])].sort((a, b) => (jobSortNum(a.job_id) - jobSortNum(b.job_id)) || String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar'));
-const boardRoleRank = role => {
-  const r = String(role || '');
+const boardRoleRank = (role, jobId, fullName) => {
+  let r = String(role || '');
+  if (!r && S.gov && S.gov.term && S.gov.term.seats) {
+    const seats = S.gov.term.seats;
+    const hit = seats.find(s => !s.to_date && ((jobId && String(s.job_id) === String(jobId)) || (fullName && s.full_name === fullName)))
+             || seats.find(s => (jobId && String(s.job_id) === String(jobId)) || (fullName && s.full_name === fullName));
+    if (hit) r = String(hit.role || '');
+  }
   if (/رئيس/.test(r)) return 1;
   if (/الأمين العام|أمين عام/.test(r)) return 2;
   if (/أمين الصندوق/.test(r)) return 3;
   return 10;
 };
-const sortBoard = arr => [...(arr || [])].sort((a, b) => (boardRoleRank(a.role) - boardRoleRank(b.role)) || (jobSortNum(a.job_id) - jobSortNum(b.job_id)) || String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar'));
+const sortBoard = arr => [...(arr || [])].sort((a, b) =>
+  (boardRoleRank(a.role, a.job_id, a.full_name) - boardRoleRank(b.role, b.job_id, b.full_name))
+  || (jobSortNum(a.job_id) - jobSortNum(b.job_id))
+  || String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar'));
 const bars = (o, money_ = false) => { const e = Object.entries(o || {}).sort((x, y) => y[1] - x[1]); const mx = Math.max(1, ...e.map(x => +x[1]));
   return e.map(([k, v]) => `<div class="bar"><span>${esc(k)}</span><div><i style="width:${Math.max(2, 100 * v / mx)}%"></i></div><b>${money_ ? money(v) : numAr(v)}</b></div>`).join('') || '<div class="empty">لا بيانات</div>'; };
 function dashView() {
@@ -3208,18 +3217,24 @@ function settlementReportHTML(st) {
   const rem = +(st.remaining_balance ?? (avail - spent - ret));
   const unspent = +(avail - spent).toFixed(2);
   const cust = st.custodian || {};
+  const cleanChqNote = c => {
+    let txt = String(c.notes || '').replace(/\s*[—–-]\s*سُوّ?ي ضمن تسوية مجمّ?عة/g, '').trim();
+    if (!txt || txt === 'عهدة') return 'سلفة مؤقتة';
+    return txt;
+  };
   const chqRows = chqs.map((c, i) => `<tr>
     <td class="c">${numAr(i + 1)}</td>
     <td class="c"><span class="dt ed-chqno">${esc(c.cheque_no || 'بدون رقم')}</span></td>
     <td class="c">${dt(c.issue_date)}</td>
-    <td>${esc(c.purpose || 'عهدة')}${c.notes ? ' — ' + esc(c.notes) : ''}</td>
-    <td class="c">${esc(c.decision_no || 'لائحي')}</td>
+    <td>${esc(cleanChqNote(c))}</td>
     <td class="c">${c.cleared_date ? 'منصرف ' + dt(c.cleared_date) : esc(c.status || 'صادر')}</td>
     <td class="n"><b>${money(c.amount)}</b></td>
-  </tr>`).join('') || '<tr><td colspan="7" class="c">—</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="6" class="c">—</td></tr>';
 
   const lineRows = lines.map((l, i) => {
-    const bens = (l.beneficiaries_list || []).map(b => `${esc(b.full_name)}${b.job_id ? ' (' + esc(b.job_id) + ')' : ''}${b.amount ? ': ' + money(b.amount) : ''}`).join(' ، ');
+    const rawBens = l.beneficiaries_list || [];
+    const sortedBens = /جلسات|مجلس/.test(String(l.category || '')) ? sortBoard(rawBens) : sortMembers(rawBens);
+    const bens = sortedBens.map(b => `${esc(b.full_name)}${b.job_id ? ' (' + esc(b.job_id) + ')' : ''}${b.amount ? ': ' + money(b.amount) : ''}`).join(' ، ');
     return `<tr>
       <td class="c">${numAr(i + 1)}</td>
       <td class="c" style="white-space:nowrap">${dt(l.doc_date || st.settle_date)}</td>
@@ -3237,22 +3252,14 @@ function settlementReportHTML(st) {
   </tr>`).join('');
 
   let dispTxt = 'تسوية متوازنة بالكامل (المتاح يساوي المنصرف الفعلي — رصيد متبقي صفر)';
-  let remTfqLbl = '';
-  let remTfqVal = 0;
   if (unspent > 0.005) {
     if (ret > 0.005) {
       dispTxt = `توريد ورد مبلغ (${money(ret)} ج.م) بطريقة (${esc(st.return_mode || 'رد نقدي للخزينة')})` + (Math.abs(rem) > 0.005 ? ` · ومتبقي (${money(rem)} ج.م)` : ' — رصيد العهدة مقفل بالكامل ✓');
-      remTfqLbl = 'تفقيط المبلغ المردود / المورّد';
-      remTfqVal = ret;
     } else if (st.return_mode === 'ترحيل' || rem > 0.005) {
       dispTxt = `ترحيل الفائض المتبقي وقدره (${money(unspent)} ج.م) كرصيد مرحّل للعهدة التالية لنفس صاحب العهدة` + (st.carried_to_info ? ` (استُخدم في تسوية شيك ${esc(st.carried_to_info.cheque_no || '')} بتاريخ ${dt(st.carried_to_info.settle_date)})` : ' (جاهز للترحيل الآلي)');
-      remTfqLbl = 'تفقيط الفائض المرحّل للعهدة التالية';
-      remTfqVal = unspent;
     }
   } else if (unspent < -0.005) {
     dispTxt = `زيادة منصرف عن المتاح بمبلغ (${money(Math.abs(unspent))} ج.م) — ${st.decision ? 'معتمدة بقرار رقم ' + esc(st.decision.decision_no) : 'تُعالج وفق الاعتماد المالي'}`;
-    remTfqLbl = 'تفقيط زيادة المنصرف (المستحق لصاحب العهدة)';
-    remTfqVal = Math.abs(unspent);
   }
 
   return erpDoc({
@@ -3290,19 +3297,16 @@ function settlementReportHTML(st) {
     ])
     + `<div class="ed-sec">أولاً: تفاصيل الشيكات ${isGrp ? 'المجمّعة' : 'المسوّاة'} (${numAr(chqs.length)} شيك)</div>
       <table class="ed-tbl">
-        <thead><tr><th class="c" style="width:32px">م</th><th class="c" style="width:92px">رقم الشيك</th><th class="c" style="width:76px">تاريخ الإصدار</th><th>الغرض والبيان عند الصرف</th><th class="c" style="width:78px">القرار</th><th class="c" style="width:94px">حالة الشيك</th><th class="n" style="width:96px">المبلغ (ج.م)</th></tr></thead>
+        <thead><tr><th class="c" style="width:32px">م</th><th class="c" style="width:105px">رقم الشيك</th><th class="c" style="width:82px">تاريخ الإصدار</th><th>الغرض والبيان عند الصرف</th><th class="c" style="width:105px">حالة الشيك</th><th class="n" style="width:100px">المبلغ (ج.م)</th></tr></thead>
         <tbody>${chqRows}</tbody>
-        <tfoot><tr><th colspan="6">إجمالي قيمة الشيكات المشمولة في التسوية (حـ/ 1103 عُهد تحت التسوية)</th><th class="n">${money(adv)}</th></tr></tfoot>
+        <tfoot><tr><th colspan="5">إجمالي قيمة الشيكات المشمولة في التسوية (حـ/ 1103 عُهد تحت التسوية)</th><th class="n">${money(adv)}</th></tr></tfoot>
       </table>`
     + `<div class="ed-sec">ثانياً: بيان الفواتير والمصروفات المدرجة (${numAr(lines.length)} بند)</div>
       <table class="ed-tbl">
         <thead><tr><th class="c" style="width:30px">م</th><th class="c" style="width:76px">التاريخ</th><th style="width:165px">التصنيف المحاسبي</th><th>البيان والملاحظات والمستفيدون</th><th class="n" style="width:96px">المبلغ (ج.م)</th></tr></thead>
         <tbody>${lineRows}</tbody>
         <tfoot><tr><th colspan="4">إجمالي مبلغ الفواتير والمصروفات الفعلية المعتمدة</th><th class="n">${money(spent)}</th></tr></tfoot>
-      </table>
-      <div class="ed-tfq-strip blue"><small>تفقيط إجمالي الفواتير:</small><span>${esc(tafqeet(spent))}</span></div>
-      <div class="ed-tfq-strip green"><small>تفقيط إجمالي ميزانية التسوية:</small><span>${esc(tafqeet(avail))}</span></div>
-      ${remTfqVal > 0.005 ? `<div class="ed-tfq-strip gold"><small>${remTfqLbl}:</small><span>${esc(tafqeet(remTfqVal))}</span></div>` : ''}`
+      </table>`
     + (byAcc.length > 1 ? `<div class="ed-sec">ثالثاً: ملخص التوزيع المحاسبي على حسابات المصروفات</div>
       <table class="ed-tbl"><thead><tr><th class="c" style="width:90px">كود الحساب</th><th>اسم الحساب بدليل الحسابات</th><th class="c" style="width:90px">عدد البنود</th><th class="n" style="width:135px">الإجمالي المحمّل</th></tr></thead>
       <tbody>${accRows}</tbody></table>` : '')
@@ -3811,16 +3815,51 @@ function settlementsView() {
       { t: 'إجراء', v: c => canStl && c.status === 'صادر' ? `<button class="btn sm gold" data-stopen="${c.id}">${c.draft_id ? '✏️ مسودة' : 'تسوية'}</button>` : '', raw: () => '' },
     ], items, { title: '🧮 العُهد والسلف تحت التسوية', file: 'open-advances', attr: c => `data-chq="${c.id}"`, empty: 'لا عُهد مفتوحة 👌',
       foot: `<tr><td colspan="4"><b>الإجمالي</b></td><td class="n"><b>${money(tot)}</b></td><td colspan="3"></td></tr>` })}
-    ${grid('stl', [
-      { t: 'تاريخ التسوية', v: s => dt(s.settle_date), raw: s => s.settle_date },
-      { t: 'صاحب العهدة', v: s => `<b>${esc(s.payee_name)}</b>`, raw: s => s.payee_name },
-      { t: 'الشيكات', v: s => chqList(s.cheques) + ((s.cheques || []).length > 1 ? ` <span class="pill ok">مجمّعة (${numAr(s.cheques.length)})</span>` : ''), raw: s => (s.cheques || []).map(x => x.cheque_no).join('+') },
-      { t: 'العهدة', v: s => money(s.advance) + (+s.prev_balance ? `<div class="muted" style="font-size:12px">+ مرحّل ${money(s.prev_balance)}${s.carried_from_no ? ' (' + esc(s.carried_from_no) + ')' : ''}</div>` : ''), raw: s => +s.advance, num: true },
-      { t: 'المصروف', v: s => money(s.spent), raw: s => +s.spent, num: true },
-      { t: 'المتبقي/التصرف', v: s => +s.returned ? `${money(s.returned)} <small class="muted">${esc(s.return_mode)}</small>` : s.return_mode === 'ترحيل' ? `<span class="pill warn">ترحيل ${money(+s.advance + +s.prev_balance + +s.subscriptions - +s.spent)}</span>` : '—', raw: s => s.return_mode },
-      { t: 'الحالة', v: s => stPill(s.status) + (s.reverse_reason ? `<div class="muted" style="font-size:12px">${esc(s.reverse_reason)}</div>` : ''), raw: s => s.status },
-      { t: 'إجراءات', v: s => `<div class="row" style="gap:4px"><button class="btn sm gold" data-stlprt="${s.id}">🖨️ كشف التسوية</button>${s.entry_id ? `<button class="btn sm sec" data-entry="${s.entry_id}">القيد</button>` : ''}${s.reverse_entry_id ? `<button class="btn sm sec" data-entry="${s.reverse_entry_id}">قيد العكس</button>` : ''}${s.status === 'معتمدة' && canRev ? `<button class="btn sm bad" data-strev="${s.id}">↩️ استرجاع</button>` : ''}</div>`, raw: () => '' },
-    ], hist, { title: '📋 سجل التسويات (المعتمدة والمسترجعة)', file: 'settlements', attr: s => `data-chq="${s.cheque_id}"`, empty: 'لا تسويات مسجّلة' })}
+    <div class="card">
+      <div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
+        <h2 style="margin:0">📋 سجل التسويات المعتمدة والمسترجعة (${numAr(hist.length)})</h2>
+        <span class="sp"></span>
+        <input class="input" id="stlHistQ" placeholder="🔎 بحث بالاسم أو رقم الشيك أو التاريخ…" style="max-width:260px;padding:6px 11px;font-size:13px">
+      </div>
+      <div class="stl-hist-list" id="stlHistList">${hist.map(s => {
+        const chqs = s.cheques || [], isGrp = chqs.length > 1;
+        const avail = (+s.advance || 0) + (+s.prev_balance || 0) + (+s.subscriptions || 0);
+        const unspent = +(avail - (+s.spent || 0)).toFixed(2);
+        const disp = +s.returned > 0.005
+          ? `${money(s.returned)} ج <small class="muted">(${esc(s.return_mode)})</small>`
+          : s.return_mode === 'ترحيل'
+            ? `<span style="color:#b45309">ترحيل ${money(unspent)} ج</span>`
+            : Math.abs(unspent) <= 0.005 ? '<span style="color:#15803d">متوازن ٠٫٠٠ ✓</span>' : `${money(unspent)} ج`;
+        const srch = `${s.payee_name || ''} ${s.settle_date || ''} ${chqs.map(x => x.cheque_no).join(' ')} ${s.status || ''}`.toLowerCase();
+        return `<div class="stl-hist-card ${s.status === 'مسترجعة' ? 'rev' : ''}" data-stlh="${esc(srch)}">
+          <div class="stl-hist-hd">
+            <div class="stl-hist-who">
+              <b>${esc(s.payee_name)}</b>
+              <span class="pill">📅 ${dt(s.settle_date)}</span>
+              ${stPill(s.status)}
+              ${isGrp ? `<span class="pill ok">مجمّعة (${numAr(chqs.length)} شيكات)</span>` : '<span class="pill">مفردة</span>'}
+            </div>
+            <div class="row" style="gap:5px">
+              <button class="btn sm gold" data-stlprt="${s.id}">🖨️ كشف التسوية</button>
+              ${s.entry_id ? `<button class="btn sm sec" data-entry="${s.entry_id}">📒 القيد</button>` : ''}
+              ${s.reverse_entry_id ? `<button class="btn sm sec" data-entry="${s.reverse_entry_id}">قيد العكس</button>` : ''}
+              ${s.status === 'معتمدة' && canRev ? `<button class="btn sm bad" data-strev="${s.id}">↩️ استرجاع</button>` : ''}
+            </div>
+          </div>
+          <div class="stl-hist-chqs">
+            <small class="muted" style="font-weight:700">الشيكات:</small>
+            ${chqs.map(x => `<a class="stl-chq-chip" href="#/cheque/${x.id}">🧾 ${esc(x.cheque_no || 'بدون رقم')} · ${money(x.amount)}</a>`).join('') || '<span class="muted">—</span>'}
+          </div>
+          <div class="stl-hist-nums">
+            <div class="stl-hnum"><small>إجمالي الشيكات</small><b>${money(s.advance)} ج</b></div>
+            <div class="stl-hnum amber"><small>مرحّل / اشتراكات</small><b>${money((+s.prev_balance || 0) + (+s.subscriptions || 0))} ج</b></div>
+            <div class="stl-hnum rose"><small>المنصرف الفعلي</small><b>${money(s.spent)} ج</b></div>
+            <div class="stl-hnum ok"><small>المتبقي والتصرف</small><b>${disp}</b></div>
+          </div>
+          ${s.reverse_reason ? `<div class="muted" style="font-size:12px;margin-top:6px;color:var(--bad)">↩️ سبب الاسترجاع: ${esc(s.reverse_reason)}</div>` : ''}
+        </div>`;
+      }).join('') || '<div class="empty">لا تسويات مسجّلة</div>'}</div>
+    </div>
     <div class="card"><h2>👥 العُهد المفتوحة حسب صاحب العهدة</h2>${bars(byParty, true)}</div>`;
 }
 
@@ -6034,6 +6073,11 @@ function bindPage(gridOnly) {
   app.querySelectorAll('[data-stopen]').forEach(b => b.onclick = ev => { ev.stopPropagation(); openSettle(b.dataset.stopen); });
   app.querySelectorAll('[data-stddel]').forEach(b => b.onclick = ev => { ev.stopPropagation(); delDraft(b.dataset.stddel); });
   app.querySelectorAll('[data-strev]').forEach(b => b.onclick = ev => { ev.stopPropagation(); revSettle(b.dataset.strev); });
+  const shq = $('#stlHistQ');
+  if (shq) shq.oninput = () => {
+    const q = shq.value.trim().toLowerCase();
+    app.querySelectorAll('[data-stlh]').forEach(el => { el.hidden = !!(q && !el.dataset.stlh.includes(q)); });
+  };
   on('stlDraftDel', () => delDraft(S.cheque.settlement.id));
   on('stlReverse', () => revSettle(S.cheque.settlement.id));
 

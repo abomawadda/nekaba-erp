@@ -799,4 +799,25 @@ a.kpi:hover,.kpi[data-ptab]:hover{transform:translateY(-1px);box-shadow:0 6px 16
 .m-nm{min-width:190px;font-weight:800;color:#0f172a;line-height:1.45}
 .m-job-pill{display:inline-block;padding:2px 8px;border-radius:7px;background:#eef4fa;border:1px solid #d4e2f0;color:var(--brand);font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums}
 
+/* ───────── المرحلة 40: بطاقات سجل التسويات الاحترافية ───────── */
+.stl-hist-list{display:grid;gap:10px;margin-top:10px}
+.stl-hist-card{background:#fff;border:1px solid #d9e4ee;border-inline-start:4px solid var(--brand);border-radius:13px;padding:12px 15px;box-shadow:0 2px 8px rgba(15,61,94,.04);transition:border-color .15s,box-shadow .15s}
+.stl-hist-card:hover{border-color:var(--brand2);box-shadow:0 6px 16px rgba(15,61,94,.09)}
+.stl-hist-card.rev{border-inline-start-color:var(--bad);opacity:.88}
+.stl-hist-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.stl-hist-who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.stl-hist-who b{font-size:15px;color:#0f172a}
+.stl-hist-chqs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0}
+.stl-chq-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:7px;background:#fffbeb;border:1px solid #f2d194;color:#92400e;font-weight:800;font-size:12px;text-decoration:none;font-variant-numeric:tabular-nums}
+.stl-chq-chip:hover{background:#fef3c7;border-color:#d97706}
+.stl-hist-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px;padding-top:8px;border-top:1px dashed #e2eaf2}
+@media(max-width:680px){.stl-hist-nums{grid-template-columns:repeat(2,1fr)}}
+.stl-hnum{background:#f8fbfe;border:1px solid #e2eaf2;border-radius:9px;padding:6px 10px}
+.stl-hnum small{display:block;font-size:11px;color:#64748b;font-weight:700}
+.stl-hnum b{display:block;font-size:14px;color:#0f172a;margin-top:1px;font-variant-numeric:tabular-nums}
+.stl-hnum.ok{background:#f0fdf4;border-color:#bbf7d0}.stl-hnum.ok b{color:#15803d}
+.stl-hnum.rose{background:#fef2f2;border-color:#fecaca}.stl-hnum.rose b{color:#b91c1c}
+.stl-hnum.amber{background:#fffbeb;border-color:#fde68a}.stl-hnum.amber b{color:#b45309}
+
+
 
