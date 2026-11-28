@@ -766,3 +766,26 @@ a.kpi:hover,.kpi[data-ptab]:hover{transform:translateY(-1px);box-shadow:0 6px 16
 .tkt-card.replied{border-inline-start-color:var(--ok)}
 .tkt-card.closed{border-inline-start-color:#94a3b8;opacity:.88}
 .tkt-reply{margin-top:9px;padding:9px 12px;border-radius:9px;background:#f0fdf4;border:1px solid #bbf7d0;font-size:13px;color:#14532d}
+
+/* ───────── المرحلة 38: شاشة تسوية العهدة الذكية والتفاعلية ───────── */
+.stl-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 12px}
+@media(max-width:720px){.stl-kpis{grid-template-columns:repeat(2,1fr)}}
+.stl-kpi{border-radius:11px;padding:9px 11px;border:1px solid #d7e2ec;background:#f8fbfe;text-align:center}
+.stl-kpi small{display:block;font-size:11px;font-weight:700;color:#526377}
+.stl-kpi b{display:block;font-size:16px;font-weight:800;margin-top:2px;color:#0f172a;font-variant-numeric:tabular-nums}
+.stl-kpi.amber{background:#fffbeb;border-color:#fde68a}.stl-kpi.amber b{color:#b45309}
+.stl-kpi.green{background:#ecfdf5;border-color:#a7f3d0}.stl-kpi.green b{color:#047857}
+.stl-kpi.rose{background:#fef2f2;border-color:#fecaca}.stl-kpi.rose b{color:#b91c1c}
+.stl-row{background:#fff;border:1px solid #d7e2ec;border-inline-start:4px solid var(--brand2);border-radius:12px;padding:10px 12px;margin-bottom:9px;box-shadow:0 1px 4px rgba(15,61,94,.04)}
+.stl-row-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;font-size:12.5px;font-weight:800;color:var(--brand)}
+.stl-alw-panel{margin:8px 0 6px;padding:9px 11px;border-radius:10px;background:#fffdf4;border:1px solid #ebd794}
+.stl-alw-panel .stl-alw-ttl{font-size:12.5px;font-weight:800;color:#92400e;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.stl-alw-item{display:flex;align-items:center;gap:8px;padding:6px 8px;margin:4px 0;background:#fff;border:1px solid #f0e1ae;border-radius:8px;cursor:pointer;font-size:12.5px}
+.stl-alw-item:hover{border-color:#c9a227;background:#fffef8}
+.stl-surplus-opts{display:grid;gap:8px;margin-top:12px}
+.stl-surplus-btn{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;border:1.5px solid #d7e2ec;background:#fff;cursor:pointer;text-align:start;font-family:inherit;transition:all .15s}
+.stl-surplus-btn:hover{border-color:var(--brand);background:#f4f9fe;transform:translateY(-1px)}
+.stl-surplus-btn i{font-size:22px;font-style:normal}
+.stl-surplus-btn b{display:block;font-size:14px;color:var(--brand)}
+.stl-surplus-btn small{display:block;font-size:12px;color:#526377}
+

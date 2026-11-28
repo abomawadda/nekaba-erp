@@ -2741,7 +2741,7 @@ function booksView() {
       ${(b.gaps || []).length ? `<div class="alert warn" style="margin-top:8px">⚠️ أرقام متخطّاة (لا شيك ولا مسجّلة تالفة): ${b.gaps.map(g => `<span class="dt">${esc(g)}</span>`).join('، ')} — سجّلها تالفة لو اتقطعت.</div>` : ''}
       ${(b.spoiled_list || []).length ? `<details style="margin-top:6px"><summary class="muted">الأوراق التالفة/الملغاة (${b.spoiled_list.length})</summary>${b.spoiled_list.map(x => kvh(`<span class="dt">${esc(x.cheque_no)}</span> — ${esc(x.reason)}`, dt(x.date))).join('')}</details>` : ''}
       ${ed ? `<div class="row" style="margin-top:8px"><input class="input" placeholder="رقم ورقة تالفة/ملغاة" data-spno="${b.id}" dir="ltr" style="flex:1;min-width:150px"><input class="input" placeholder="السبب" data-spr="${b.id}" style="flex:2;min-width:150px">
-        <button class="btn sm bad" data-spoil="${b.id}">تسجيل كورقة تالفة</button>${b.status === 'نشط' ? `<button class="btn sm sec" data-bookclose="${b.id}">إقفال الدفتر</button>` : ''}</div>` : ''}</div>`).join('')
+        <button class="btn sm bad" data-spoil="${b.id}">تسجيل كورقة تالفة</button><button class="btn sm sec" data-bookedit="${b.id}">✏️ تعديل الدفتر</button>${b.status === 'نشط' ? `<button class="btn sm sec" data-bookclose="${b.id}">إقفال الدفتر</button>` : ''}</div>` : ''}</div>`).join('')
       || '<div class="card empty">لا دفاتر مسجّلة بعد — سجّل الدفتر الحالي بأول وآخر رقم.</div>'}`;
 }
 // ───────── استوديو المستندات والسندات والتقارير الرسمية المعتمدة (A4 Document Studio) ─────────
@@ -4250,39 +4250,80 @@ function benForm() {
     <label class="f"><span>ملاحظات</span><input class="input" name="notes"></label>
     <div id="ferr"></div><div class="acts"><button class="btn" type="submit">تسجيل</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
 }
-function settleForm(c, h = {}, dr = null) {
+function settleRowHTML(l = {}, idx = 1, meetings = []) {
   const cats = ['بدل جلسات', 'بدل ضيافة', 'بدل انتقال', 'هدايا', 'جوائز نقدية', 'مشروبات ومأكولات', 'مطبوعات ولافتات', 'إيجار سيارة', 'انتقالات بالباص', 'حجز تذاكر', 'رسوم', 'إقامة بالفندق', 'أدوات مكتبية', 'مشتريات أخرى'];
-  const v = x => esc(x == null ? '' : String(x)), d = dr || {};
+  const v = x => esc(x == null ? '' : String(x));
   const bensTxt = b => (b || []).map(x => x.amount ? `${x.job_id}:${x.amount}` : x.job_id).join(', ');
-  const row = (l = {}) => `<div class="row" data-sl ${l.meeting_ids && l.meeting_ids.length ? `data-mids="${esc(l.meeting_ids.join(','))}" data-alwrow="1"` : ''} style="margin-bottom:6px"><select class="input" style="flex:1.6;min-width:130px" name="cat">${options(cats, l.category || null, false)}</select>
-    <input class="input" style="flex:1;min-width:95px" name="amt" inputmode="decimal" placeholder="المبلغ" value="${v(l.amount)}"><input class="input" style="flex:1.2;min-width:125px" type="date" name="doc_date" title="تاريخ الفاتورة (اختياري)" value="${v(l.doc_date)}"><input class="input" style="flex:2;min-width:140px" name="note" placeholder="بيان / رقم الفاتورة" value="${v(l.notes)}">
-    <input class="input" style="flex:1 1 100%" name="bens" placeholder="المستفيدون (اختياري): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200" value="${v(bensTxt(l.beneficiaries))}"></div>`;
+  const selMids = new Set(l.meeting_ids || []);
+  const catVal = l.category || 'بدل ضيافة';
+  const isAlw = catVal === 'بدل جلسات';
+  const mtList = meetings.length
+    ? meetings.map(m => `<label class="stl-alw-item">
+        <input type="checkbox" data-rmalw value="${m.id}" ${selMids.has(m.id) ? 'checked' : ''}>
+        <div style="flex:1"><b>جلسة #${numAr(m.meeting_no)} — ${esc(m.title)}</b> <small class="muted">(${dt(m.meeting_date)} · ${numAr(m.present)} حاضر × ${money(m.rate)} ج)</small></div>
+        <b style="color:var(--brand)">${money(m.total)} ج</b>
+      </label>`).join('')
+    : '<div class="muted" style="font-size:12px">لا توجد جلسات منعقدة بانتظار صرف بدل جلسات حالياً (يمكنك إدخال المبلغ يدوياً).</div>';
+  return `<div class="stl-row" data-sl ${selMids.size ? `data-mids="${esc([...selMids].join(','))}"` : ''}>
+    <div class="stl-row-hd"><span>🧾 بند مصروف #<i data-slnum style="font-style:normal">${numAr(idx)}</i></span>
+      <button type="button" class="btn sm bad" data-sldel title="حذف هذا البند" style="padding:2px 8px;font-size:11.5px">🗑️ حذف</button>
+    </div>
+    <div class="row" style="gap:6px">
+      <select class="input" style="flex:1.6;min-width:135px" name="cat">${options(cats, catVal, false)}</select>
+      <input class="input" style="flex:1;min-width:95px" name="amt" inputmode="decimal" placeholder="المبلغ (ج.م)" value="${v(l.amount)}">
+      <input class="input" style="flex:1.15;min-width:125px" type="date" name="doc_date" title="تاريخ الفاتورة (اختياري)" value="${v(l.doc_date)}">
+      <input class="input" style="flex:2;min-width:140px" name="note" placeholder="بيان / رقم الفاتورة" value="${v(l.notes)}">
+    </div>
+    <div class="stl-alw-panel" data-alwpanel ${isAlw ? '' : 'hidden'}>
+      <div class="stl-alw-ttl"><span>🏛️ اختر الجلسات غير المسوّاة (يحسب النظام تلقائياً: عدد الحاضرين × فئة البدل ويوزعها على الأعضاء):</span></div>
+      ${mtList}
+    </div>
+    <input class="input" style="margin-top:6px;font-size:12.5px" name="bens" placeholder="المستفيدون (اختياري — يُملأ تلقائياً في بدل الجلسات): أرقام وظيفية مفصولة بفاصلة، ولنصيب محدد 1234:200" value="${v(bensTxt(l.beneficiaries))}">
+  </div>`;
+}
+
+function settleForm(c, h = {}, dr = null) {
+  const v = x => esc(x == null ? '' : String(x)), d = dr || {};
+  const today = new Date().toISOString().slice(0, 10);
   const ids = d.cheque_ids || [];
-  const selMids = new Set((d.lines || []).flatMap(l => l.meeting_ids || []));
   const grp = (h.group || []).length ? `<div class="form-sec"><div class="form-sec-hd"><span>🧾 شيكات أخرى لنفس صاحب العهدة (تسوية مجمّعة)</span></div>
-    <div class="muted" style="font-size:12px;margin-bottom:6px">علّم الشيكات اللي بتتسوّى مع الشيك ده — العهدة = مجموعهم وكلهم يتقفلوا مع بعض.</div>
+    <div class="muted" style="font-size:12px;margin-bottom:6px">علّم الشيكات المجمّعة مع هذا الشيك لتُقفل معاً في تسوية واحدة وتقرير مجمّع واحد:</div>
     ${h.group.map(g => `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;margin:4px 0;background:#fff;border:1px solid var(--line);border-radius:8px;cursor:pointer"><input type="checkbox" name="grp" value="${g.id}" data-amt="${g.amount}" style="margin-top:5px" ${ids.includes(g.id) ? 'checked' : ''}>
-      <div><b>شيك ${esc(g.cheque_no || 'بدون رقم')}</b> — ${dt(g.issue_date)} — ${money(g.amount)}${g.notes ? '<div class="muted" style="font-size:13px">' + esc(g.notes) + '</div>' : ''}</div></label>`).join('')}</div>` : '';
-  const alwBox = (h.meetings || []).length ? `<div class="form-sec" style="background:#fffdf6;border-color:#ead89c"><div class="form-sec-hd"><span>🏛️ استيراد بدلات جلسات المجلس (تلقائي من الحضور)</span></div>
-    <div class="muted" style="font-size:12px;margin-bottom:6px">اختر الجلسة فينزل بند «بدل جلسات» تلقائياً بإجمالي الحاضرين وأسمائهم لتغذية المزايا ومنع تكرار الصرف:</div>
-    ${h.meetings.map(m => `<label style="display:flex;gap:8px;align-items:center;padding:6px 8px;margin:4px 0;background:#fff;border:1px solid #eee1b5;border-radius:8px;cursor:pointer">
-      <input type="checkbox" name="malw" value="${m.id}" ${selMids.has(m.id) ? 'checked' : ''}>
-      <div style="flex:1"><b>جلسة #${numAr(m.meeting_no)} — ${esc(m.title)}</b> <small class="muted">(${dt(m.meeting_date)} · ${numAr(m.present)} حاضر × ${money(m.rate)})</small></div>
-      <b style="color:var(--brand)">${money(m.total)} ج</b></label>`).join('')}</div>` : '';
-  const car = (h.carry || []).length ? `<label class="f"><span>رصيد مرحّل من تسوية سابقة (يُجلب آلياً)</span><select class="input" name="carried_from"><option value="" data-amt="0">— لا يوجد —</option>
-    ${h.carry.map(x => `<option value="${x.id}" data-amt="${x.amount}" ${d.carried_from === x.id ? 'selected' : ''}>شيك ${esc(x.cheque_no || 'بدون رقم')} — تسوية ${dt(x.settle_date)} — متبقي ${money(x.amount)}</option>`).join('')}</select></label>` : '';
-  const acts = (h.activities || []).length ? `<label class="f"><span>ربط التسوية برحلة / فعالية (اختياري — لمراجعة الاشتراكات المسجّلة مسبقاً ومنع الازدواج)</span><select class="input" name="activity_id" id="stlActSel"><option value="">— بدون ربط بنشاط —</option>
+      <div style="flex:1"><b>شيك ${esc(g.cheque_no || 'بدون رقم')}</b> — ${dt(g.issue_date)}${g.notes ? '<div class="muted" style="font-size:12.5px">' + esc(g.notes) + '</div>' : ''}</div>
+      <b style="color:var(--brand)">${money(g.amount)} ج</b></label>`).join('')}</div>` : '';
+  const car = (h.carry || []).length ? `<label class="f"><span>🔄 رصيد مرحّل من تسوية سابقة (يُجلب آلياً)</span><select class="input" name="carried_from"><option value="" data-amt="0">— لا يوجد —</option>
+    ${h.carry.map(x => `<option value="${x.id}" data-amt="${x.amount}" ${d.carried_from === x.id ? 'selected' : ''}>شيك ${esc(x.cheque_no || 'بدون رقم')} — تسوية ${dt(x.settle_date)} — متبقي ${money(x.amount)} ج</option>`).join('')}</select></label>` : '';
+  const acts = (h.activities || []).length ? `<label class="f"><span>🚌 ربط التسوية برحلة / فعالية (اختياري — لمراجعة الاشتراكات المسجّلة مسبقاً ومنع الازدواج)</span><select class="input" name="activity_id" id="stlActSel"><option value="">— بدون ربط بنشاط —</option>
     ${h.activities.map(a => `<option value="${a.id}" data-paid="${a.paid_bookings || 0}" data-cnt="${a.bookings_count || 0}" ${d.activity_id === a.id ? 'selected' : ''}>${esc(a.title)} (${dt(a.start_date)} · محصّل بإيصالات: ${money(a.paid_bookings || 0)} ج)</option>`).join('')}</select><div id="stlActInfo"></div></label>` : '';
-  const lines = (d.lines || []).length ? d.lines.map(row).join('') : row() + row();
-  return `<h3>تسوية عهدة — ${esc(c.payee_name)} (${money(c.amount)})</h3>${dr ? '<div class="alert warn">بتكمّل مسودة محفوظة.</div>' : ''}<form id="stf">
-    <label class="f"><span>تاريخ التسوية</span><input class="input" type="date" name="date" value="${v(d.date)}" required></label>
-    ${grp}${alwBox}${car}${acts}
-    <b>المصروفات بالمستندات</b><div id="sls">${lines}</div><button class="btn sm sec" type="button" data-act="slAdd">+ بند</button>
-    <div class="grid2" style="margin-top:10px"><label class="f"><span>اشتراكات نقدية بيد صاحب العهدة (لم تُثبت بإيصال مسبق)</span><input class="input" name="subscriptions" inputmode="decimal" value="${v(d.subscriptions ?? 0)}"></label>
-      <label class="f"><span>المتبقي المردود</span><input class="input" name="returned" inputmode="decimal" value="${v(d.returned ?? 0)}"></label></div>
-    <label class="f"><span>التصرف في المتبقي</span><select class="input" name="return_mode">${options(['لا يوجد', 'رد للخزينة', 'توريد للبنك', 'ترحيل'], d.return_mode || 'لا يوجد', false)}</select></label>
-    <div class="alert warn" id="stCalc"></div>
-    <div id="ferr"></div><div class="acts"><button class="btn" type="submit">اعتماد التسوية</button><button class="btn sec" type="button" data-act="stlDraft">💾 حفظ كمسودة</button><button class="btn sec" type="button" data-close>إلغاء</button></div></form>`;
+  const initLines = (d.lines || []).length ? d.lines : [{}];
+  const linesHtml = initLines.map((l, i) => settleRowHTML(l, i + 1, h.meetings || [])).join('');
+  return `<h3>🧮 تسوية عهدة مالية — ${esc(c.payee_name)} <small class="muted">(شيك ${esc(c.cheque_no || 'بدون رقم')})</small></h3>
+    ${dr ? '<div class="alert warn">📝 تستكمل حالياً مسودة تسوية محفوظة مسبقاً.</div>' : ''}
+    <div class="stl-kpis">
+      <div class="stl-kpi"><small>إجمالي الشيكات المختارة</small><b id="stKpiAdv">${money(c.amount)} ج</b></div>
+      <div class="stl-kpi amber"><small>مرحّل + اشتراكات</small><b id="stKpiPrev">٠٫٠٠ ج</b></div>
+      <div class="stl-kpi green"><small>إجمالي ميزانية التسوية</small><b id="stKpiAvail">${money(c.amount)} ج</b></div>
+      <div class="stl-kpi rose"><small>المنصرف بالفواتير</small><b id="stKpiSpent">٠٫٠٠ ج</b></div>
+    </div>
+    <form id="stf">
+      <div class="grid2">
+        <label class="f"><span>تاريخ إقفال التسوية</span><input class="input" type="date" name="date" value="${v(d.date || today)}" required></label>
+        <label class="f"><span>اشتراكات نقدية بيد صاحب العهدة (لم تُثبت بإيصال مسبق)</span><input class="input" name="subscriptions" inputmode="decimal" value="${v(d.subscriptions ?? 0)}"></label>
+      </div>
+      ${grp}${car}${acts}
+      <div class="row" style="align-items:center;margin:10px 0 6px"><b style="font-size:14.5px;color:var(--brand)">📑 الفواتير وبنود المصروفات</b><span class="sp"></span>
+        <button class="btn sm gold" type="button" data-act="slAdd">+ إضافة بند مصروف</button></div>
+      <div id="sls">${linesHtml}</div>
+      <div class="form-sec" style="margin-top:10px"><div class="form-sec-hd"><span>⚖️ معالجة الفائض / المتبقي (أو اتركه ليقترح النظام تلقائياً عند الاعتماد)</span></div>
+        <div class="grid2">
+          <label class="f"><span>التصرف في المتبقي</span><select class="input" name="return_mode">${options(['لا يوجد', 'ترحيل', 'توريد للبنك', 'رد للخزينة'], d.return_mode || 'لا يوجد', false)}</select></label>
+          <label class="f"><span>المبلغ المردود / المورّد فعلياً (ج.م)</span><input class="input" name="returned" inputmode="decimal" value="${v(d.returned ?? 0)}"></label>
+        </div>
+      </div>
+      <div class="alert warn" id="stCalc"></div>
+      <div id="ferr"></div>
+      <div class="acts"><button class="btn gold" type="submit">✓ اعتماد التسوية وترحيل القيد</button><button class="btn sec" type="button" data-act="stlDraft">💾 حفظ كمسودة</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`;
 }
 function receiptForm() {
   return `<h3>إيداع / تحصيل / رسوم بنكية</h3><form id="rcf">
@@ -4679,6 +4720,31 @@ function bindPage(gridOnly) {
     const ok = await uiConfirm({ title: 'إقفال دفتر الشيكات', msg: `هل تريد إقفال الدفتر (${bk.first_no} ← ${bk.last_no}) واعتباره منتهياً؟`, tone: 'warn', okText: 'إقفال الدفتر' });
     if (!ok) return;
     const r = await call('BANK_BOOK_SAVE', { id: bk.id, bookNo: bk.book_no, firstNo: bk.first_no, lastNo: bk.last_no, status: 'منتهي', notes: bk.notes }); if (!r.success) return toast(r.message, true); render(); });
+  app.querySelectorAll('[data-bookedit]').forEach(b => b.onclick = () => {
+    const bk = S.books.find(x => x.id === b.dataset.bookedit); if (!bk) return;
+    openModal(`<h3>✏️ تعديل بيانات دفتر الشيكات</h3><form id="bkef">
+      <div class="grid2">
+        <label class="f"><span>رقم / اسم الدفتر</span><input class="input" name="bookNo" value="${esc(bk.book_no || '')}"></label>
+        <label class="f"><span>الحالة</span><select class="input" name="status">${options(['نشط', 'منتهي'], bk.status || 'نشط', false)}</select></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>أول رقم شيك</span><input class="input" name="firstNo" dir="ltr" inputmode="numeric" required value="${esc(bk.first_no)}"></label>
+        <label class="f"><span>آخر رقم شيك</span><input class="input" name="lastNo" dir="ltr" inputmode="numeric" required value="${esc(bk.last_no)}"></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span>تاريخ الاستلام</span><input class="input" type="date" name="receivedDate" value="${esc(bk.received_date || '')}"></label>
+        <label class="f"><span>ملاحظات</span><input class="input" name="notes" value="${esc(bk.notes || '')}"></label>
+      </div>
+      <div id="ferr"></div><div class="acts"><button class="btn gold" type="submit">💾 حفظ التعديل</button><button class="btn sec" type="button" data-close>إلغاء</button></div>
+    </form>`, () => {
+      $('#modal [data-close]').onclick = closeModal;
+      $('#bkef').onsubmit = async e => { e.preventDefault();
+        const r = await busy(e.target.querySelector('[type=submit]'), () => call('BANK_BOOK_SAVE', { id: bk.id, ...formData(e.target) }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('تم تعديل الدفتر ✓'); render();
+      };
+    });
+  });
   app.querySelectorAll('[data-act=chqClear]').forEach(b => b.onclick = async () => { const c = S.cheque;
     let d = '';
     if (c.cleared_date) {
@@ -5797,51 +5863,141 @@ function bindPage(gridOnly) {
         notes: r.querySelector('[name=note]').value.trim(),
         meeting_ids: r.dataset.mids ? r.dataset.mids.split(',').filter(Boolean) : undefined,
         beneficiaries: parseBens(r.querySelector('[name=bens]').value) })).filter(l => +l.amount > 0) });
-    finForm(settleForm(c, h, dr), '#stf', build, 'FIN_SETTLE', 'اتسوّت العهدة واترحّل القيد ✓', () => { S.meetings = null; S.meeting = null; render(); }, 'lg');
-    const actSel = $('#stlActSel');
-    if (actSel) {
-      const syncAct = () => {
-        const opt = actSel.selectedOptions[0], box = $('#stlActInfo');
-        if (!box) return;
-        const pd = +(opt && opt.dataset.paid || 0), cnt = +(opt && opt.dataset.cnt || 0);
-        box.innerHTML = actSel.value
-          ? `<div class="alert ${pd > 0 ? 'warn' : ''}" style="margin-top:6px;font-size:12.5px">🚌 <b>معلومة مطابقة للنشاط:</b> يوجد <b>${numAr(cnt)}</b> حجز مسجّل بإجمالي اشتراكات مثبّتة مسبقاً بإيصالات = <b>${money(pd)} ج</b> (في حـ/ 4201). <b>لا تُعد إدخال هذا المبلغ</b> في خانة الاشتراكات بالأسفل منعاً للازدواج؛ اكتب فقط أي مبالغ نقدية إضافية بيد صاحب العهدة لم يُصدر لها إيصال.</div>`
-          : '';
+
+    openModal(settleForm(c, h, dr), m => {
+      m.querySelector('[data-close]').onclick = closeModal;
+      const f = m.querySelector('#stf');
+      const getNums = () => {
+        const spent = [...f.querySelectorAll('[name=amt]')].reduce((a, i) => a + (+i.value || 0), 0);
+        const grp = [...f.querySelectorAll('[name=grp]:checked')].reduce((a, i) => a + (+i.dataset.amt || 0), 0);
+        const prev = f.carried_from ? +(f.carried_from.selectedOptions[0]?.dataset.amt || 0) : 0;
+        const subs = +f.subscriptions.value || 0;
+        const adv = +c.amount + grp, avail = adv + prev + subs, ret = +f.returned.value || 0;
+        const unspent = +(avail - spent).toFixed(2), left = +(unspent - ret).toFixed(2);
+        return { adv, prev, subs, avail, spent, ret, unspent, left };
       };
-      actSel.onchange = syncAct; syncAct();
-    }
-    $('#modal [data-act=stlDraft]').onclick = async e => {
-      const r = await busy(e.target, () => call('FIN_SETTLE', { ...build($('#stf')), draft: true }));
-      if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
-      closeModal(); toast('اتحفظت المسودة ✓'); render(); };
-    const calc = () => { const f = $('#stf'); const spent = [...f.querySelectorAll('[name=amt]')].reduce((a, i) => a + (+i.value || 0), 0);
-      const grp = [...f.querySelectorAll('[name=grp]:checked')].reduce((a, i) => a + (+i.dataset.amt || 0), 0);
-      const prev = f.carried_from ? +(f.carried_from.selectedOptions[0]?.dataset.amt || 0) : 0;
-      const adv = +c.amount + grp, left = adv + prev + (+f.subscriptions.value || 0) - spent - (+f.returned.value || 0);
-      $('#stCalc').innerHTML = `العهدة ${money(adv)}${prev ? ' + مرحّل ' + money(prev) : ''} · المصروف ${money(spent)} · المتبقي ${money(left)}${Math.abs(left) > 0.005 ? (left > 0 ? ' — رد أو ورّد أو رحّل' : ' — عجز يلزمه قرار') : ' ✓'}`; };
-    const syncMalw = () => {
-      const picked = [...$('#stf').querySelectorAll('[name=malw]:checked')].map(ch => (h.meetings || []).find(x => x.id === ch.value)).filter(Boolean);
-      let r = $('#sls [data-alwrow]') || [...$('#sls').querySelectorAll('[data-sl]')].find(x => !x.querySelector('[name=amt]').value.trim());
-      if (!picked.length) {
-        const ex = $('#sls [data-alwrow]');
-        if (ex) { ex.removeAttribute('data-mids'); ex.removeAttribute('data-alwrow'); ex.querySelectorAll('input').forEach(i => (i.value = '')); }
-        calc(); return;
+      const calc = () => {
+        const n = getNums();
+        if ($('#stKpiAdv')) $('#stKpiAdv').textContent = `${money(n.adv)} ج`;
+        if ($('#stKpiPrev')) $('#stKpiPrev').textContent = `${money(n.prev + n.subs)} ج`;
+        if ($('#stKpiAvail')) $('#stKpiAvail').textContent = `${money(n.avail)} ج`;
+        if ($('#stKpiSpent')) $('#stKpiSpent').textContent = `${money(n.spent)} ج`;
+        const box = $('#stCalc');
+        if (!box) return;
+        const isCarry = f.return_mode.value === 'ترحيل' && n.unspent > 0.005;
+        if (Math.abs(n.left) <= 0.005 || isCarry) {
+          box.className = 'alert ok';
+          box.innerHTML = isCarry
+            ? `✓ <b>التسوية متوازنة مع ترحيل فائض (${money(n.unspent)} ج):</b> سيُرحَّل المتبقي تلقائياً للعهدة التالية لنفس صاحب العهدة.`
+            : `✓ <b>التسوية متوازنة بالكامل:</b> الميزانية (${money(n.avail)} ج) = المصروفات (${money(n.spent)} ج)${n.ret > 0 ? ' + المردود (' + money(n.ret) + ' ج)' : ''}.`;
+        } else if (n.left > 0.005) {
+          box.className = 'alert warn';
+          box.innerHTML = `💡 <b>يوجد فائض متبقي قدره (${money(n.left)} ج):</b> اختر التصرف فيه (ترحيل / توريد للبنك / رد للخزينة)، أو اضغط «اعتماد التسوية» لتظهر لك خيارات التصرف فوراً.`;
+        } else {
+          box.className = 'alert bad';
+          box.innerHTML = `⚠️ <b>زيادة منصرف (عجز) بمبلغ (${money(Math.abs(n.left))} ج):</b> المصروفات تتجاوز ميزانية العهدة — راجع الأرقام أو أرفق اعتماداً مالياً.`;
+        }
+      };
+      const renumber = () => {
+        [...f.querySelectorAll('[data-sl]')].forEach((r, i) => {
+          const el = r.querySelector('[data-slnum]'); if (el) el.textContent = numAr(i + 1);
+        });
+      };
+      const bindRow = row => {
+        const cat = row.querySelector('[name=cat]'), panel = row.querySelector('[data-alwpanel]');
+        const syncCat = () => { if (panel) panel.hidden = cat.value !== 'بدل جلسات'; };
+        cat.onchange = () => { syncCat(); calc(); };
+        syncCat();
+        row.querySelectorAll('[data-rmalw]').forEach(ch => ch.onchange = () => {
+          const picked = [...row.querySelectorAll('[data-rmalw]:checked')]
+            .map(x => (h.meetings || []).find(mt => mt.id === x.value)).filter(Boolean);
+          if (!picked.length) { row.removeAttribute('data-mids'); calc(); return; }
+          const byJob = {}; let tot = 0;
+          picked.forEach(mt => {
+            tot += +mt.total;
+            (mt.attendees || []).forEach(a => { if (a.job_id) byJob[a.job_id] = +(+(byJob[a.job_id] || 0) + +mt.rate).toFixed(2); });
+          });
+          row.dataset.mids = picked.map(mt => mt.id).join(',');
+          row.querySelector('[name=amt]').value = String(tot);
+          if (picked.length === 1 && row.querySelector('[name=doc_date]')) row.querySelector('[name=doc_date]').value = picked[0].meeting_date || '';
+          row.querySelector('[name=note]').value = 'بدل جلسات اجتماع ' + picked.map(mt => mt.meeting_no).join(' + ');
+          row.querySelector('[name=bens]').value = Object.entries(byJob).map(([j, amt]) => `${j}:${amt}`).join(', ');
+          calc();
+        });
+        const delBtn = row.querySelector('[data-sldel]');
+        if (delBtn) delBtn.onclick = () => {
+          if (f.querySelectorAll('[data-sl]').length <= 1) {
+            row.removeAttribute('data-mids');
+            row.querySelectorAll('input').forEach(i => { if (i.type === 'checkbox') i.checked = false; else i.value = ''; });
+          } else { row.remove(); renumber(); }
+          calc();
+        };
+      };
+      f.querySelectorAll('[data-sl]').forEach(bindRow);
+
+      m.querySelector('[data-act=slAdd]').onclick = () => {
+        const box = $('#sls'), t = document.createElement('div');
+        t.innerHTML = settleRowHTML({}, box.children.length + 1, h.meetings || []);
+        const nr = t.firstElementChild;
+        box.appendChild(nr); bindRow(nr); renumber(); calc();
+      };
+
+      const actSel = $('#stlActSel');
+      if (actSel) {
+        const syncAct = () => {
+          const opt = actSel.selectedOptions[0], box = $('#stlActInfo');
+          if (!box) return;
+          const pd = +(opt && opt.dataset.paid || 0), cnt = +(opt && opt.dataset.cnt || 0);
+          box.innerHTML = actSel.value
+            ? `<div class="alert ${pd > 0 ? 'warn' : ''}" style="margin-top:6px;font-size:12.5px">🚌 <b>معلومة مطابقة للنشاط:</b> يوجد <b>${numAr(cnt)}</b> حجز مسجّل بإجمالي اشتراكات مثبّتة مسبقاً بإيصالات = <b>${money(pd)} ج</b> (في حـ/ 4201). <b>لا تُعد إدخال هذا المبلغ</b> في خانة الاشتراكات بالأسفل منعاً للازدواج؛ اكتب فقط أي مبالغ نقدية إضافية بيد صاحب العهدة لم يُصدر لها إيصال.</div>`
+            : '';
+        };
+        actSel.onchange = syncAct; syncAct();
       }
-      if (!r) { $('#modal [data-act=slAdd]').click(); r = $('#sls').lastElementChild; }
-      const byJob = {}; let tot = 0;
-      picked.forEach(m => { tot += +m.total; (m.attendees || []).forEach(a => { if (a.job_id) byJob[a.job_id] = +(+(byJob[a.job_id] || 0) + +m.rate).toFixed(2); }); });
-      r.dataset.alwrow = '1'; r.dataset.mids = picked.map(m => m.id).join(',');
-      r.querySelector('[name=cat]').value = 'بدل جلسات';
-      r.querySelector('[name=amt]').value = String(tot);
-      r.querySelector('[name=note]').value = 'بدل جلسات اجتماع ' + picked.map(m => m.meeting_no).join(' + ');
-      r.querySelector('[name=bens]').value = Object.entries(byJob).map(([j, amt]) => `${j}:${amt}`).join(', ');
-      calc();
-    };
-    $('#stf').querySelectorAll('[name=malw]').forEach(ch => (ch.onchange = syncMalw));
-    $('#stf').addEventListener('input', calc); $('#stf').addEventListener('change', calc); calc();
-    $('#modal [data-act=slAdd]').onclick = () => { const box = $('#sls'), t = document.createElement('div'); t.innerHTML = box.firstElementChild.outerHTML;
-      t.firstElementChild.removeAttribute('data-mids'); t.firstElementChild.removeAttribute('data-alwrow');
-      t.firstElementChild.querySelectorAll('input').forEach(i => (i.value = '')); box.appendChild(t.firstElementChild); };
+
+      m.querySelector('[data-act=stlDraft]').onclick = async e => {
+        const r = await busy(e.target, () => call('FIN_SETTLE', { ...build(f), draft: true }));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتحفظت المسودة ✓'); render();
+      };
+
+      const pickSurplusAction = amt => new Promise(resolve => {
+        const dlg = $('#dlg');
+        dlg.innerHTML = `<div class="dlg-box warn">
+          <div class="dlg-hd"><span class="dlg-ic">💡</span><h4>يوجد مبلغ متبقي لم يُحدَّد التصرف فيه (${money(amt)} ج.م)</h4></div>
+          <div class="dlg-bd">
+            <p><b>التفقيط:</b> ${esc(tafqeet(amt))}</p>
+            <p class="muted" style="font-size:13px">كيف تم التصرف في هذا الفائض بالدفاتر؟ اختر الإجراء لإتمام اعتماد التسوية فوراً:</p>
+            <div class="stl-surplus-opts">
+              <button type="button" class="stl-surplus-btn" data-spact="ترحيل"><i>🔄</i><div><b>ترحيل المتبقي (${money(amt)} ج) للعهدة التالية</b><small>يظهر تلقائياً في التسوية القادمة لنفس صاحب العهدة</small></div></button>
+              <button type="button" class="stl-surplus-btn" data-spact="توريد للبنك"><i>🏦</i><div><b>إيداع / توريد المتبقي (${money(amt)} ج) في البنك</b><small>يُقفل العهدة ويُثبت الإيداع في حـ/ 1102 البنك</small></div></button>
+              <button type="button" class="stl-surplus-btn" data-spact="رد للخزينة"><i>💵</i><div><b>رد المتبقي (${money(amt)} ج) نقداً للخزينة</b><small>يُقفل العهدة ويُثبت الرد النقدي في حـ/ 1101 الخزينة</small></div></button>
+            </div>
+          </div>
+          <div class="dlg-ft"><button type="button" class="btn sec" id="spCancel">العودة لتعديل الفواتير</button></div>
+        </div>`;
+        dlg.hidden = false;
+        dlg.querySelector('#spCancel').onclick = () => { dlg.hidden = true; resolve(null); };
+        dlg.querySelectorAll('[data-spact]').forEach(b => b.onclick = () => { dlg.hidden = true; resolve(b.dataset.spact); });
+      });
+
+      f.onsubmit = async e => {
+        e.preventDefault();
+        const n = getNums();
+        if (n.left > 0.005 && f.return_mode.value === 'لا يوجد' && n.ret === 0) {
+          const mode = await pickSurplusAction(n.left);
+          if (!mode) return;
+          f.return_mode.value = mode;
+          f.returned.value = mode === 'ترحيل' ? '0' : String(n.left);
+          calc();
+        }
+        const r = await busy(f.querySelector('[type=submit]'), () => call('FIN_SETTLE', build(f)));
+        if (!r.success) { $('#ferr').innerHTML = `<div class="alert bad">${esc(r.message)}</div>`; return; }
+        closeModal(); toast('اتسوّت العهدة واترحّل القيد ✓'); S.meetings = null; S.meeting = null; render();
+      };
+
+      f.addEventListener('input', calc); f.addEventListener('change', calc); calc();
+    }, 'lg');
   };
   const delDraft = async id => {
     const ok = await uiConfirm({ title: 'حذف مسودة التسوية', msg: 'سيتم حذف المسودة المحفوظة نهائياً مع بقاء الشيكات مفتوحة للتسوية لاحقاً. هل تود المتابعة؟', tone: 'bad', okText: 'حذف المسودة' });
