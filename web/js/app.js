@@ -5878,10 +5878,10 @@ function bindPage(gridOnly) {
       };
       const calc = () => {
         const n = getNums();
-        if ($('#stKpiAdv')) $('#stKpiAdv').textContent = `${money(n.adv)} ج`;
-        if ($('#stKpiPrev')) $('#stKpiPrev').textContent = `${money(n.prev + n.subs)} ج`;
-        if ($('#stKpiAvail')) $('#stKpiAvail').textContent = `${money(n.avail)} ج`;
-        if ($('#stKpiSpent')) $('#stKpiSpent').textContent = `${money(n.spent)} ج`;
+        if ($('#stKpiAdv')) $('#stKpiAdv').innerHTML = `${money(n.adv)} ج`;
+        if ($('#stKpiPrev')) $('#stKpiPrev').innerHTML = `${money(n.prev + n.subs)} ج`;
+        if ($('#stKpiAvail')) $('#stKpiAvail').innerHTML = `${money(n.avail)} ج`;
+        if ($('#stKpiSpent')) $('#stKpiSpent').innerHTML = `${money(n.spent)} ج`;
         const box = $('#stCalc');
         if (!box) return;
         const isCarry = f.return_mode.value === 'ترحيل' && n.unspent > 0.005;
